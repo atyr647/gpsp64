@@ -18,7 +18,25 @@
  */
 
 #include "common.h"
-#include "streams/file_stream.h"
+#ifdef N64
+  #include <stdio.h>
+  /* Provide compatibility shims for libretro file stream API */
+  typedef FILE RFILE;
+  #define filestream_open(path, mode, hint) fopen(path, "rb")
+  #define filestream_close(fp) fclose(fp)
+  #define filestream_read(fp, buf, len) fread(buf, 1, len, fp)
+  #define filestream_seek(fp, off, whence) fseek(fp, off, whence)
+  static inline long filestream_get_size(FILE *fp) {
+    long pos = ftell(fp); fseek(fp, 0, SEEK_END);
+    long sz = ftell(fp); fseek(fp, pos, SEEK_SET);
+    return sz;
+  }
+  /* Stub out libretro VFS constants */
+  #define RETRO_VFS_FILE_ACCESS_READ 0
+  #define RETRO_VFS_FILE_ACCESS_HINT_NONE 0
+#else
+  #include "streams/file_stream.h"
+#endif
 
 /* Sound */
 #define gbc_sound_tone_control_low(channel, regn)                             \
@@ -2535,8 +2553,13 @@ static s32 load_gamepak_raw(const char *name)
   return -1;
 }
 
+#ifdef N64
+u32 load_gamepak(const char *name,
+                 int force_rtc, int force_rumble, int force_serial)
+#else
 u32 load_gamepak(const struct retro_game_info* info, const char *name,
                  int force_rtc, int force_rumble, int force_serial)
+#endif
 {
    char game_code[5] = {0,0,0,0,0};
 

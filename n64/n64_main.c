@@ -1,0 +1,198 @@
+/* gameplaySP - N64 port
+ *
+ * Copyright (C) 2006 Exophase <exophase@gmail.com>
+ * N64 port Copyright (C) 2026
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+#include <libdragon.h>
+#include <malloc.h>
+#include <string.h>
+#include <stdio.h>
+
+#include "../common.h"
+#include "../gba_memory.h"
+#include "../gba_cc_lut.h"
+
+#include "n64_video.h"
+#include "n64_audio.h"
+#include "n64_input.h"
+#include "n64_storage.h"
+
+/* Global state required by the emulator core */
+u32 skip_next_frame = 0;
+u32 num_skipped_frames = 0;
+int dynarec_enable = 1;
+boot_mode selected_boot_mode = boot_game;
+int sprite_limit = 1;
+u32 netplay_num_clients = 0, netplay_client_id = 0;
+
+u32 idle_loop_target_pc = 0xFFFFFFFF;
+u32 translation_gate_target_pc[MAX_TRANSLATION_GATES];
+u32 translation_gate_targets = 0;
+
+static bool emulator_running = false;
+
+/* Simple frameskip state */
+static u32 frameskip_counter = 0;
+#define FRAMESKIP_INTERVAL 1  /* Skip every other frame by default */
+
+void error_msg(const char *text)
+{
+  debugf("[gpSP error]: %s\n", text);
+}
+
+void info_msg(const char *text)
+{
+  debugf("[gpSP]: %s\n", text);
+}
+
+/* These are stubs for features not needed on N64 */
+void set_fastforward_override(bool fastforward) { (void)fastforward; }
+void write_rumble(bool oldv, bool newv) { (void)oldv; (void)newv; }
+void rumble_frame_reset(void) {}
+float rumble_active_pct(void) { return 0.0f; }
+void netpacket_poll_receive(void) {}
+void netpacket_send(uint16_t client_id, const void *buf, size_t len) {
+  (void)client_id; (void)buf; (void)len;
+}
+
+/* ROM file browser - simple text-based menu */
+static bool select_rom(char *path_out, size_t path_size)
+{
+  return n64_storage_browse_roms(path_out, path_size);
+}
+
+static bool load_rom_and_bios(const char *rom_path)
+{
+  /* Try to load official BIOS from SD */
+  char bios_path[256];
+  snprintf(bios_path, sizeof(bios_path), "sd://gba_bios.bin");
+
+  if (load_bios(bios_path) != 0) {
+    /* Fall back to built-in open-source BIOS */
+    info_msg("Using built-in BIOS");
+    memcpy(bios_rom, open_gba_bios_rom, sizeof(bios_rom));
+  } else {
+    if (bios_rom[0] != 0x18) {
+      info_msg("BIOS image seems incorrect, using built-in BIOS");
+      memcpy(bios_rom, open_gba_bios_rom, sizeof(bios_rom));
+    }
+  }
+
+  /* Clear backup memory */
+  memset(gamepak_backup, 0xff, sizeof(gamepak_backup));
+
+  /* Load the ROM from SD card via the core load_gamepak */
+  if (load_gamepak(rom_path, FEAT_AUTODETECT, FEAT_AUTODETECT, 0) != 0) {
+    error_msg("Could not load game file");
+    return false;
+  }
+
+  /* Reset the GBA system */
+  reset_gba();
+  return true;
+}
+
+static void run_frame(void)
+{
+  /* Simple frameskip: skip rendering every other frame */
+  skip_next_frame = (frameskip_counter % (FRAMESKIP_INTERVAL + 1)) != 0;
+  frameskip_counter++;
+
+  /* Run the CPU for one frame */
+#ifdef HAVE_DYNAREC
+  if (dynarec_enable)
+    execute_arm_translate(execute_cycles);
+  else
+#endif
+  {
+    clear_gamepak_stickybits();
+    execute_arm(execute_cycles);
+  }
+}
+
+int main(void)
+{
+  /* Initialize N64 hardware subsystems via libdragon */
+  debug_init_isviewer();
+  debug_init_usblog();
+
+  /* Initialize subsystems */
+  dfs_init(DFS_DEFAULT_LOCATION);
+  n64_video_init();
+  n64_audio_init();
+  n64_input_init();
+  n64_storage_init();
+
+  info_msg("gpSP N64 - GBA Emulator");
+  info_msg("Initializing...");
+
+  /* Allocate GBA screen buffer */
+  extern u16 *gba_screen_pixels;
+  gba_screen_pixels = (u16 *)malloc(GBA_SCREEN_BUFFER_SIZE);
+  if (!gba_screen_pixels) {
+    error_msg("Failed to allocate screen buffer");
+    while (1) {}
+  }
+  memset(gba_screen_pixels, 0, GBA_SCREEN_BUFFER_SIZE);
+
+  /* Initialize sound */
+  init_sound();
+
+  /* Initialize emulator core memory */
+  init_gamepak_buffer();
+
+  /* ROM selection screen */
+  char rom_path[512];
+  while (1) {
+    /* Draw ROM browser */
+    if (!select_rom(rom_path, sizeof(rom_path))) {
+      /* Draw "No ROMs found" message and wait */
+      n64_video_draw_text(80, 100, "No GBA ROMs found on SD card.");
+      n64_video_draw_text(80, 116, "Place .gba files in sd://gba/");
+      n64_video_flip();
+      while (1) {
+        n64_input_poll();
+        /* Wait for reset */
+      }
+    }
+
+    /* Load the selected ROM */
+    n64_video_draw_text(80, 120, "Loading ROM...");
+    n64_video_flip();
+
+    if (!load_rom_and_bios(rom_path)) {
+      n64_video_draw_text(80, 136, "Failed to load ROM!");
+      n64_video_flip();
+      /* Wait a few seconds then go back to browser */
+      wait_ms(3000);
+      continue;
+    }
+
+    /* Main emulation loop */
+    emulator_running = true;
+    while (emulator_running) {
+      /* Poll input */
+      n64_input_poll();
+      n64_input_update();
+
+      /* Run one GBA frame */
+      run_frame();
+
+      /* Output audio */
+      n64_audio_render_frame();
+
+      /* Output video (blit GBA framebuffer to N64 display) */
+      if (!skip_next_frame) {
+        n64_video_render_frame();
+      }
+    }
+  }
+
+  return 0;
+}

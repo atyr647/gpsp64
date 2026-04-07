@@ -24,6 +24,11 @@
   #define SZREG 8
   #define REG_L ld
   #define REG_S sd
+#elif defined(N64)
+  .set mips3
+  #define SZREG 4
+  #define REG_L lw
+  #define REG_S sw
 #else
   .set mips32r2
   #define SZREG 4
@@ -615,7 +620,8 @@ fnptrs:
 
 # Make this section executable!
 .text
-#if defined(PSP) || defined(PS2)
+#if defined(PSP) || defined(PS2) || defined(N64)
+  # N64: All RAM is executable, no special section needed
   .section .bss
 #else
   # Need to mark the section as awx (for Linux)

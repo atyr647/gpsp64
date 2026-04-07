@@ -436,7 +436,9 @@ u32 arm_to_mips_reg[] =
   check_load_reg_pc(arm_reg_a1, shift_reg, 8);                                \
   generate_load_reg_pc(reg_a0, _rm, 12);                                      \
   /* Only load the result on zero, no shift */                                \
-  mips_emit_b(beq, arm_to_mips_reg[shift_reg], reg_zero, 7);                  \
+  /* 7 base instrs + 2 movz calls * N64_MOVZ_EXTRA each */                   \
+  mips_emit_b(beq, arm_to_mips_reg[shift_reg], reg_zero,                      \
+              7 + 2 * N64_MOVZ_EXTRA);                                        \
   generate_swap_delay();                                                      \
   mips_emit_addiu(reg_temp, arm_to_mips_reg[shift_reg], -1);                  \
   mips_emit_sllv(reg_a0, reg_a0, reg_temp);                                   \
@@ -454,7 +456,9 @@ u32 arm_to_mips_reg[] =
   check_load_reg_pc(arm_reg_a1, shift_reg, 8);                                \
   generate_load_reg_pc(reg_a0, _rm, 12);                                      \
   /* Only load the result on zero, no shift */                                \
-  mips_emit_b(beq, arm_to_mips_reg[shift_reg], reg_zero, 7);                  \
+  /* 7 base instrs + 2 movz calls * N64_MOVZ_EXTRA each */                   \
+  mips_emit_b(beq, arm_to_mips_reg[shift_reg], reg_zero,                      \
+              7 + 2 * N64_MOVZ_EXTRA);                                        \
   generate_swap_delay();                                                      \
   mips_emit_addiu(reg_temp, arm_to_mips_reg[shift_reg], -1);                  \
   mips_emit_srlv(reg_a0, reg_a0, reg_temp);                                   \
@@ -470,7 +474,8 @@ u32 arm_to_mips_reg[] =
   generate_load_reg_pc(reg_a1, _rs, 8);                                       \
   generate_load_reg_pc(reg_a0, _rm, 12);                                      \
   /* Only load the result on zero, no shift */                                \
-  mips_emit_b(beq, reg_a1, reg_zero, 7);                                      \
+  /* 7 base instrs + 1 movn * N64_MOVZ_EXTRA */                              \
+  mips_emit_b(beq, reg_a1, reg_zero, 7 + N64_MOVZ_EXTRA);                     \
   generate_swap_delay();                                                      \
   /* Cap shift at 32, since it's equivalent */                                \
   mips_emit_addiu(reg_temp, reg_zero, 32);                                    \

@@ -247,6 +247,12 @@ typedef struct
   void platform_cache_sync(void *baseaddr, void *endptr) {
     __clear_cache(baseaddr, endptr);
   }
+#elif defined(N64)
+  #include "n64/n64_cache.h"
+  void platform_cache_sync(void *baseaddr, void *endptr) {
+    unsigned int len = (unsigned int)((char*)endptr - (char*)baseaddr) + 64;
+    n64_flush_cache(baseaddr, len);
+  }
 #elif defined(MIPS_ARCH)
   void platform_cache_sync(void *baseaddr, void *endptr) {
     __builtin___clear_cache(baseaddr, endptr);

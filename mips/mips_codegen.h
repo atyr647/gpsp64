@@ -293,11 +293,34 @@ typedef enum
     mips_emit_special2(maddu, rs, rt, 0, 0)
 #endif
 
-#define mips_emit_movn(rd, rs, rt)                                            \
-  mips_emit_special(movn, rs, rt, rd, 0)                                      \
+#ifdef N64
+  /* MIPS III (VR4300) lacks movz/movn (MIPS IV instructions).
+   * Replace with branch sequences. Each emits 3 instructions
+   * instead of 1 - callers with hardcoded branch offsets must
+   * account for this via N64_MOVZ_EXTRA (2 extra per use). */
+  #define N64_MOVZ_EXTRA 2
 
-#define mips_emit_movz(rd, rs, rt)                                            \
-  mips_emit_special(movz, rs, rt, rd, 0)                                      \
+  /* movz rd, rs, rt  →  if (rt == 0) rd = rs */
+  #define mips_emit_movz(rd, rs, rt)                                          \
+    mips_emit_b(bne, rt, mips_reg_zero, 1);                                   \
+    mips_emit_nop();                                                          \
+    mips_emit_addu(rd, rs, mips_reg_zero)
+
+  /* movn rd, rs, rt  →  if (rt != 0) rd = rs */
+  #define mips_emit_movn(rd, rs, rt)                                          \
+    mips_emit_b(beq, rt, mips_reg_zero, 1);                                   \
+    mips_emit_nop();                                                          \
+    mips_emit_addu(rd, rs, mips_reg_zero)
+#else
+  #define N64_MOVZ_EXTRA 0
+
+  #define mips_emit_movn(rd, rs, rt)                                          \
+    mips_emit_special(movn, rs, rt, rd, 0)                                    \
+
+  #define mips_emit_movz(rd, rs, rt)                                          \
+    mips_emit_special(movz, rs, rt, rd, 0)                                    \
+
+#endif
 
 #define mips_emit_sync()                                                      \
   mips_emit_special(sync, 0, 0, 0, 0)                                         \

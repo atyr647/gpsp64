@@ -12,7 +12,11 @@
 #endif
 
 /* Cache sizes and their config knobs */
-#if defined(SMALL_TRANSLATION_CACHE)
+#if defined(TINY_TRANSLATION_CACHE)
+  /* N64 and other extremely memory-constrained targets */
+  #define ROM_TRANSLATION_CACHE_SIZE (1024 * 512)
+  #define RAM_TRANSLATION_CACHE_SIZE (1024 * 128)
+#elif defined(SMALL_TRANSLATION_CACHE)
   #define ROM_TRANSLATION_CACHE_SIZE (1024 * 1024 * 2)
   #define RAM_TRANSLATION_CACHE_SIZE (1024 * 384)
 #else

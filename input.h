@@ -20,7 +20,9 @@
 #ifndef INPUT_H
 #define INPUT_H
 
+#ifndef N64
 #include "libretro.h"
+#endif
 
 typedef enum
 {
@@ -37,6 +39,7 @@ typedef enum
   BUTTON_NONE   = 0x00
 } input_buttons_type;
 
+#ifndef N64
 typedef struct
 {
    unsigned retropad ;
@@ -60,6 +63,7 @@ extern bool libretro_supports_bitmasks;
 extern bool libretro_supports_ff_override;
 extern bool libretro_ff_enabled;
 extern bool libretro_ff_enabled_prev;
+#endif
 
 /* Minimum (and default) turbo pulse train
  * is 2 frames ON, 2 frames OFF */

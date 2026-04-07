@@ -149,6 +149,10 @@ extern u8* ram_translation_cache_ptr;
 extern u8* rom_translation_cache;
 extern u8* ram_translation_cache;
 extern int sceBlock;
+#elif defined(N64)
+/* N64: translation caches are in BSS, all RAM is executable on N64 */
+extern u8 rom_translation_cache[ROM_TRANSLATION_CACHE_SIZE];
+extern u8 ram_translation_cache[RAM_TRANSLATION_CACHE_SIZE];
 #else
 extern u8 rom_translation_cache[ROM_TRANSLATION_CACHE_SIZE];
 extern u8 ram_translation_cache[RAM_TRANSLATION_CACHE_SIZE];
