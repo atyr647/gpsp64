@@ -53,9 +53,7 @@ void info_msg(const char *text)
 
 /* These are stubs for features not needed on N64 */
 void set_fastforward_override(bool fastforward) { (void)fastforward; }
-void write_rumble(bool oldv, bool newv) { (void)oldv; (void)newv; }
-void rumble_frame_reset(void) {}
-float rumble_active_pct(void) { return 0.0f; }
+/* write_rumble, rumble_frame_reset, rumble_active_pct are in gba_memory.c */
 void netpacket_poll_receive(void) {}
 void netpacket_send(uint16_t client_id, const void *buf, size_t len) {
   (void)client_id; (void)buf; (void)len;
@@ -71,7 +69,7 @@ static bool load_rom_and_bios(const char *rom_path)
 {
   /* Try to load official BIOS from SD */
   char bios_path[256];
-  snprintf(bios_path, sizeof(bios_path), "sd://gba_bios.bin");
+  snprintf(bios_path, sizeof(bios_path), "sd:/gba_bios.bin");
 
   if (load_bios(bios_path) != 0) {
     /* Fall back to built-in open-source BIOS */

@@ -33,18 +33,8 @@ void n64_audio_render_frame(void)
   if (samples_read == 0)
     return;
 
-  /* Write samples to N64 audio output */
-  /* libdragon audio_write_silence / audio_write expect specific formats */
-  short *buf = audio_write_begin();
-  if (buf) {
-    /* Copy our audio data into libdragon's buffer */
-    u32 copy_samples = samples_read;
-    if (copy_samples > audio_get_buffer_length())
-      copy_samples = audio_get_buffer_length();
-
-    memcpy(buf, audio_buffer, copy_samples * 2 * sizeof(s16));
-    audio_write_end();
-  }
+  /* Push samples to N64 audio output (non-blocking) */
+  audio_push(audio_buffer, samples_read, false);
 }
 
 void n64_audio_shutdown(void)

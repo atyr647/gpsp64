@@ -3,8 +3,14 @@
 *.so
 *.u
 *.z
+*.d
+*.elf
+*.elf.*
 gpsp.gpe
 tags
 cscope.out
 pandora/linux
 tools/generate_cc_lut
+
+# N64 build
+toolchain/

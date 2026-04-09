@@ -1,80 +1,69 @@
 # gpSP N64 Makefile
 # Builds gpSP as a standalone N64 ROM using libdragon SDK
 #
-# Prerequisites:
-#   - libdragon toolchain installed (https://github.com/DragonMinded/libdragon)
-#   - N64_INST environment variable set to toolchain path
-#
 # Usage:
+#   export N64_INST=$(pwd)/toolchain/opt/libdragon
 #   make -f Makefile.n64
 #   make -f Makefile.n64 clean
 
+# Default N64_INST to toolchain in repo
+N64_INST ?= $(CURDIR)/toolchain/opt/libdragon
+
+# Include libdragon build rules (sets CC, CXX, AS, LD, flags for .z64 targets)
 include $(N64_INST)/include/n64.mk
 
-# Project name
 N64_ROM_TITLE = "gpSP GBA Emulator"
-PROG_NAME = gpsp
 
-# Build flags
+# Extra CFLAGS on top of libdragon's defaults
 CFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH
 CFLAGS += -DTINY_TRANSLATION_CACHE
 CFLAGS += -DROM_BUFFER_SIZE=2
 CFLAGS += -DUSE_XBGR1555_FORMAT
-CFLAGS += -O2 -Wall
-CFLAGS += -I. -In64
+CFLAGS += -I$(CURDIR) -I$(CURDIR)/n64
+CFLAGS += -w   # gpsp has many warnings incompatible with libdragon's -Werror
 
-CXXFLAGS += $(CFLAGS) -fno-rtti -fno-exceptions -std=c++11
+CXXFLAGS += $(filter-out -std=gnu17,$(filter -D% -I% -W%,$(CFLAGS)))
+CXXFLAGS += -fno-rtti -fno-exceptions
 
-# Core emulator sources (no libretro-specific files)
-CORE_C_SRCS = \
-	main.c \
-	gba_memory.c \
-	savestate.c \
-	sound.c \
-	cheats.c \
-	serial.c \
-	gbp.c \
-	rfu.c \
-	serial_proto.c \
-	gba_cc_lut.c \
-	memmap.c
+ASFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH -DTINY_TRANSLATION_CACHE
+ASFLAGS += -I$(CURDIR)
 
-# Note: input.c is excluded (uses libretro API), replaced by n64/n64_input.c
-# Note: libretro/libretro.c is excluded, replaced by n64/n64_main.c
+# Core emulator objects (no libretro-specific files)
+OBJS = main.o \
+       gba_memory.o \
+       savestate.o \
+       sound.o \
+       cheats.o \
+       serial.o \
+       gbp.o \
+       rfu.o \
+       serial_proto.o \
+       gba_cc_lut.o \
+       memmap.o \
+       video.o \
+       cpu.o \
+       cpu_threaded.o \
+       bios_data.o \
+       mips/mips_stub.o \
+       n64/n64_main.o \
+       n64/n64_video.o \
+       n64/n64_audio.o \
+       n64/n64_input.o \
+       n64/n64_storage.o
 
-CORE_CC_SRCS = \
-	video.cc \
-	cpu.cc
+# Build rules
+gpsp.z64: gpsp.elf
+gpsp.elf: $(OBJS)
 
-# Dynarec sources (MIPS)
-DYNAREC_C_SRCS = cpu_threaded.c
-DYNAREC_ASM_SRCS = \
-	bios_data.S \
-	mips/mips_stub.S
-
-# N64 platform sources
-N64_C_SRCS = \
-	n64/n64_main.c \
-	n64/n64_video.c \
-	n64/n64_audio.c \
-	n64/n64_input.c \
-	n64/n64_storage.c
-
-# Combine all sources
-SRCS = $(CORE_C_SRCS) $(CORE_CC_SRCS) $(DYNAREC_C_SRCS) $(DYNAREC_ASM_SRCS) $(N64_C_SRCS)
-OBJS = $(SRCS:.c=.o)
-OBJS := $(OBJS:.cc=.o)
-OBJS := $(OBJS:.S=.o)
-
-# Build the N64 ROM
-$(PROG_NAME).z64: $(PROG_NAME).elf
-$(PROG_NAME).elf: $(OBJS)
-
-# Special flags for cpu_threaded.c (suppress warnings from generated code)
-cpu_threaded.o: cpu_threaded.c
-	$(CC) $(CFLAGS) -Wno-unused-variable -Wno-unused-label -c -o $@ $<
+# C++ files need .cc -> .o rule
+%.o: %.cc
+	@mkdir -p $(dir $@)
+	@echo "    [CXX] $<"
+	$(CXX) -c $(CXXFLAGS) -o $@ $<
 
 clean:
-	rm -f $(OBJS) $(PROG_NAME).elf $(PROG_NAME).z64
+	rm -f $(OBJS) $(OBJS:.o=.d) gpsp.elf gpsp.elf.sym gpsp.elf.stripped gpsp.z64
 
 .PHONY: clean
+
+-include $(OBJS:.o=.d)
