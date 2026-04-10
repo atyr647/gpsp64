@@ -67,19 +67,16 @@ static bool select_rom(char *path_out, size_t path_size)
 
 static bool load_rom_and_bios(const char *rom_path)
 {
-  /* Try to load official BIOS from SD */
-  char bios_path[256];
-  snprintf(bios_path, sizeof(bios_path), "sd:/gba_bios.bin");
-
-  if (load_bios(bios_path) != 0) {
-    /* Fall back to built-in open-source BIOS */
+  /* Try to load official BIOS from SD card first, then DFS, then built-in */
+  bool bios_ok = false;
+  if (load_bios("sd:/gba_bios.bin") == 0 && bios_rom[0] == 0x18) {
+    bios_ok = true;
+  } else if (load_bios("rom:/gba_bios.bin") == 0 && bios_rom[0] == 0x18) {
+    bios_ok = true;
+  }
+  if (!bios_ok) {
     info_msg("Using built-in BIOS");
     memcpy(bios_rom, open_gba_bios_rom, sizeof(bios_rom));
-  } else {
-    if (bios_rom[0] != 0x18) {
-      info_msg("BIOS image seems incorrect, using built-in BIOS");
-      memcpy(bios_rom, open_gba_bios_rom, sizeof(bios_rom));
-    }
   }
 
   /* Clear backup memory */

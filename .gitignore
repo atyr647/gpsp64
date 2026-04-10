@@ -14,3 +14,10 @@ tools/generate_cc_lut
 
 # N64 build
 toolchain/
+gpsp.dfs
+
+# Don't commit user GBA ROMs (copyrighted)
+filesystem/gba/*.gba
+filesystem/gba/*.bin
+filesystem/gba/*.agb
+filesystem/gba_bios.bin

@@ -18,8 +18,11 @@
 #include "n64_video.h"
 #include "n64_input.h"
 
-/* ROM directory on SD card */
-#define ROM_DIRECTORY "sd:/gba"
+/* ROM directory: prefer SD card, fall back to embedded DFS filesystem.
+ * - sd:/gba/      = flashcart SD card (real hardware: SC64, EverDrive)
+ * - rom:/gba/     = DragonFS embedded in the .z64 (works in ares) */
+#define ROM_DIRECTORY_SD  "sd:/gba"
+#define ROM_DIRECTORY_DFS "rom:/gba"
 
 /* Maximum number of ROMs to list */
 #define MAX_ROM_ENTRIES 64
@@ -32,15 +35,15 @@ void n64_storage_init(void)
   debugf("N64 storage initialized\n");
 }
 
-/* Scan the ROM directory for .gba files */
-static int scan_rom_directory(void)
+/* Scan one directory for .gba files, append to rom_entries.
+ * Returns number of new entries added. */
+static int scan_directory(const char *path)
 {
   dir_t dir;
   int err;
+  int added = 0;
 
-  rom_count = 0;
-
-  err = dir_findfirst(ROM_DIRECTORY, &dir);
+  err = dir_findfirst(path, &dir);
   while (err == 0 && rom_count < MAX_ROM_ENTRIES) {
     const char *name = dir.d_name;
     size_t len = strlen(name);
@@ -51,13 +54,23 @@ static int scan_rom_directory(void)
         strcasecmp(name + len - 4, ".bin") == 0 ||
         strcasecmp(name + len - 4, ".agb") == 0)) {
       snprintf(rom_entries[rom_count], sizeof(rom_entries[0]),
-               "%s/%s", ROM_DIRECTORY, name);
+               "%s/%s", path, name);
       rom_count++;
+      added++;
     }
 
-    err = dir_findnext(ROM_DIRECTORY, &dir);
+    err = dir_findnext(path, &dir);
   }
 
+  return added;
+}
+
+/* Scan SD card first, then embedded DFS filesystem */
+static int scan_rom_directory(void)
+{
+  rom_count = 0;
+  scan_directory(ROM_DIRECTORY_SD);
+  scan_directory(ROM_DIRECTORY_DFS);
   return rom_count;
 }
 

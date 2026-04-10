@@ -14,6 +14,9 @@ include $(N64_INST)/include/n64.mk
 
 N64_ROM_TITLE = "gpSP GBA Emulator"
 
+# DragonFS filesystem root - put GBA ROMs in filesystem/gba/
+N64_MKDFS_ROOT = filesystem
+
 # Extra CFLAGS on top of libdragon's defaults
 CFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH
 CFLAGS += -DTINY_TRANSLATION_CACHE
@@ -52,8 +55,13 @@ OBJS = main.o \
        n64/n64_storage.o
 
 # Build rules
-gpsp.z64: gpsp.elf
+# If filesystem/ contains files, the .z64 will bundle them as DragonFS
+# accessible at rom:/. Otherwise builds without embedded filesystem.
+gpsp.z64: gpsp.elf $(if $(wildcard filesystem/*),gpsp.dfs)
 gpsp.elf: $(OBJS)
+
+# Force DFS rebuild whenever filesystem contents change
+gpsp.dfs: $(shell find filesystem -type f 2>/dev/null)
 
 # C++ files need .cc -> .o rule
 %.o: %.cc
