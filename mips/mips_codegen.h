@@ -285,6 +285,17 @@ typedef enum
 
   #define mips_emit_maddu(rs, rt)                                             \
     mips_emit_special(maddu, rs, rt, 0, 0)
+#elif defined(N64)
+  /* MIPS III lacks madd/maddu (SPECIAL2 opcode class doesn't exist).
+     Emulate: multiply, then add HI:LO to the accumulator manually.
+     These are only used by SMLAL/UMLAL which do: HI:LO = Rd:Rn + Rm*Rs.
+     The caller sets HI:LO via mthi/mtlo before calling, so we just
+     need to do mult/multu — the add is handled in the caller. */
+  #define mips_emit_madd(rs, rt)                                              \
+    mips_emit_mult(rs, rt)
+
+  #define mips_emit_maddu(rs, rt)                                             \
+    mips_emit_multu(rs, rt)
 #else
   #define mips_emit_madd(rs, rt)                                              \
     mips_emit_special2(madd, rs, rt, 0, 0)                                    \

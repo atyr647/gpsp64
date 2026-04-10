@@ -2734,6 +2734,11 @@ static void emit_phand(
     mips_emit_cache(0x1A, mips_reg_ra, -8);
     mips_emit_jr(reg_rv);                       // Jump directly to target for speed
     mips_emit_cache(0x08, mips_reg_ra, -8);
+  #elif defined(N64)
+    /* VR4300 (MIPS III): flush patched instruction to I-cache */
+    mips_emit_cache(0x15, mips_reg_ra, -8);   // D-cache Hit Writeback Invalidate
+    mips_emit_jr(reg_rv);
+    mips_emit_cache(0x10, mips_reg_ra, -8);   // I-cache Hit Invalidate (delay slot)
   #else
     mips_emit_jr(reg_rv);
     #ifdef MIPS_HAS_R2_INSTS
