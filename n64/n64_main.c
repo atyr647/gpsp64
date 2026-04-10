@@ -172,6 +172,7 @@ int main(void)
 
     /* Main emulation loop */
     emulator_running = true;
+    u32 dbg_frame = 0;
     while (emulator_running) {
       /* Poll input */
       n64_input_poll();
@@ -179,6 +180,15 @@ int main(void)
 
       /* Run one GBA frame */
       run_frame();
+      if (++dbg_frame <= 10)
+        debugf("f%lu pc=%08lx dcnt=%04x stat=%04x if=%04x ie=%04x ime=%04x\n",
+               (unsigned long)dbg_frame,
+               (unsigned long)reg[REG_PC],
+               read_ioreg(REG_DISPCNT),
+               read_ioreg(REG_DISPSTAT),
+               read_ioreg(REG_IF),
+               read_ioreg(REG_IE),
+               read_ioreg(REG_IME));
 
       /* Audio disabled — saves significant CPU on the N64 */
       /* n64_audio_render_frame(); */
