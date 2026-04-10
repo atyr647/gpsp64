@@ -146,6 +146,14 @@ u32 function_cc update_gba(int remaining_cycles)
     // Video count tracks the video cycles remaining until the next event
     video_count -= completed_cycles;
 
+    {
+      static int _ugba_cnt = 0;
+      if (++_ugba_cnt <= 5)
+        printf("ugba: ec=%u rem=%d comp=%u vc=%d\n",
+               execute_cycles, (int)remaining_cycles,
+               completed_cycles, video_count);
+    }
+
     // Ran out of cycles, move to the next video area
     if(video_count <= 0)
     {
