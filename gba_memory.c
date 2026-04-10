@@ -2215,6 +2215,7 @@ u8 *load_gamepak_page(u32 physical_index)
   filestream_seek(gamepak_file_large, physical_index * (32 * 1024), SEEK_SET);
   filestream_read(gamepak_file_large, swap_location, (32 * 1024));
 #ifdef N64
+  wordswap_buffer(swap_location, 32 * 1024);
 #endif
 
   // Map it to the read handlers now
@@ -2541,6 +2542,7 @@ static s32 load_gamepak_raw(const char *name)
       // Load 1MB chunk and map it
       filestream_read(gamepak_file_large, gamepak_buffers[i], gamepak_buffer_blocksize);
 #ifdef N64
+      wordswap_buffer(gamepak_buffers[i], gamepak_buffer_blocksize);
 #endif
       for (j = 0; j < 32 && i*32 + j < rom_blocks; j++)
       {
@@ -2606,6 +2608,7 @@ s32 load_bios(char *name)
   filestream_read(fd, bios_rom_raw, 0x4000);
   filestream_close(fd);
 #ifdef N64
+  wordswap_buffer(bios_rom_raw, 0x4000);
 #endif
   return 0;
 }

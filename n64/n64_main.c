@@ -77,6 +77,7 @@ static bool load_rom_and_bios(const char *rom_path)
   if (!bios_ok) {
     info_msg("Using built-in BIOS");
     memcpy(bios_rom_raw, open_gba_bios_rom, sizeof(bios_rom_raw));
+    wordswap_buffer(bios_rom_raw, sizeof(bios_rom_raw));
   }
 
   /* Clear backup memory */

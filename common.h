@@ -141,29 +141,46 @@ typedef u32 fixed8_24;
 #define fixed_div(numerator, denominator, bits)                               \
   (((numerator * (1 << bits)) + (denominator / 2)) / denominator)             \
 
-/* Memory access macros */
-#define address8(base, offset)                                                \
-  *((u8 *)((u8 *)(base) + (offset)))
-#define address16(base, offset)                                               \
-  *((u16 *)((u8 *)(base) + (offset)))
-#define address32(base, offset)                                               \
-  *((u32 *)((u8 *)(base) + (offset)))
-
-#define eswap8(value)  (value)
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  #define eswap16(value) __builtin_bswap16(value)
-  #define eswap32(value) __builtin_bswap32(value)
-#else
+/* Memory access macros.
+ *
+ * N64: word-swapped storage. Each 32-bit word in native byte order.
+ * Sub-word access XORs offset: halfword ^2, byte ^3.
+ * eswap is identity. ROM/BIOS word-swapped at load time.
+ */
+#if defined(N64)
+  #define address8(base, offset)  *((u8 *)((u8 *)(base) + ((offset) ^ 3)))
+  #define address16(base, offset) *((u16 *)((u8 *)(base) + ((offset) ^ 2)))
+  #define address32(base, offset) *((u32 *)((u8 *)(base) + (offset)))
+  #define eswap8(value)  (value)
   #define eswap16(value) (value)
   #define eswap32(value) (value)
+  #define gba_deref16(ptr) (*(u16*)((uintptr_t)(ptr) ^ 2))
+  #define gba_deref8(ptr)  (*(u8*)((uintptr_t)(ptr) ^ 3))
+  #define gba_deref32(ptr) (*(u32*)(ptr))
+  static inline void wordswap_buffer(void *buf, unsigned int len) {
+    u32 *p = (u32 *)buf;
+    for (unsigned int i = 0; i < len / 4; i++)
+      p[i] = __builtin_bswap32(p[i]);
+  }
+#else
+  #define address8(base, offset)  *((u8 *)((u8 *)(base) + (offset)))
+  #define address16(base, offset) *((u16 *)((u8 *)(base) + (offset)))
+  #define address32(base, offset) *((u32 *)((u8 *)(base) + (offset)))
+  #define eswap8(value)  (value)
+  #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    #define eswap16(value) __builtin_bswap16(value)
+    #define eswap32(value) __builtin_bswap32(value)
+  #else
+    #define eswap16(value) (value)
+    #define eswap32(value) (value)
+  #endif
+  #define gba_deref16(ptr) eswap16(*(ptr))
+  #define gba_deref8(ptr)  (*(ptr))
+  #define gba_deref32(ptr) eswap32(*(u32*)(ptr))
 #endif
 
-#define gba_deref16(ptr)  eswap16(*(ptr))
-#define gba_deref8(ptr)   (*(ptr))
-#define gba_deref32(ptr)  eswap32(*(u32*)(ptr))
-
-/* Native (non-GBA) 16-bit access */
-#define native16(base, offset) address16(base, offset)
+/* Native (non-GBA) 16-bit access: no XOR even on N64 */
+#define native16(base, offset) *((u16 *)((u8 *)(base) + (offset)))
 
 #define  readaddress8(base, offset) eswap8( address8( base, offset))
 #define readaddress16(base, offset) eswap16(address16(base, offset))
