@@ -169,7 +169,7 @@ static inline void rend_part_tile_Nbpp(u32 bg_comb, u32 px_comb,
     for (u32 i = start; i < end; i++, dest_ptr++) {
       // Honor hflip by selecting bytes in the correct order
       u32 sel = hflip ? (7-i) : i;
-      u8 pval = tile_ptr[sel];
+      u8 pval = gba_deref8(&tile_ptr[sel]);
       // Alhpa mode stacks previous value (unless rendering the first layer)
       if (pval) {
         if (rdtype == FULLCOLOR)
@@ -499,14 +499,14 @@ static void render_scanline_text_mosaic(u32 layer,
       // Load byte or nibble with pixel data.
       if (is8bpp) {
         if (hflip)
-          pval = tile_ptr[7 - hoffset % 8];
+          pval = gba_deref8(&tile_ptr[7 - hoffset % 8]);
         else
-          pval = tile_ptr[hoffset % 8];
+          pval = gba_deref8(&tile_ptr[hoffset % 8]);
       } else {
         if (hflip)
-          pval = (tile_ptr[(7 - hoffset % 8) >> 1] >> (((hoffset & 1) ^ 1) * 4)) & 0xF;
+          pval = (gba_deref8(&tile_ptr[(7 - hoffset % 8) >> 1]) >> (((hoffset & 1) ^ 1) * 4)) & 0xF;
         else
-          pval = (tile_ptr[(hoffset % 8) >> 1] >> ((hoffset & 1) * 4)) & 0xF;
+          pval = (gba_deref8(&tile_ptr[(hoffset % 8) >> 1]) >> ((hoffset & 1) * 4)) & 0xF;
       }
     }
 
@@ -585,9 +585,9 @@ static inline u8 lookup_pix_8bpp(
   // Given coords (px,py) in the background space, find the tile.
   u32 mapoff = (px / 8) + ((py / 8) << map_pitch);
   // Each tile is 8x8, so 64 bytes each.
-  const u8 *tile_ptr = &tile_base[map_base[mapoff] * tile_size_8bpp];
+  const u8 *tile_ptr = &tile_base[gba_deref8(&map_base[mapoff]) * tile_size_8bpp];
   // Read the 8bit color within the tile.
-  return tile_ptr[(px % 8) + ((py % 8) * 8)];
+  return gba_deref8(&tile_ptr[(px % 8) + ((py % 8) * 8)]);
 }
 
 
@@ -882,7 +882,7 @@ static inline void render_scanline_bitmap(
     for (u32 i = 0; pixcnt; i++, pixcnt--, valptr++) {
       // Pretty much pixel copier
       if (!mosaic || !(i % mosh))
-        val = sizeof(pixfmt) == 2 ? eswap16(*valptr) : *valptr;
+        val = sizeof(pixfmt) == 2 ? gba_deref16(valptr) : *valptr;
       bitmap_pixel_write<rdtype, dsttype, mode, pixfmt>(dst_ptr++, val, palptr, px_attr);
     }
   }
@@ -909,7 +909,7 @@ static inline void render_scanline_bitmap(
 
       if (!mosaic || !(i % mosh)) {
         pixfmt *valptr = &src_ptr[pixel_x + (pixel_y * width)];
-        val = sizeof(pixfmt) == 2 ? eswap16(*valptr) : *valptr;
+        val = sizeof(pixfmt) == 2 ? gba_deref16(valptr) : *valptr;
       }
 
       bitmap_pixel_write<rdtype, dsttype, mode, pixfmt>(dst_ptr++, val, palptr, px_attr);
@@ -937,7 +937,7 @@ static inline void render_scanline_bitmap(
       // Lookup pixel and draw it.
       if (!mosaic || !(i % mosh)) {
         pixfmt *valptr = &src_ptr[pixel_x + (pixel_y * width)];
-        val = sizeof(pixfmt) == 2 ? eswap16(*valptr) : *valptr;
+        val = sizeof(pixfmt) == 2 ? gba_deref16(valptr) : *valptr;
       }
 
       bitmap_pixel_write<rdtype, dsttype, mode, pixfmt>(dst_ptr++, val, palptr, px_attr);
@@ -984,7 +984,7 @@ static inline void render_obj_part_tile_Nbpp(
     for (u32 i = start; i < end; i++, dest_ptr++) {
       // Honor hflip by selecting bytes in the correct order
       u32 sel = hflip ? (7-i) : i;
-      u8 pval = tile_ptr[sel];
+      u8 pval = gba_deref8(&tile_ptr[sel]);
       // Alhpa mode stacks previous value
       if (pval) {
         if (rdtype == FULLCOLOR)
@@ -1008,7 +1008,7 @@ static inline void render_obj_part_tile_Nbpp(
     for (u32 i = start; i < end; i++, dest_ptr++) {
       u32 selb = hflip ? (3-i/2) : i/2;
       u32 seln = hflip ? ((i & 1) ^ 1) : (i & 1);
-      u8 pval = (tile_ptr[selb] >> (seln * 4)) & 0xF;
+      u8 pval = (gba_deref8(&tile_ptr[selb]) >> (seln * 4)) & 0xF;
       const u16 *subpal = &pal[palette];
       if (pval) {
         if (rdtype == FULLCOLOR)
@@ -1170,14 +1170,14 @@ static void render_object_mosaic(
       // Lookup for each mode and flip value.
       if (is8bpp) {
         if (hflip)
-          pval = tile_ptr[7 - offx % 8];
+          pval = gba_deref8(&tile_ptr[7 - offx % 8]);
         else
-          pval = tile_ptr[offx % 8];
+          pval = gba_deref8(&tile_ptr[offx % 8]);
       } else {
         if (hflip)
-          pval = (tile_ptr[(7 - offx % 8) >> 1] >> (((offx & 1) ^ 1) * 4)) & 0xF;
+          pval = (gba_deref8(&tile_ptr[(7 - offx % 8) >> 1]) >> (((offx & 1) ^ 1) * 4)) & 0xF;
         else
-          pval = (tile_ptr[(offx % 8) >> 1] >> ((offx & 1) * 4)) & 0xF;
+          pval = (gba_deref8(&tile_ptr[(offx % 8) >> 1]) >> ((offx & 1) * 4)) & 0xF;
       }
     }
 
@@ -1215,10 +1215,10 @@ static void render_affine_object(
   const u32 tile_bwidth = is8bpp ? tile_width_8bpp : tile_width_4bpp;
 
   // Affine params
-  s32 dx = (s16)eswap16(affp->dx);
-  s32 dy = (s16)eswap16(affp->dy);
-  s32 dmx = (s16)eswap16(affp->dmx);
-  s32 dmy = (s16)eswap16(affp->dmy);
+  s32 dx = (s16)gba_deref16(&affp->dx);
+  s32 dy = (s16)gba_deref16(&affp->dy);
+  s32 dmx = (s16)gba_deref16(&affp->dmx);
+  s32 dmy = (s16)gba_deref16(&affp->dmy);
 
   // Object dimensions and boundaries
   u32 obj_dimw = obji->obj_w;
@@ -1288,7 +1288,7 @@ static void render_affine_object(
           ((pixel_y & 0x7) * tile_bwidth) +  // Skip vertical rows to the pixel
           (pixel_x & 0x7);                   // Skip the horizontal offset
 
-        pixval = vram[0x10000 + (tile_off & 0x7FFF)];   // Read pixel value!
+        pixval = address8(vram, 0x10000 + (tile_off & 0x7FFF));   // Read pixel value!
       } else {
         const u32 tile_off =
           base_tile +                        // Character base
@@ -1297,7 +1297,7 @@ static void render_affine_object(
           ((pixel_y & 0x7) * tile_bwidth) +  // Skip vertical rows to the pixel
           ((pixel_x >> 1) & 0x3);            // Skip the horizontal offset
 
-        u8 pixpair = vram[0x10000 + (tile_off & 0x7FFF)]; // Read 2 pixels @4bpp
+        u8 pixpair = address8(vram, 0x10000 + (tile_off & 0x7FFF)); // Read 2 pixels @4bpp
         pixval = ((pixel_x & 1) ? pixpair >> 4 : pixpair & 0xF);
       }
     }
@@ -1432,8 +1432,8 @@ void render_scanline_objs(
     u32 objoff = objlist[objn];
     const t_oam *oamentry = &((t_oam*)oam_ram)[objoff];
 
-    u16 obj_attr0 = eswap16(oamentry->attr0);
-    u16 obj_attr1 = eswap16(oamentry->attr1);
+    u16 obj_attr0 = gba_deref16(&oamentry->attr0);
+    u16 obj_attr1 = gba_deref16(&oamentry->attr1);
     u16 obj_shape = obj_attr0 >> 14;
     u16 obj_size = (obj_attr1 >> 14);
     bool is_affine = obj_attr0 & 0x100;
@@ -1445,7 +1445,7 @@ void render_scanline_objs(
       .obj_w = obj_dim_table[obj_shape][obj_size][0],
       .obj_h = obj_dim_table[obj_shape][obj_size][1],
       .attr1 = obj_attr1,
-      .attr2 = eswap16(oamentry->attr2),
+      .attr2 = gba_deref16(&oamentry->attr2),
       .is_double = (obj_attr0 & 0x200) != 0,
     };
 
@@ -1528,7 +1528,7 @@ static void order_obj(u32 video_mode)
   for(obj_num = 0; obj_num < 128; obj_num++)
   {
     t_oam *oam_ptr = &oam_base[obj_num];
-    u16 obj_attr0 = eswap16(oam_ptr->attr0);
+    u16 obj_attr0 = gba_deref16(&oam_ptr->attr0);
 
     // Bit 9 disables regular sprites (that is, non-affine ones).
     if ((obj_attr0 & 0x0300) == 0x0200)
@@ -1541,13 +1541,13 @@ static void order_obj(u32 video_mode)
     if ((obj_shape == 0x3) || (obj_mode == OBJ_MOD_INVALID))
       continue;
 
-    u16 obj_attr2 = eswap16(oam_ptr->attr2);
+    u16 obj_attr2 = gba_deref16(&oam_ptr->attr2);
 
     // On bitmap modes, objs 0-511 are not usable, ingore them.
     if ((video_mode >= 3) && (!(obj_attr2 & 0x200)))
       continue;
 
-    u16 obj_attr1 = eswap16(oam_ptr->attr1);
+    u16 obj_attr1 = gba_deref16(&oam_ptr->attr1);
     // Calculate object size (from size and shape attr bits)
     u16 obj_size = (obj_attr1 >> 14);
     s32 obj_height = obj_dim_table[obj_shape][obj_size][1];

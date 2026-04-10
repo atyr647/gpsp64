@@ -166,8 +166,8 @@ typedef u32 fixed8_24;
   #define eswap16(value) (value)
   #define eswap32(value) (value)
 
-  /* Dereference a u16*/u8* pointer into word-swapped GBA memory.
-     XORs the pointer address to select the correct halfword/byte. */
+  /* Dereference a u16 or u8 pointer into word-swapped GBA memory.
+     XORs the pointer address to select the correct halfword or byte. */
   #define gba_deref16(ptr)  (*(u16*)((uintptr_t)(ptr) ^ 2))
   #define gba_deref8(ptr)   (*(u8*)((uintptr_t)(ptr) ^ 3))
   /* 32-bit deref: no XOR needed */
