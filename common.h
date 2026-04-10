@@ -147,37 +147,23 @@ typedef u32 fixed8_24;
  * Sub-word access XORs offset: halfword ^2, byte ^3.
  * eswap is identity. ROM/BIOS word-swapped at load time.
  */
-#if defined(N64)
-  #define address8(base, offset)  *((u8 *)((u8 *)(base) + ((offset) ^ 3)))
-  #define address16(base, offset) *((u16 *)((u8 *)(base) + ((offset) ^ 2)))
-  #define address32(base, offset) *((u32 *)((u8 *)(base) + (offset)))
-  #define eswap8(value)  (value)
+/* Memory access macros — LE storage on all platforms */
+#define address8(base, offset)  *((u8 *)((u8 *)(base) + (offset)))
+#define address16(base, offset) *((u16 *)((u8 *)(base) + (offset)))
+#define address32(base, offset) *((u32 *)((u8 *)(base) + (offset)))
+
+#define eswap8(value)  (value)
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  #define eswap16(value) __builtin_bswap16(value)
+  #define eswap32(value) __builtin_bswap32(value)
+#else
   #define eswap16(value) (value)
   #define eswap32(value) (value)
-  #define gba_deref16(ptr) (*(u16*)((uintptr_t)(ptr) ^ 2))
-  #define gba_deref8(ptr)  (*(u8*)((uintptr_t)(ptr) ^ 3))
-  #define gba_deref32(ptr) (*(u32*)(ptr))
-  static inline void wordswap_buffer(void *buf, unsigned int len) {
-    u32 *p = (u32 *)buf;
-    for (unsigned int i = 0; i < len / 4; i++)
-      p[i] = __builtin_bswap32(p[i]);
-  }
-#else
-  #define address8(base, offset)  *((u8 *)((u8 *)(base) + (offset)))
-  #define address16(base, offset) *((u16 *)((u8 *)(base) + (offset)))
-  #define address32(base, offset) *((u32 *)((u8 *)(base) + (offset)))
-  #define eswap8(value)  (value)
-  #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-    #define eswap16(value) __builtin_bswap16(value)
-    #define eswap32(value) __builtin_bswap32(value)
-  #else
-    #define eswap16(value) (value)
-    #define eswap32(value) (value)
-  #endif
-  #define gba_deref16(ptr) eswap16(*(ptr))
-  #define gba_deref8(ptr)  (*(ptr))
-  #define gba_deref32(ptr) eswap32(*(u32*)(ptr))
 #endif
+
+#define gba_deref16(ptr) eswap16(*(ptr))
+#define gba_deref8(ptr)  (*(ptr))
+#define gba_deref32(ptr) eswap32(*(u32*)(ptr))
 
 /* Native (non-GBA) 16-bit access: no XOR even on N64 */
 #define native16(base, offset) *((u16 *)((u8 *)(base) + (offset)))
@@ -186,14 +172,12 @@ typedef u32 fixed8_24;
 #define readaddress16(base, offset) eswap16(address16(base, offset))
 #define readaddress32(base, offset) eswap32(address32(base, offset))
 
-/* I/O register access. Uses readaddress16 (= eswap16 + address16) which
-   works correctly in both LE mode (eswap swaps, no XOR) and N64 word-swapped
-   mode (eswap identity, address16 XORs). */
-#define read_ioreg(regnum) readaddress16(io_registers_raw, (regnum) * 2)
-#define write_ioreg(regnum, val) (address16(io_registers_raw, (regnum) * 2) = eswap16(val))
+/* I/O register access */
+#define read_ioreg(regnum) (eswap16(io_registers_raw[(regnum)]))
+#define write_ioreg(regnum, val) (io_registers_raw[(regnum)] = eswap16(val))
 #define read_ioreg32(regnum) (read_ioreg(regnum) | (read_ioreg((regnum)+1) << 16))
-#define read_dmareg(regnum, dmachan) readaddress16(io_registers_raw, ((regnum) + (dmachan) * 6) * 2)
-#define write_dmareg(regnum, dmachan, val) (address16(io_registers_raw, ((regnum) + (dmachan) * 6) * 2) = eswap16(val))
+#define read_dmareg(regnum, dmachan) (eswap16(io_registers_raw[(regnum) + (dmachan) * 6]))
+#define write_dmareg(regnum, dmachan, val) (io_registers_raw[(regnum) + (dmachan) * 6] = eswap16(val))
 
 #include <unistd.h>
 #include <time.h>

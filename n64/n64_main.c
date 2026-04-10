@@ -26,7 +26,7 @@
 /* Global state required by the emulator core */
 u32 skip_next_frame = 0;
 u32 num_skipped_frames = 0;
-int dynarec_enable = 0;
+int dynarec_enable = 1;
 boot_mode selected_boot_mode = boot_game;
 int sprite_limit = 1;
 u32 netplay_num_clients = 0, netplay_client_id = 0;
@@ -69,15 +69,14 @@ static bool load_rom_and_bios(const char *rom_path)
 {
   /* Try to load official BIOS from SD card first, then DFS, then built-in */
   bool bios_ok = false;
-  if (load_bios("sd:/gba_bios.bin") == 0 && address8(bios_rom_raw, 0) == 0x18) {
+  if (load_bios("sd:/gba_bios.bin") == 0 && bios_rom_raw[0] == 0x18) {
     bios_ok = true;
-  } else if (load_bios("rom:/gba_bios.bin") == 0 && address8(bios_rom_raw, 0) == 0x18) {
+  } else if (load_bios("rom:/gba_bios.bin") == 0 && bios_rom_raw[0] == 0x18) {
     bios_ok = true;
   }
   if (!bios_ok) {
     info_msg("Using built-in BIOS");
     memcpy(bios_rom_raw, open_gba_bios_rom, sizeof(bios_rom_raw));
-    wordswap_buffer(bios_rom_raw, sizeof(bios_rom_raw));
   }
 
   /* Clear backup memory */
@@ -118,12 +117,6 @@ int main(void)
   debug_init_isviewer();
   debug_init_usblog();
 
-  /* Require expansion pak — we need >4MB for GBA emulation */
-  if (!is_memory_expanded()) {
-    debugf("ERROR: Expansion pak required!\n");
-    while(1) {}
-  }
-
   /* Initialize subsystems */
   dfs_init(DFS_DEFAULT_LOCATION);
   n64_video_init();
@@ -133,24 +126,6 @@ int main(void)
 
   info_msg("gpSP N64 - GBA Emulator");
   info_msg("Initializing...");
-
-  /* Memory model sanity test */
-  {
-    u8 *raw = (u8*)io_registers_raw;
-    memset(io_registers_raw, 0, 1024);
-    write_ioreg(REG_DISPCNT, 0x1234);
-    write_ioreg(REG_VCOUNT, 0x00AB);
-    u16 dc_back = read_ioreg(REG_DISPCNT);
-    u16 vc_back = read_ioreg(REG_VCOUNT);
-    debugf("SANITY: wrote dc=1234 vc=00AB, read dc=%04x vc=%04x\n", dc_back, vc_back);
-    debugf("RAW bytes[0..7]: %02x%02x %02x%02x %02x%02x %02x%02x\n",
-           raw[0],raw[1],raw[2],raw[3],raw[4],raw[5],raw[6],raw[7]);
-    /* Memory-mapped read test (how the GBA CPU reads them) */
-    u16 dc_mm = readaddress16(io_registers_raw, 0x000);  /* DISPCNT at GBA 0x04000000 */
-    u16 vc_mm = readaddress16(io_registers_raw, 0x006);  /* VCOUNT at GBA 0x04000006 */
-    debugf("MMAP: dc@0x000=%04x vc@0x006=%04x\n", dc_mm, vc_mm);
-    memset(io_registers_raw, 0, 1024);
-  }
 
   /* Allocate GBA screen buffer */
   extern u16 *gba_screen_pixels;
@@ -196,7 +171,6 @@ int main(void)
 
     /* Main emulation loop */
     emulator_running = true;
-    u32 dbg_frame = 0;
     while (emulator_running) {
       /* Poll input */
       n64_input_poll();
@@ -204,16 +178,6 @@ int main(void)
 
       /* Run one GBA frame */
       run_frame();
-      ++dbg_frame;
-      {
-        u16 dc = read_ioreg(REG_DISPCNT);
-        if (dc != 0x0080 && dc != 0x0000)
-          debugf("f%lu DC CHANGED: %04x pc=%08lx\n",
-                 (unsigned long)dbg_frame, dc, (unsigned long)reg[REG_PC]);
-        if (dbg_frame == 500)
-          debugf("f500: dc=%04x pc=%08lx\n", dc, (unsigned long)reg[REG_PC]);
-      }
-
       /* Audio disabled — saves significant CPU on the N64 */
       /* n64_audio_render_frame(); */
 

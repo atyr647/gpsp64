@@ -1973,7 +1973,7 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
 // GBA memory is stored little-endian; native MIPS loads on big-endian
 // return byte-swapped values. These emit inline swap sequences.
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  #define BE_SKIP_SP_FASTPATH 1  /* Word-swapped storage: lw/sw just work */
+  #define BE_SKIP_SP_FASTPATH 0  /* LE storage: SP lw/sw gives wrong byte order */
 
 // Swap 16-bit value: 0x00AB -> 0x00BA  (clobbers reg_temp)
 #define emit_bswap16(rd, rs)                        \
@@ -2112,8 +2112,7 @@ static void emit_mem_access_loadop(
   u8 *translation_ptr,
   u32 base_addr, unsigned size, unsigned alignment, bool signext)
 {
-  /* N64 word-swapped storage: XOR the load offset for sub-word accesses.
-     base_addr is always word-aligned so XOR only flips low bits. */
+  /* LE storage: plain offsets, byte-swap happens after load via emit_bswap macros */
   switch (size) {
   case 2:
     mips_emit_lw(reg_rv, reg_rv, (base_addr & 0xffff));
@@ -2121,40 +2120,19 @@ static void emit_mem_access_loadop(
   case 1:
     if (signext) {
       if (alignment) {
-        // Unaligned signed 16b load, is just a load byte (due to sign extension)
-#ifdef N64
-        mips_emit_lb(reg_rv, reg_rv, (((base_addr | 1) ^ 3) & 0xffff));
-#else
         mips_emit_lb(reg_rv, reg_rv, ((base_addr | 1) & 0xffff));
-#endif
       } else {
-#ifdef N64
-        mips_emit_lh(reg_rv, reg_rv, ((base_addr ^ 2) & 0xffff));
-#else
         mips_emit_lh(reg_rv, reg_rv, (base_addr & 0xffff));
-#endif
       }
     } else {
-#ifdef N64
-      mips_emit_lhu(reg_rv, reg_rv, ((base_addr ^ 2) & 0xffff));
-#else
       mips_emit_lhu(reg_rv, reg_rv, (base_addr & 0xffff));
-#endif
     }
     break;
   default:
     if (signext) {
-#ifdef N64
-      mips_emit_lb(reg_rv, reg_rv, ((base_addr ^ 3) & 0xffff));
-#else
       mips_emit_lb(reg_rv, reg_rv, (base_addr & 0xffff));
-#endif
     } else {
-#ifdef N64
-      mips_emit_lbu(reg_rv, reg_rv, ((base_addr ^ 3) & 0xffff));
-#else
       mips_emit_lbu(reg_rv, reg_rv, (base_addr & 0xffff));
-#endif
     }
     break;
   };
@@ -2400,15 +2378,8 @@ static void emit_pmemst_stub(
     mips_emit_addu(reg_rv, reg_rv, reg_a0);    // Adds to base addr
   }
 
-  // Compute store offset — XOR for sub-word on N64 word-swapped storage.
-  // XOR the immediate offset, NOT reg_rv (which is needed by SMC check).
-#ifdef N64
+  // LE storage: plain offset, byte-swap in emit_bswap macros handles endianness
   u32 st_offset = base_addr;
-  if (realsize == 1) st_offset = base_addr ^ 2;
-  else if (realsize == 0) st_offset = base_addr ^ 3;
-#else
-  u32 st_offset = base_addr;
-#endif
 
   // Generate SMC write and tracking
   // TODO: Should we have SMC checks here also for aligned?
@@ -2507,15 +2478,11 @@ static void emit_palette_hdl(
   }
   mips_emit_addu(reg_rv, reg_rv, reg_base);
 
-  // Store the data in real palette memory (XOR offset for sub-word on N64)
+  // Store the data in real palette memory
   if (realsize == 2) {
     mips_emit_sw(reg_a1, reg_rv, 0x100);
   } else if (realsize == 1) {
-#ifdef N64
-    mips_emit_sh(reg_a1, reg_rv, 0x100 ^ 2);
-#else
     mips_emit_sh(reg_a1, reg_rv, 0x100);
-#endif
   }
 
   // Convert and store in mirror memory (palette_ram_converted).
@@ -2848,7 +2815,7 @@ void init_emitter(bool must_swap) {
     { emit_pmemld_stub,  3, 0x8000, true,  false, (u32)&iwram_raw[0x8000], 0 },
     { emit_pmemld_stub,  4,  0x400, false, false, (u32)io_registers_raw, 0 },
     { emit_pmemld_stub,  5,  0x400, false, true,  (u32)palette_ram_raw, 0x100 },
-    { emit_pmemld_stub,  6,    0x0, false, true,  (u32)vram, 0 },             // same, vram is a special case
+    { emit_pmemld_stub,  6,    0x0, false, true,  (u32)vram_raw, 0 },          // same, vram is a special case
     { emit_pmemld_stub,  7,  0x400, false, true,  (u32)oam_ram_raw, 0x900 },
     { emit_pmemld_stub,  8, 0x8000, false, false,  0, 0 },
     { emit_pmemld_stub,  9, 0x8000, false, false,  0, 0 },
@@ -2884,7 +2851,7 @@ void init_emitter(bool must_swap) {
     { emit_pmemst_stub, 3, 0x8000, true,  false, (u32)&iwram_raw[0x8000], 0 },
     // I/O is special and mapped with a function call
     { emit_palette_hdl, 5,  0x400, false, true,  (u32)palette_ram_raw, 0x100 },
-    { emit_pmemst_stub, 6,    0x0, false, true,  (u32)vram, 0 },          // same, vram is a special case
+    { emit_pmemst_stub, 6,    0x0, false, true,  (u32)vram_raw, 0 },      // same, vram is a special case
     { emit_pmemst_stub, 7,  0x400, false, true,  (u32)oam_ram_raw, 0x900 },
   };
 
