@@ -2108,57 +2108,56 @@ const u8 ldhldrtbl[11] = {0, 1, 2, 2, 3, 3, 4, 4, 4, 4, 5};
 #define branch_offset(ptr) \
   (((u32*)ptr) - ((u32*)translation_ptr + 1))
 
-static unsigned emit_mem_access_loadop(
+static void emit_mem_access_loadop(
   u8 *translation_ptr,
   u32 base_addr, unsigned size, unsigned alignment, bool signext)
 {
-  unsigned emitted = 0;
+  /* N64 word-swapped storage: XOR the load offset for sub-word accesses.
+     base_addr is always word-aligned so XOR only flips low bits. */
   switch (size) {
   case 2:
     mips_emit_lw(reg_rv, reg_rv, (base_addr & 0xffff));
-    emitted = 1;
     break;
   case 1:
     if (signext) {
       if (alignment) {
         // Unaligned signed 16b load, is just a load byte (due to sign extension)
 #ifdef N64
-        mips_emit_xori(reg_rv, reg_rv, 3);  // XOR for byte access on word-swapped mem
-        emitted++;
-#endif
+        mips_emit_lb(reg_rv, reg_rv, (((base_addr | 1) ^ 3) & 0xffff));
+#else
         mips_emit_lb(reg_rv, reg_rv, ((base_addr | 1) & 0xffff));
-        emitted++;
+#endif
       } else {
 #ifdef N64
-        mips_emit_xori(reg_rv, reg_rv, 2);  // XOR for halfword access
-        emitted++;
-#endif
+        mips_emit_lh(reg_rv, reg_rv, ((base_addr ^ 2) & 0xffff));
+#else
         mips_emit_lh(reg_rv, reg_rv, (base_addr & 0xffff));
-        emitted++;
+#endif
       }
     } else {
 #ifdef N64
-      mips_emit_xori(reg_rv, reg_rv, 2);
-      emitted++;
-#endif
+      mips_emit_lhu(reg_rv, reg_rv, ((base_addr ^ 2) & 0xffff));
+#else
       mips_emit_lhu(reg_rv, reg_rv, (base_addr & 0xffff));
-      emitted++;
+#endif
     }
     break;
   default:
-#ifdef N64
-    mips_emit_xori(reg_rv, reg_rv, 3);  // XOR for byte access
-    emitted++;
-#endif
     if (signext) {
+#ifdef N64
+      mips_emit_lb(reg_rv, reg_rv, ((base_addr ^ 3) & 0xffff));
+#else
       mips_emit_lb(reg_rv, reg_rv, (base_addr & 0xffff));
+#endif
     } else {
+#ifdef N64
+      mips_emit_lbu(reg_rv, reg_rv, ((base_addr ^ 3) & 0xffff));
+#else
       mips_emit_lbu(reg_rv, reg_rv, (base_addr & 0xffff));
+#endif
     }
-    emitted++;
     break;
   };
-  return emitted;
 }
 
 #ifdef PIC
@@ -2328,11 +2327,9 @@ static void emit_pmemld_stub(
     }
   }
 
-  // Emit load operation (may emit extra XOR instruction on N64)
-  {
-    unsigned ninst = emit_mem_access_loadop(translation_ptr, base_addr, size, alignment, signext);
-    translation_ptr += ninst * 4;
-  }
+  // Emit load operation
+  emit_mem_access_loadop(translation_ptr, base_addr, size, alignment, signext);
+  translation_ptr += 4;
 
   if (!(alignment == 0 || (size == 1 && signext))) {
     // Unaligned accesses require rotation, except for size=1 & signext
@@ -2403,13 +2400,14 @@ static void emit_pmemst_stub(
     mips_emit_addu(reg_rv, reg_rv, reg_a0);    // Adds to base addr
   }
 
+  // Compute store offset — XOR for sub-word on N64 word-swapped storage.
+  // XOR the immediate offset, NOT reg_rv (which is needed by SMC check).
 #ifdef N64
-  // N64 word-swapped storage: XOR address for sub-word stores
-  if (realsize == 1) {
-    mips_emit_xori(reg_rv, reg_rv, 2);
-  } else if (realsize == 0) {
-    mips_emit_xori(reg_rv, reg_rv, 3);
-  }
+  u32 st_offset = base_addr;
+  if (realsize == 1) st_offset = base_addr ^ 2;
+  else if (realsize == 0) st_offset = base_addr ^ 3;
+#else
+  u32 st_offset = base_addr;
 #endif
 
   // Generate SMC write and tracking
@@ -2435,11 +2433,11 @@ static void emit_pmemst_stub(
 
   // Store the data (delay slot from the SMC branch)
   if (realsize == 2) {
-    mips_emit_sw(reg_a1, reg_rv, base_addr);
+    mips_emit_sw(reg_a1, reg_rv, st_offset);
   } else if (realsize == 1) {
-    mips_emit_sh(reg_a1, reg_rv, base_addr);
+    mips_emit_sh(reg_a1, reg_rv, st_offset);
   } else {
-    mips_emit_sb(reg_a1, reg_rv, base_addr);
+    mips_emit_sb(reg_a1, reg_rv, st_offset);
   }
 
   // Post processing store:
@@ -2509,41 +2507,27 @@ static void emit_palette_hdl(
   }
   mips_emit_addu(reg_rv, reg_rv, reg_base);
 
-  // Store the data in real palette memory (word-swapped on N64 via XOR)
+  // Store the data in real palette memory (XOR offset for sub-word on N64)
   if (realsize == 2) {
     mips_emit_sw(reg_a1, reg_rv, 0x100);
   } else if (realsize == 1) {
 #ifdef N64
-    mips_emit_xori(reg_rv, reg_rv, 2);  // XOR for halfword store
-#endif
+    mips_emit_sh(reg_a1, reg_rv, 0x100 ^ 2);
+#else
     mips_emit_sh(reg_a1, reg_rv, 0x100);
-#ifdef N64
-    mips_emit_xori(reg_rv, reg_rv, 2);  // Undo XOR for converted store below
 #endif
   }
 
-  // Convert and store in mirror memory (palette_ram_converted)
+  // Convert and store in mirror memory (palette_ram_converted).
+  // This is a native u16 lookup table, NOT GBA memory — no XOR.
   palette_convert();
-#ifdef N64
-  if (realsize != 1) // Only XOR if we didn't already (and undo) above
-    mips_emit_xori(reg_rv, reg_rv, 2);  // Always halfword stores to converted
   mips_emit_sh(reg_temp, reg_rv, 0x500);
-  mips_emit_xori(reg_rv, reg_rv, 2);  // Undo XOR
-#else
-  mips_emit_sh(reg_temp, reg_rv, 0x500);
-#endif
 
   if (size == 2) {
     // Convert the second half-word also
     mips_emit_srl(reg_a1, reg_a1, 16);
     palette_convert();
-#ifdef N64
-    mips_emit_xori(reg_rv, reg_rv, 2);
     mips_emit_sh(reg_temp, reg_rv, 0x502);
-    mips_emit_xori(reg_rv, reg_rv, 2);
-#else
-    mips_emit_sh(reg_temp, reg_rv, 0x502);
-#endif
   }
   generate_function_return_swap_delay();
 

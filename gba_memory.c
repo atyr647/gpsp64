@@ -1047,7 +1047,7 @@ cpu_alert_type function_cc write_io_register32(u32 address, u32 value)
   u32 aladdr = address & ~1U;                                                 \
   u16 val16 = (value << 8) | value;                                           \
   address16(palette_ram, aladdr) = eswap16(val16);                            \
-  address16(palette_ram_converted, aladdr) = convert_palette(val16);          \
+  native16(palette_ram_converted, aladdr) = convert_palette(val16);           \
 }
 
 #define write_palette16(address, value)                                       \
@@ -1055,7 +1055,7 @@ cpu_alert_type function_cc write_io_register32(u32 address, u32 value)
   u32 palette_address = address;                                              \
   address16(palette_ram, palette_address) = eswap16(value);                   \
   value = convert_palette(value);                                             \
-  address16(palette_ram_converted, palette_address) = value;                  \
+  native16(palette_ram_converted, palette_address) = value;                   \
 }                                                                             \
 
 #define write_palette32(address, value)                                       \
@@ -1065,9 +1065,9 @@ cpu_alert_type function_cc write_io_register32(u32 address, u32 value)
   u32 value_low = value & 0xFFFF;                                             \
   address32(palette_ram, palette_address) = eswap32(value);                   \
   value_high = convert_palette(value_high);                                   \
-  address16(palette_ram_converted, palette_address + 2) = value_high;         \
+  native16(palette_ram_converted, palette_address + 2) = value_high;          \
   value_low = convert_palette(value_low);                                     \
-  address16(palette_ram_converted, palette_address) = value_low;              \
+  native16(palette_ram_converted, palette_address) = value_low;               \
 }                                                                             \
 
 
