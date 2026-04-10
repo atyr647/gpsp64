@@ -181,7 +181,7 @@ int main(void)
       run_frame();
 
       /* JIT validation: after frame 20, dump VRAM and screen pixel data */
-      if (++dbg_frame == 20) {
+      if (++dbg_frame == 1) {
         extern u16 *gba_screen_pixels;
         /* First 8 raw bytes of VRAM (tile data) */
         u8 *vr = (u8*)vram_raw;
