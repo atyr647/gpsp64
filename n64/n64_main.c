@@ -171,6 +171,7 @@ int main(void)
 
     /* Main emulation loop */
     emulator_running = true;
+    u32 dbg_frame = 0;
     while (emulator_running) {
       /* Poll input */
       n64_input_poll();
@@ -178,6 +179,26 @@ int main(void)
 
       /* Run one GBA frame */
       run_frame();
+
+      /* JIT validation: after frame 20, dump VRAM and screen pixel data */
+      if (++dbg_frame == 20) {
+        extern u16 *gba_screen_pixels;
+        /* First 8 raw bytes of VRAM (tile data) */
+        u8 *vr = (u8*)vram_raw;
+        debugf("VRAM[0..7]: %02x%02x%02x%02x %02x%02x%02x%02x\n",
+               vr[0],vr[1],vr[2],vr[3],vr[4],vr[5],vr[6],vr[7]);
+        /* First 4 screen pixels (XBGR1555) */
+        if (gba_screen_pixels)
+          debugf("PIXELS[0..3]: %04x %04x %04x %04x\n",
+                 gba_screen_pixels[0], gba_screen_pixels[1],
+                 gba_screen_pixels[2], gba_screen_pixels[3]);
+        /* DISPCNT and PC */
+        debugf("dc=%04x pc=%08lx\n",
+               read_ioreg(REG_DISPCNT), (unsigned long)reg[REG_PC]);
+        /* Check rom_cache_watermark to see stub size */
+        extern u32 rom_cache_watermark;
+        debugf("stub_watermark=%lu bytes\n", (unsigned long)rom_cache_watermark);
+      }
       /* Audio disabled — saves significant CPU on the N64 */
       /* n64_audio_render_frame(); */
 
