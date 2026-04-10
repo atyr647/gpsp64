@@ -18,9 +18,8 @@ N64_ROM_TITLE = "gpSP GBA Emulator"
 N64_MKDFS_ROOT = filesystem
 
 # Extra CFLAGS on top of libdragon's defaults
-# Override libdragon's -O2 with -O3 for max interpreter speed
-CFLAGS += -O3 -funroll-loops
-CFLAGS += -DN64 -DMIPS_ARCH
+CFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH
+CFLAGS += -DTINY_TRANSLATION_CACHE
 CFLAGS += -DROM_BUFFER_SIZE=2
 CFLAGS += -DUSE_XBGR1555_FORMAT
 CFLAGS += -I$(CURDIR) -I$(CURDIR)/n64
@@ -29,10 +28,10 @@ CFLAGS += -w   # gpsp has many warnings incompatible with libdragon's -Werror
 CXXFLAGS += $(filter-out -std=gnu17,$(filter -D% -I% -W%,$(CFLAGS)))
 CXXFLAGS += -fno-rtti -fno-exceptions
 
-ASFLAGS += -DN64 -DMIPS_ARCH
+ASFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH -DTINY_TRANSLATION_CACHE
 ASFLAGS += -I$(CURDIR)
 
-# Interpreter-only build (dynarec needs big-endian rework)
+# Core emulator objects
 OBJS = main.o \
        gba_memory.o \
        savestate.o \
@@ -46,7 +45,9 @@ OBJS = main.o \
        memmap.o \
        video.o \
        cpu.o \
+       cpu_threaded.o \
        bios_data.o \
+       mips/mips_stub.o \
        n64/n64_main.o \
        n64/n64_video.o \
        n64/n64_audio.o \

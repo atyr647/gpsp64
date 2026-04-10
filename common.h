@@ -141,22 +141,39 @@ typedef u32 fixed8_24;
 #define fixed_div(numerator, denominator, bits)                               \
   (((numerator * (1 << bits)) + (denominator / 2)) / denominator)             \
 
-#define address8(base, offset)                                                \
-  *((u8 *)((u8 *)base + (offset)))                                            \
+/*
+ * N64 big-endian memory strategy: store GBA data word-swapped (each 32-bit
+ * word in native byte order). This makes JIT word loads/stores zero-cost.
+ * Sub-word accesses use XOR address trick: byte XOR 3, halfword XOR 2.
+ * ROM/BIOS data is word-swapped at load time. eswap becomes identity.
+ */
+#if defined(N64)
+  #define address8(base, offset)                                              \
+    *((u8 *)((u8 *)base + ((offset) ^ 3)))
+  #define address16(base, offset)                                             \
+    *((u16 *)((u8 *)base + ((offset) ^ 2)))
+  #define address32(base, offset)                                             \
+    *((u32 *)((u8 *)base + (offset)))
 
-#define address16(base, offset)                                               \
-  *((u16 *)((u8 *)base + (offset)))                                           \
-
-#define address32(base, offset)                                               \
-  *((u32 *)((u8 *)base + (offset)))                                           \
-
-#define eswap8(value)  (value)
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  #define eswap16(value) __builtin_bswap16(value)
-  #define eswap32(value) __builtin_bswap32(value)
-#else
+  #define eswap8(value)  (value)
   #define eswap16(value) (value)
   #define eswap32(value) (value)
+#else
+  #define address8(base, offset)                                              \
+    *((u8 *)((u8 *)base + (offset)))
+  #define address16(base, offset)                                             \
+    *((u16 *)((u8 *)base + (offset)))
+  #define address32(base, offset)                                             \
+    *((u32 *)((u8 *)base + (offset)))
+
+  #define eswap8(value)  (value)
+  #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    #define eswap16(value) __builtin_bswap16(value)
+    #define eswap32(value) __builtin_bswap32(value)
+  #else
+    #define eswap16(value) (value)
+    #define eswap32(value) (value)
+  #endif
 #endif
 
 #define  readaddress8(base, offset) eswap8( address8( base, offset))

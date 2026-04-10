@@ -34,6 +34,16 @@
   /* Stub out libretro VFS constants */
   #define RETRO_VFS_FILE_ACCESS_READ 0
   #define RETRO_VFS_FILE_ACCESS_HINT_NONE 0
+
+  /* Word-swap a buffer in-place for N64 big-endian memory layout.
+     Each 32-bit word gets its bytes reversed so native lw/sw accesses
+     yield correct GBA values. Sub-word accesses use XOR address trick. */
+  static void wordswap_buffer(void *buf, unsigned int len) {
+    u32 *p = (u32 *)buf;
+    unsigned int i;
+    for (i = 0; i < len / 4; i++)
+      p[i] = __builtin_bswap32(p[i]);
+  }
 #else
   #include "streams/file_stream.h"
 #endif
@@ -2212,6 +2222,9 @@ u8 *load_gamepak_page(u32 physical_index)
 
   filestream_seek(gamepak_file_large, physical_index * (32 * 1024), SEEK_SET);
   filestream_read(gamepak_file_large, swap_location, (32 * 1024));
+#ifdef N64
+  wordswap_buffer(swap_location, 32 * 1024);
+#endif
 
   // Map it to the read handlers now
   map_rom_entry(read, physical_index, swap_location, gamepak_size >> 15);
@@ -2536,6 +2549,9 @@ static s32 load_gamepak_raw(const char *name)
     {
       // Load 1MB chunk and map it
       filestream_read(gamepak_file_large, gamepak_buffers[i], gamepak_buffer_blocksize);
+#ifdef N64
+      wordswap_buffer(gamepak_buffers[i], gamepak_buffer_blocksize);
+#endif
       for (j = 0; j < 32 && i*32 + j < rom_blocks; j++)
       {
         u32 phyn = i*32 + j;
@@ -2599,6 +2615,9 @@ s32 load_bios(char *name)
 
   filestream_read(fd, bios_rom, 0x4000);
   filestream_close(fd);
+#ifdef N64
+  wordswap_buffer(bios_rom, 0x4000);
+#endif
   return 0;
 }
 

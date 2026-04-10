@@ -1973,7 +1973,7 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
 // GBA memory is stored little-endian; native MIPS loads on big-endian
 // return byte-swapped values. These emit inline swap sequences.
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  #define BE_SKIP_SP_FASTPATH 0  /* Always skip SP inline lw/sw path */
+  #define BE_SKIP_SP_FASTPATH 1  /* Word-swapped storage: lw/sw just work */
 
 // Swap 16-bit value: 0x00AB -> 0x00BA  (clobbers reg_temp)
 #define emit_bswap16(rd, rs)                        \
@@ -2108,34 +2108,57 @@ const u8 ldhldrtbl[11] = {0, 1, 2, 2, 3, 3, 4, 4, 4, 4, 5};
 #define branch_offset(ptr) \
   (((u32*)ptr) - ((u32*)translation_ptr + 1))
 
-static void emit_mem_access_loadop(
+static unsigned emit_mem_access_loadop(
   u8 *translation_ptr,
   u32 base_addr, unsigned size, unsigned alignment, bool signext)
 {
+  unsigned emitted = 0;
   switch (size) {
   case 2:
     mips_emit_lw(reg_rv, reg_rv, (base_addr & 0xffff));
+    emitted = 1;
     break;
   case 1:
     if (signext) {
       if (alignment) {
         // Unaligned signed 16b load, is just a load byte (due to sign extension)
+#ifdef N64
+        mips_emit_xori(reg_rv, reg_rv, 3);  // XOR for byte access on word-swapped mem
+        emitted++;
+#endif
         mips_emit_lb(reg_rv, reg_rv, ((base_addr | 1) & 0xffff));
+        emitted++;
       } else {
+#ifdef N64
+        mips_emit_xori(reg_rv, reg_rv, 2);  // XOR for halfword access
+        emitted++;
+#endif
         mips_emit_lh(reg_rv, reg_rv, (base_addr & 0xffff));
+        emitted++;
       }
     } else {
+#ifdef N64
+      mips_emit_xori(reg_rv, reg_rv, 2);
+      emitted++;
+#endif
       mips_emit_lhu(reg_rv, reg_rv, (base_addr & 0xffff));
+      emitted++;
     }
     break;
   default:
+#ifdef N64
+    mips_emit_xori(reg_rv, reg_rv, 3);  // XOR for byte access
+    emitted++;
+#endif
     if (signext) {
       mips_emit_lb(reg_rv, reg_rv, (base_addr & 0xffff));
     } else {
       mips_emit_lbu(reg_rv, reg_rv, (base_addr & 0xffff));
     }
+    emitted++;
     break;
   };
+  return emitted;
 }
 
 #ifdef PIC
@@ -2305,19 +2328,10 @@ static void emit_pmemld_stub(
     }
   }
 
-  // Emit load operation
-  emit_mem_access_loadop(translation_ptr, base_addr, size, alignment, signext);
-  translation_ptr += 4;
-
-  // Big-endian: byte-swap after load (GBA data is little-endian)
-  if (size == 2) {
-    emit_bswap32(reg_rv, reg_rv);
-  } else if (size == 1 && !(alignment && signext)) {
-    // Swap if actually a 16-bit load (not byte load for signed unaligned)
-    emit_bswap16(reg_rv, reg_rv);
-    if (signext) {
-      emit_signext16(reg_rv, reg_rv);
-    }
+  // Emit load operation (may emit extra XOR instruction on N64)
+  {
+    unsigned ninst = emit_mem_access_loadop(translation_ptr, base_addr, size, alignment, signext);
+    translation_ptr += ninst * 4;
   }
 
   if (!(alignment == 0 || (size == 1 && signext))) {
@@ -2389,13 +2403,14 @@ static void emit_pmemst_stub(
     mips_emit_addu(reg_rv, reg_rv, reg_a0);    // Adds to base addr
   }
 
-  // Big-endian: byte-swap store value (GBA data is little-endian)
-  if (realsize == 2) {
-    emit_bswap32_a1();
-  } else if (realsize == 1) {
-    emit_bswap16_a1();
+#ifdef N64
+  // N64 word-swapped storage: XOR address for sub-word stores
+  if (realsize == 1) {
+    mips_emit_xori(reg_rv, reg_rv, 2);
+  } else if (realsize == 0) {
+    mips_emit_xori(reg_rv, reg_rv, 3);
   }
-  // size == 0 (byte): no swap needed
+#endif
 
   // Generate SMC write and tracking
   // TODO: Should we have SMC checks here also for aligned?
@@ -2494,27 +2509,41 @@ static void emit_palette_hdl(
   }
   mips_emit_addu(reg_rv, reg_rv, reg_base);
 
-  // Convert and store to palette_ram_converted first (native endian).
-  // Must happen before byte-swap since palette_convert reads native reg_a1.
-  palette_convert();
-  mips_emit_sh(reg_temp, reg_rv, 0x500);
-
-  if (size == 2) {
-    // Save original 32-bit value, convert upper half, then byte-swap
-    mips_emit_sw(reg_a1, reg_base, ReOff_SaveR1);
-    mips_emit_srl(reg_a1, reg_a1, 16);
-    palette_convert();
-    mips_emit_sh(reg_temp, reg_rv, 0x502);
-    mips_emit_lw(reg_a1, reg_base, ReOff_SaveR1);
-  }
-
-  // Store to raw palette_ram (must be little-endian)
+  // Store the data in real palette memory (word-swapped on N64 via XOR)
   if (realsize == 2) {
-    emit_bswap32_a1();
     mips_emit_sw(reg_a1, reg_rv, 0x100);
   } else if (realsize == 1) {
-    emit_bswap16_a1();
+#ifdef N64
+    mips_emit_xori(reg_rv, reg_rv, 2);  // XOR for halfword store
+#endif
     mips_emit_sh(reg_a1, reg_rv, 0x100);
+#ifdef N64
+    mips_emit_xori(reg_rv, reg_rv, 2);  // Undo XOR for converted store below
+#endif
+  }
+
+  // Convert and store in mirror memory (palette_ram_converted)
+  palette_convert();
+#ifdef N64
+  if (realsize != 1) // Only XOR if we didn't already (and undo) above
+    mips_emit_xori(reg_rv, reg_rv, 2);  // Always halfword stores to converted
+  mips_emit_sh(reg_temp, reg_rv, 0x500);
+  mips_emit_xori(reg_rv, reg_rv, 2);  // Undo XOR
+#else
+  mips_emit_sh(reg_temp, reg_rv, 0x500);
+#endif
+
+  if (size == 2) {
+    // Convert the second half-word also
+    mips_emit_srl(reg_a1, reg_a1, 16);
+    palette_convert();
+#ifdef N64
+    mips_emit_xori(reg_rv, reg_rv, 2);
+    mips_emit_sh(reg_temp, reg_rv, 0x502);
+    mips_emit_xori(reg_rv, reg_rv, 2);
+#else
+    mips_emit_sh(reg_temp, reg_rv, 0x502);
+#endif
   }
   generate_function_return_swap_delay();
 

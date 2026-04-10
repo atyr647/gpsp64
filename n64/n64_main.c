@@ -26,7 +26,7 @@
 /* Global state required by the emulator core */
 u32 skip_next_frame = 0;
 u32 num_skipped_frames = 0;
-int dynarec_enable = 0;
+int dynarec_enable = 1;
 boot_mode selected_boot_mode = boot_game;
 int sprite_limit = 1;
 u32 netplay_num_clients = 0, netplay_client_id = 0;
@@ -77,6 +77,10 @@ static bool load_rom_and_bios(const char *rom_path)
   if (!bios_ok) {
     info_msg("Using built-in BIOS");
     memcpy(bios_rom, open_gba_bios_rom, sizeof(bios_rom));
+    /* Word-swap for N64 native byte order storage */
+    u32 *p = (u32 *)bios_rom;
+    for (int bi = 0; bi < (int)sizeof(bios_rom) / 4; bi++)
+      p[bi] = __builtin_bswap32(p[bi]);
   }
 
   /* Clear backup memory */
