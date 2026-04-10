@@ -128,6 +128,24 @@ int main(void)
   info_msg("gpSP N64 - GBA Emulator");
   info_msg("Initializing...");
 
+  /* Memory model sanity test */
+  {
+    u8 *raw = (u8*)io_registers_raw;
+    memset(io_registers_raw, 0, 1024);
+    write_ioreg(REG_DISPCNT, 0x1234);
+    write_ioreg(REG_VCOUNT, 0x00AB);
+    u16 dc_back = read_ioreg(REG_DISPCNT);
+    u16 vc_back = read_ioreg(REG_VCOUNT);
+    debugf("SANITY: wrote dc=1234 vc=00AB, read dc=%04x vc=%04x\n", dc_back, vc_back);
+    debugf("RAW bytes[0..7]: %02x%02x %02x%02x %02x%02x %02x%02x\n",
+           raw[0],raw[1],raw[2],raw[3],raw[4],raw[5],raw[6],raw[7]);
+    /* Memory-mapped read test (how the GBA CPU reads them) */
+    u16 dc_mm = readaddress16(io_registers_raw, 0x000);  /* DISPCNT at GBA 0x04000000 */
+    u16 vc_mm = readaddress16(io_registers_raw, 0x006);  /* VCOUNT at GBA 0x04000006 */
+    debugf("MMAP: dc@0x000=%04x vc@0x006=%04x\n", dc_mm, vc_mm);
+    memset(io_registers_raw, 0, 1024);
+  }
+
   /* Allocate GBA screen buffer */
   extern u16 *gba_screen_pixels;
   gba_screen_pixels = (u16 *)malloc(GBA_SCREEN_BUFFER_SIZE);
