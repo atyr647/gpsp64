@@ -148,19 +148,18 @@ typedef u32 fixed8_24;
  * eswap is identity. ROM/BIOS word-swapped at load time.
  */
 #if defined(N64)
-  #define address8(base, offset)  *((u8 *)((u8 *)(base) + ((offset) ^ 3)))
-  #define address16(base, offset) *((u16 *)((u8 *)(base) + ((offset) ^ 2)))
+  /* TEMPORARILY DISABLED: XOR for word-swapped storage */
+  #define address8(base, offset)  *((u8 *)((u8 *)(base) + (offset)))
+  #define address16(base, offset) *((u16 *)((u8 *)(base) + (offset)))
   #define address32(base, offset) *((u32 *)((u8 *)(base) + (offset)))
   #define eswap8(value)  (value)
-  #define eswap16(value) (value)
-  #define eswap32(value) (value)
-  #define gba_deref16(ptr) (*(u16*)((uintptr_t)(ptr) ^ 2))
-  #define gba_deref8(ptr)  (*(u8*)((uintptr_t)(ptr) ^ 3))
-  #define gba_deref32(ptr) (*(u32*)(ptr))
+  #define eswap16(value) __builtin_bswap16(value)
+  #define eswap32(value) __builtin_bswap32(value)
+  #define gba_deref16(ptr) eswap16(*(ptr))
+  #define gba_deref8(ptr)  (*(ptr))
+  #define gba_deref32(ptr) eswap32(*(u32*)(ptr))
   static inline void wordswap_buffer(void *buf, unsigned int len) {
-    u32 *p = (u32 *)buf;
-    for (unsigned int i = 0; i < len / 4; i++)
-      p[i] = __builtin_bswap32(p[i]);
+    (void)buf; (void)len; /* no-op when XOR disabled */
   }
 #else
   #define address8(base, offset)  *((u8 *)((u8 *)(base) + (offset)))

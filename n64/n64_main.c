@@ -181,14 +181,11 @@ int main(void)
       /* Run one GBA frame */
       run_frame();
       if (++dbg_frame <= 5) {
-        extern s32 video_count;
-        extern u32 execute_cycles;
-        debugf("f%lu vc_reg=%u vidcnt=%d excyc=%u pc=%08lx\n",
+        debugf("f%lu pc=%08lx dc=%04x vc=%u\n",
                (unsigned long)dbg_frame,
-               read_ioreg(REG_VCOUNT),
-               (int)video_count,
-               execute_cycles,
-               (unsigned long)reg[REG_PC]);
+               (unsigned long)reg[REG_PC],
+               read_ioreg(REG_DISPCNT),
+               read_ioreg(REG_VCOUNT));
       }
 
       /* Audio disabled — saves significant CPU on the N64 */
