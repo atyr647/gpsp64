@@ -211,6 +211,9 @@ typedef struct
 #define thumb_decode_branch()                                                 \
   u32 offset = opcode & 0x07FF                                                \
 
+/* Forward declaration for cache sync (used by init_emitter in emitter headers) */
+void platform_cache_sync(void *baseaddr, void *endptr);
+
 /* Include the right emitter headers */
 #if defined(MIPS_ARCH)
   #include "mips/mips_emit.h"

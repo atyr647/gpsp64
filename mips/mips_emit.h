@@ -2893,6 +2893,11 @@ void init_emitter(bool must_swap) {
   // Ensure rom flushes do not wipe this area
   rom_cache_watermark = (u32)(translation_ptr - rom_translation_cache);
 
+  // Flush I-cache for the stubs we just generated. translate_icache_sync()
+  // only covers code AFTER the watermark, so the stubs below it would have
+  // stale I-cache data on platforms with split I/D caches (N64).
+  platform_cache_sync(&rom_translation_cache[0], translation_ptr);
+
   init_bios_hooks();
 }
 

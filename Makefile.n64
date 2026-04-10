@@ -18,7 +18,8 @@ N64_ROM_TITLE = "gpSP GBA Emulator"
 N64_MKDFS_ROOT = filesystem
 
 # Extra CFLAGS on top of libdragon's defaults
-CFLAGS += -DN64 -DMIPS_ARCH
+CFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH
+CFLAGS += -DTINY_TRANSLATION_CACHE
 CFLAGS += -DROM_BUFFER_SIZE=2
 CFLAGS += -DUSE_XBGR1555_FORMAT
 CFLAGS += -I$(CURDIR) -I$(CURDIR)/n64
@@ -27,15 +28,10 @@ CFLAGS += -w   # gpsp has many warnings incompatible with libdragon's -Werror
 CXXFLAGS += $(filter-out -std=gnu17,$(filter -D% -I% -W%,$(CFLAGS)))
 CXXFLAGS += -fno-rtti -fno-exceptions
 
-# The CPU interpreter is the hot path — give it extra optimization
-cpu.o: CXXFLAGS += -O3 -funroll-loops
-video.o: CXXFLAGS += -O3
-
-ASFLAGS += -DN64 -DMIPS_ARCH
+ASFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH -DTINY_TRANSLATION_CACHE
 ASFLAGS += -I$(CURDIR)
 
-# Core emulator objects — no dynarec (interpreter only for now,
-# the MIPS JIT lacks big-endian byte-swap in generated code)
+# Core emulator objects
 OBJS = main.o \
        gba_memory.o \
        savestate.o \
@@ -49,7 +45,9 @@ OBJS = main.o \
        memmap.o \
        video.o \
        cpu.o \
+       cpu_threaded.o \
        bios_data.o \
+       mips/mips_stub.o \
        n64/n64_main.o \
        n64/n64_video.o \
        n64/n64_audio.o \
