@@ -39,7 +39,7 @@ static bool emulator_running = false;
 
 /* Simple frameskip state */
 static u32 frameskip_counter = 0;
-#define FRAMESKIP_INTERVAL 4  /* Render every 5th frame for speed */
+#define FRAMESKIP_INTERVAL 1  /* Skip every other frame */
 
 void error_msg(const char *text)
 {
@@ -69,15 +69,14 @@ static bool load_rom_and_bios(const char *rom_path)
 {
   /* Try to load official BIOS from SD card first, then DFS, then built-in */
   bool bios_ok = false;
-  if (load_bios("sd:/gba_bios.bin") == 0 && address8(bios_rom, 0) == 0x18) {
+  if (load_bios("sd:/gba_bios.bin") == 0 && bios_rom[0] == 0x18) {
     bios_ok = true;
-  } else if (load_bios("rom:/gba_bios.bin") == 0 && address8(bios_rom, 0) == 0x18) {
+  } else if (load_bios("rom:/gba_bios.bin") == 0 && bios_rom[0] == 0x18) {
     bios_ok = true;
   }
   if (!bios_ok) {
     info_msg("Using built-in BIOS");
     memcpy(bios_rom, open_gba_bios_rom, sizeof(bios_rom));
-    wordswap_buffer(bios_rom, sizeof(bios_rom));
   }
 
   /* Clear backup memory */
