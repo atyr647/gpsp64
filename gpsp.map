@@ -6437,39 +6437,37 @@ LOAD /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/
  .sdata.sprite_limit
                 0x800d7d3c        0x4 n64/n64_main.o
                 0x800d7d3c                sprite_limit
- .sdata.dynarec_enable
-                0x800d7d40        0x4 n64/n64_main.o
-                0x800d7d40                dynarec_enable
  .sdata.__interrupt_depth
-                0x800d7d44        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
+                0x800d7d40        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
  .sdata.usb_readblock
-                0x800d7d48        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
+                0x800d7d44        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
  .sdata._num_buf
-                0x800d7d4c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
+                0x800d7d48        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
  .sdata.now_showing
-                0x800d7d50        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
+                0x800d7d4c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
  .sdata.__buffers
-                0x800d7d54        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
+                0x800d7d50        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
  .sdata.f_color
-                0x800d7d58        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(graphics.o)
+                0x800d7d54        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(graphics.o)
  .sdata.first_backtrace
-                0x800d7d5c        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
- *fill*         0x800d7d5d        0x3 
+                0x800d7d58        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
+ *fill*         0x800d7d59        0x3 
  .sdata.fpr_show_mode
-                0x800d7d60        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
+                0x800d7d5c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
  .sdata.__exception_handler
-                0x800d7d64        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(exception.o)
+                0x800d7d60        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(exception.o)
  .sdata.mainexe_symt.4
-                0x800d7d68        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(backtrace.o)
+                0x800d7d64        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(backtrace.o)
  .sdata.SYMT_ROM
-                0x800d7d6c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(backtrace.o)
+                0x800d7d68        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(backtrace.o)
  .sdata.console_redirect_debug
-                0x800d7d70        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(console.o)
- *fill*         0x800d7d71        0x3 
+                0x800d7d6c        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(console.o)
+ *fill*         0x800d7d6d        0x3 
  .sdata.handle_buckets_count
-                0x800d7d74        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragonsys.a(system.o)
+                0x800d7d70        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragonsys.a(system.o)
  *(.gnu.linkonce.s.*)
                 0x800d7d78                        . = ALIGN (0x8)
+ *fill*         0x800d7d74        0x4 
 
 .lit8           0x800d7d78        0x0
  *(.lit8)
@@ -6483,7 +6481,7 @@ LOAD /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/
                 0x800d7d78                        . = ALIGN (0x8)
                 0x800d7d78                        __rom_end = .
 
-.sbss           0x800d7d78      0x324
+.sbss           0x800d7d78      0x32c
                 0x800d7d78                        __bss_start = .
  *(.sbss)
  .sbss          0x800d7d78        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inthandler.o)
@@ -6710,253 +6708,257 @@ LOAD /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/
  .sbss.selected_boot_mode
                 0x800d7f04        0x4 n64/n64_main.o
                 0x800d7f04                selected_boot_mode
- .sbss.skip_next_frame
+ .sbss.dynarec_enable
                 0x800d7f08        0x4 n64/n64_main.o
-                0x800d7f08                skip_next_frame
+                0x800d7f08                dynarec_enable
+ .sbss.skip_next_frame
+                0x800d7f0c        0x4 n64/n64_main.o
+                0x800d7f0c                skip_next_frame
  .sbss.rom_count
-                0x800d7f0c        0x4 n64/n64_storage.o
+                0x800d7f10        0x4 n64/n64_storage.o
+ *fill*         0x800d7f14        0x4 
  .sbss.ticks64_base
-                0x800d7f10        0x8 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(n64sys.o)
+                0x800d7f18        0x8 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(n64sys.o)
  .sbss.ticks64_base_tick
-                0x800d7f18        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(n64sys.o)
- .sbss.__expanded_memory_asserted
-                0x800d7f1c        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(n64sys.o)
-                0x800d7f1c                __expanded_memory_asserted
- *fill*         0x800d7f1d        0x3 
- .sbss.__boot_consoletype
                 0x800d7f20        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(n64sys.o)
-                0x800d7f20                __boot_consoletype
- .sbss.__boot_resettype
-                0x800d7f24        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(n64sys.o)
-                0x800d7f24                __boot_resettype
- .sbss.__boot_tvtype
+ .sbss.__expanded_memory_asserted
+                0x800d7f24        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(n64sys.o)
+                0x800d7f24                __expanded_memory_asserted
+ *fill*         0x800d7f25        0x3 
+ .sbss.__boot_consoletype
                 0x800d7f28        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(n64sys.o)
-                0x800d7f28                __boot_tvtype
- .sbss.__boot_memsize
+                0x800d7f28                __boot_consoletype
+ .sbss.__boot_resettype
                 0x800d7f2c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(n64sys.o)
-                0x800d7f2c                __boot_memsize
+                0x800d7f2c                __boot_resettype
+ .sbss.__boot_tvtype
+                0x800d7f30        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(n64sys.o)
+                0x800d7f30                __boot_tvtype
+ .sbss.__boot_memsize
+                0x800d7f34        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(n64sys.o)
+                0x800d7f34                __boot_memsize
  .sbss.last_cart_interrupt_count.4
-                0x800d7f30        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
- .sbss.__prenmi_tick
-                0x800d7f34        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
- .sbss.BB_MD_callback
                 0x800d7f38        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
-                0x800d7f38                BB_MD_callback
- .sbss.BB_USB1_callback
+ .sbss.__prenmi_tick
                 0x800d7f3c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
-                0x800d7f3c                BB_USB1_callback
- .sbss.BB_USB0_callback
+ .sbss.BB_MD_callback
                 0x800d7f40        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
-                0x800d7f40                BB_USB0_callback
- .sbss.BB_AES_callback
+                0x800d7f40                BB_MD_callback
+ .sbss.BB_USB1_callback
                 0x800d7f44        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
-                0x800d7f44                BB_AES_callback
- .sbss.BB_FLASH_callback
+                0x800d7f44                BB_USB1_callback
+ .sbss.BB_USB0_callback
                 0x800d7f48        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
-                0x800d7f48                BB_FLASH_callback
- .sbss.CART_callback
+                0x800d7f48                BB_USB0_callback
+ .sbss.BB_AES_callback
                 0x800d7f4c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
-                0x800d7f4c                CART_callback
- .sbss.TI_callback
+                0x800d7f4c                BB_AES_callback
+ .sbss.BB_FLASH_callback
                 0x800d7f50        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
-                0x800d7f50                TI_callback
- .sbss.SP_callback
+                0x800d7f50                BB_FLASH_callback
+ .sbss.CART_callback
                 0x800d7f54        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
-                0x800d7f54                SP_callback
- .sbss.SI_callback
+                0x800d7f54                CART_callback
+ .sbss.TI_callback
                 0x800d7f58        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
-                0x800d7f58                SI_callback
- .sbss.DP_callback
+                0x800d7f58                TI_callback
+ .sbss.SP_callback
                 0x800d7f5c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
-                0x800d7f5c                DP_callback
- .sbss.PI_callback
+                0x800d7f5c                SP_callback
+ .sbss.SI_callback
                 0x800d7f60        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
-                0x800d7f60                PI_callback
- .sbss.VI_callback
+                0x800d7f60                SI_callback
+ .sbss.DP_callback
                 0x800d7f64        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
-                0x800d7f64                VI_callback
- .sbss.AI_callback
+                0x800d7f64                DP_callback
+ .sbss.PI_callback
                 0x800d7f68        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
-                0x800d7f68                AI_callback
- .sbss.__interrupt_sr
+                0x800d7f68                PI_callback
+ .sbss.VI_callback
                 0x800d7f6c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
- .sbss.once.5   0x800d7f70        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(debug.o)
- .sbss.ok.6     0x800d7f71        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(debug.o)
- .sbss.once.7   0x800d7f72        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(debug.o)
- *fill*         0x800d7f73        0x1 
+                0x800d7f6c                VI_callback
+ .sbss.AI_callback
+                0x800d7f70        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
+                0x800d7f70                AI_callback
+ .sbss.__interrupt_sr
+                0x800d7f74        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(interrupt.o)
+ .sbss.once.5   0x800d7f78        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(debug.o)
+ .sbss.ok.6     0x800d7f79        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(debug.o)
+ .sbss.once.7   0x800d7f7a        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(debug.o)
+ *fill*         0x800d7f7b        0x1 
  .sbss.enabled_features
-                0x800d7f74        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(debug.o)
+                0x800d7f7c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(debug.o)
  .sbss.usb_dataleft
-                0x800d7f78        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
- .sbss.usb_datasize
-                0x800d7f7c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
- .sbss.usb_datatype
                 0x800d7f80        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
- .sbss.usb_didtimeout
-                0x800d7f84        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
- *fill*         0x800d7f85        0x3 
- .sbss.usb_buffer
+ .sbss.usb_datasize
+                0x800d7f84        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
+ .sbss.usb_datatype
                 0x800d7f88        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
- .sbss.usb_cart
+ .sbss.usb_didtimeout
                 0x800d7f8c        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
  *fill*         0x800d7f8d        0x3 
- .sbss.funcPointer_read
+ .sbss.usb_buffer
                 0x800d7f90        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
-                0x800d7f90                funcPointer_read
- .sbss.funcPointer_poll
-                0x800d7f94        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
-                0x800d7f94                funcPointer_poll
- .sbss.funcPointer_write
+ .sbss.usb_cart
+                0x800d7f94        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
+ *fill*         0x800d7f95        0x3 
+ .sbss.funcPointer_read
                 0x800d7f98        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
-                0x800d7f98                funcPointer_write
+                0x800d7f98                funcPointer_read
+ .sbss.funcPointer_poll
+                0x800d7f9c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
+                0x800d7f9c                funcPointer_poll
+ .sbss.funcPointer_write
+                0x800d7fa0        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(usb.o)
+                0x800d7fa0                funcPointer_write
  .sbss.next_entry
-                0x800d7f9c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(dragonfs.o)
- .sbss.directory_top
-                0x800d7fa0        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(dragonfs.o)
- .sbss.lookup_path_ofs
                 0x800d7fa4        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(dragonfs.o)
- .sbss.lookup   0x800d7fa8        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(dragonfs.o)
- .sbss.base_ptr
+ .sbss.directory_top
+                0x800d7fa8        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(dragonfs.o)
+ .sbss.lookup_path_ofs
                 0x800d7fac        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(dragonfs.o)
+ .sbss.lookup   0x800d7fb0        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(dragonfs.o)
+ .sbss.base_ptr
+                0x800d7fb4        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(dragonfs.o)
  .sbss.buf_full
-                0x800d7fb0        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
- .sbss.now_writing
-                0x800d7fb4        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
- .sbss.now_empty
                 0x800d7fb8        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
- .sbss.playing_queue
+ .sbss.now_writing
                 0x800d7fbc        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
- .sbss.now_playing
+ .sbss.now_empty
                 0x800d7fc0        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
- .sbss._paused  0x800d7fc4        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
- *fill*         0x800d7fc5        0x3 
- .sbss._fill_buffer_callback
+ .sbss.playing_queue
+                0x800d7fc4        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
+ .sbss.now_playing
                 0x800d7fc8        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
+ .sbss._paused  0x800d7fcc        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
+ *fill*         0x800d7fcd        0x3 
+ .sbss._fill_buffer_callback
+                0x800d7fd0        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
  .sbss.buffers_orig
-                0x800d7fcc        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
- .sbss.buffers  0x800d7fd0        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
- .sbss._buf_size
                 0x800d7fd4        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
+ .sbss.buffers  0x800d7fd8        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
+ .sbss._buf_size
+                0x800d7fdc        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
  .sbss._frequency
-                0x800d7fd8        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
+                0x800d7fe0        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(audio.o)
  .sbss.frame_times_duration
-                0x800d7fdc        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
- .sbss.frame_times_index
-                0x800d7fe0        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
- .sbss.ready_mask
                 0x800d7fe4        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
- .sbss.drawing_mask
+ .sbss.frame_times_index
                 0x800d7fe8        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
- .sbss.__height
+ .sbss.ready_mask
                 0x800d7fec        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
- .sbss.__width  0x800d7ff0        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
- .sbss.__bitdepth
+ .sbss.drawing_mask
+                0x800d7ff0        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
+ .sbss.__height
                 0x800d7ff4        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
+ .sbss.__width  0x800d7ff8        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
+ .sbss.__bitdepth
+                0x800d7ffc        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
  .sbss.surfaces
-                0x800d7ff8        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
- .sbss.b_color  0x800d7ffc        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(graphics.o)
+                0x800d8000        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(display.o)
+ .sbss.b_color  0x800d8004        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(graphics.o)
  .sbss.cur_ucode
-                0x800d8000        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(rsp.o)
+                0x800d8008        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(rsp.o)
  .sbss.backtrace.5
-                0x800d8004        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
+                0x800d800c        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
  .sbss.in_inspector.6
-                0x800d8005        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
- *fill*         0x800d8006        0x2 
+                0x800d800d        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
+ *fill*         0x800d800e        0x2 
  .sbss.module_offset
-                0x800d8008        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
- .sbss.disasm_offset
-                0x800d800c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
- .sbss.disasm_max_frames
                 0x800d8010        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
- .sbss.disasm_bt_idx
+ .sbss.disasm_offset
                 0x800d8014        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
- .sbss.disp     0x800d8018        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
- .sbss.cursor_wordwrap
+ .sbss.disasm_max_frames
+                0x800d8018        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
+ .sbss.disasm_bt_idx
                 0x800d801c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
- .sbss.cursor_columns
-                0x800d8020        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
- .sbss.cursor_y
+ .sbss.disp     0x800d8020        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
+ .sbss.cursor_wordwrap
                 0x800d8024        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
- .sbss.cursor_x
+ .sbss.cursor_columns
                 0x800d8028        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
+ .sbss.cursor_y
+                0x800d802c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
+ .sbss.cursor_x
+                0x800d8030        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inspector.o)
  .sbss.backtrace_exception.4
-                0x800d802c        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(exception.o)
- *fill*         0x800d802d        0x3 
+                0x800d8034        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(exception.o)
+ *fill*         0x800d8035        0x3 
  .sbss.__dl_num_loaded_modules
-                0x800d8030        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(dlfcn.o)
-                0x800d8030                __dl_num_loaded_modules
- .sbss.__dl_list_head
-                0x800d8034        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(dlfcn.o)
-                0x800d8034                __dl_list_head
- .sbss.__dl_lookup_module
                 0x800d8038        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(dlfcn.o)
-                0x800d8038                __dl_lookup_module
+                0x800d8038                __dl_num_loaded_modules
+ .sbss.__dl_list_head
+                0x800d803c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(dlfcn.o)
+                0x800d803c                __dl_list_head
+ .sbss.__dl_lookup_module
+                0x800d8040        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(dlfcn.o)
+                0x800d8040                __dl_lookup_module
  .sbss.msgs_ridx
-                0x800d803c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joybus.o)
- .sbss.msgs_widx
-                0x800d8040        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joybus.o)
- .sbss.joybus_state
                 0x800d8044        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joybus.o)
+ .sbss.msgs_widx
+                0x800d8048        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joybus.o)
+ .sbss.joybus_state
+                0x800d804c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joybus.o)
  .sbss.joypad_init_refcount
-                0x800d8048        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
- *fill*         0x800d804c        0x4 
+                0x800d8050        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
+ *fill*         0x800d8054        0x4 
  .sbss.joypad_identifiers_hot
-                0x800d8050        0x8 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
-                0x800d8050                joypad_identifiers_hot
+                0x800d8058        0x8 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
+                0x800d8058                joypad_identifiers_hot
  .sbss.joypad_gcn_origin_input_valid
-                0x800d8058        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
+                0x800d8060        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
  .sbss.joypad_gcn_origin_pending
-                0x800d8059        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
+                0x800d8061        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
  .sbss.joypad_read_input_valid
-                0x800d805a        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
+                0x800d8062        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
  .sbss.joypad_read_pending
-                0x800d805b        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
+                0x800d8063        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
  .sbss.joypad_identify_input_valid
-                0x800d805c        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
+                0x800d8064        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
  .sbss.joypad_identify_pending
-                0x800d805d        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
- *fill*         0x800d805e        0x2 
+                0x800d8065        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
+ *fill*         0x800d8066        0x2 
  .sbss.joypad_identify_last_ticks
-                0x800d8060        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
+                0x800d8068        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(joypad.o)
  .sbss.rdpq_trace
-                0x800d8064        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(rdpq_debug.o)
-                0x800d8064                rdpq_trace
+                0x800d806c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(rdpq_debug.o)
+                0x800d806c                rdpq_trace
  .sbss.addrtable_base
-                0x800d8068        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(backtrace.o)
+                0x800d8070        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(backtrace.o)
  .sbss.toc_addr.1
-                0x800d806c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(rompak.o)
+                0x800d8074        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(rompak.o)
  .sbss.rompak_corrupted.2
-                0x800d8070        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(rompak.o)
- *fill*         0x800d8071        0x3 
+                0x800d8078        0x1 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(rompak.o)
+ *fill*         0x800d8079        0x3 
  .sbss.render_now
-                0x800d8074        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(console.o)
+                0x800d807c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(console.o)
  .sbss.render_buffer
-                0x800d8078        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(console.o)
+                0x800d8080        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(console.o)
  .sbss.TI_timers
-                0x800d807c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(timer.o)
+                0x800d8084        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(timer.o)
  .sbss.timer_init_refcount
-                0x800d8080        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(timer.o)
+                0x800d8088        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(timer.o)
  .sbss.time_hook
-                0x800d8084        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragonsys.a(system.o)
-                0x800d8084                time_hook
- .sbss.handle_open_count
-                0x800d8088        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragonsys.a(system.o)
- .sbss.__assert_func_ptr
                 0x800d808c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragonsys.a(system.o)
-                0x800d808c                __assert_func_ptr
- .sbss.__heap_top
+                0x800d808c                time_hook
+ .sbss.handle_open_count
                 0x800d8090        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragonsys.a(system.o)
-                0x800d8090                __heap_top
- .sbss.__heap_end
+ .sbss.__assert_func_ptr
                 0x800d8094        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragonsys.a(system.o)
-                0x800d8094                __heap_end
- .sbss.__heap_total_size
+                0x800d8094                __assert_func_ptr
+ .sbss.__heap_top
                 0x800d8098        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragonsys.a(system.o)
-                0x800d8098                __heap_total_size
+                0x800d8098                __heap_top
+ .sbss.__heap_end
+                0x800d809c        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragonsys.a(system.o)
+                0x800d809c                __heap_end
+ .sbss.__heap_total_size
+                0x800d80a0        0x4 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragonsys.a(system.o)
+                0x800d80a0                __heap_total_size
  *(.gnu.linkonce.sb.*)
  *(.scommon)
  *(.scommon.*)
-                0x800d80a0                        . = ALIGN (0x8)
+                0x800d80a8                        . = ALIGN (0x8)
 
 .bss            0x800d80c0   0x1f3f78
  *(.bss)
