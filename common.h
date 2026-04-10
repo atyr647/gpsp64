@@ -185,15 +185,23 @@ typedef u32 fixed8_24;
 #define readaddress16(base, offset) eswap16(address16(base, offset))
 #define readaddress32(base, offset) eswap32(address32(base, offset))
 
-/* I/O register access — MUST go through address16 for XOR on N64 */
-#define read_ioreg(regnum)  address16(io_registers_raw, (regnum) * 2)
-#define write_ioreg(regnum, val) (address16(io_registers_raw, (regnum) * 2) = (val))
+/* I/O register access.
+   On N64 word-swapped: address16 XORs, eswap is identity.
+   On LE/other BE: use direct indexing with eswap. */
+#if defined(N64)
+  #define read_ioreg(regnum)  address16(io_registers_raw, (regnum) * 2)
+  #define write_ioreg(regnum, val) (address16(io_registers_raw, (regnum) * 2) = (val))
+  #define read_dmareg(regnum, dmachan) \
+    address16(io_registers_raw, ((regnum) + (dmachan) * 6) * 2)
+  #define write_dmareg(regnum, dmachan, val) \
+    (address16(io_registers_raw, ((regnum) + (dmachan) * 6) * 2) = (val))
+#else
+  #define read_ioreg(regnum) (eswap16(io_registers_raw[(regnum)]))
+  #define write_ioreg(regnum, val) (io_registers_raw[(regnum)] = eswap16(val))
+  #define read_dmareg(regnum, dmachan) (eswap16(io_registers_raw[(regnum) + (dmachan) * 6]))
+  #define write_dmareg(regnum, dmachan, val) (io_registers_raw[(regnum) + (dmachan) * 6] = eswap16(val))
+#endif
 #define read_ioreg32(regnum) (read_ioreg(regnum) | (read_ioreg((regnum)+1) << 16))
-
-#define read_dmareg(regnum, dmachan) \
-  address16(io_registers_raw, ((regnum) + (dmachan) * 6) * 2)
-#define write_dmareg(regnum, dmachan, val) \
-  (address16(io_registers_raw, ((regnum) + (dmachan) * 6) * 2) = (val))
 
 #include <unistd.h>
 #include <time.h>
