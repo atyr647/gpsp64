@@ -2028,15 +2028,18 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
   mips_emit_sra(rd, rd, 16)
 
 // Swap 32-bit value: ABCD -> DCBA  (clobbers reg_temp, reg_a0)
+// All immediates must be <=16 bits for MIPS andi.
 #define emit_bswap32(rd, rs)                         \
   mips_emit_sll(reg_temp, rs, 24);                   \
   mips_emit_srl(reg_a0, rs, 24);                     \
   mips_emit_or(reg_temp, reg_temp, reg_a0);          \
   mips_emit_srl(reg_a0, rs, 8);                      \
-  mips_emit_andi(reg_a0, reg_a0, 0xFF00);            \
+  mips_emit_andi(reg_a0, reg_a0, 0xFF);              \
+  mips_emit_sll(reg_a0, reg_a0, 16);                 \
   mips_emit_or(reg_temp, reg_temp, reg_a0);          \
-  mips_emit_sll(reg_a0, rs, 8);                      \
-  mips_emit_andi(reg_a0, reg_a0, 0xFF0000);          \
+  mips_emit_srl(reg_a0, rs, 16);                     \
+  mips_emit_andi(reg_a0, reg_a0, 0xFF);              \
+  mips_emit_sll(reg_a0, reg_a0, 8);                  \
   mips_emit_or(rd, reg_temp, reg_a0)
 
 // Swap 16-bit value in reg_a1 for stores (clobbers reg_temp, reg_a0)
@@ -2053,10 +2056,12 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
   mips_emit_srl(reg_a0, reg_a1, 24);                 \
   mips_emit_or(reg_temp, reg_temp, reg_a0);          \
   mips_emit_srl(reg_a0, reg_a1, 8);                  \
-  mips_emit_andi(reg_a0, reg_a0, 0xFF00);            \
+  mips_emit_andi(reg_a0, reg_a0, 0xFF);              \
+  mips_emit_sll(reg_a0, reg_a0, 16);                 \
   mips_emit_or(reg_temp, reg_temp, reg_a0);          \
-  mips_emit_sll(reg_a0, reg_a1, 8);                  \
-  mips_emit_andi(reg_a0, reg_a0, 0xFF0000);          \
+  mips_emit_srl(reg_a0, reg_a1, 16);                 \
+  mips_emit_andi(reg_a0, reg_a0, 0xFF);              \
+  mips_emit_sll(reg_a0, reg_a0, 8);                  \
   mips_emit_or(reg_a1, reg_temp, reg_a0)
 
 #else
