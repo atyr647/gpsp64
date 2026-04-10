@@ -69,9 +69,9 @@ static bool load_rom_and_bios(const char *rom_path)
 {
   /* Try to load official BIOS from SD card first, then DFS, then built-in */
   bool bios_ok = false;
-  if (load_bios("sd:/gba_bios.bin") == 0 && bios_rom_raw[0] == 0x18) {
+  if (load_bios("sd:/gba_bios.bin") == 0 && address8(bios_rom_raw, 0) == 0x18) {
     bios_ok = true;
-  } else if (load_bios("rom:/gba_bios.bin") == 0 && bios_rom_raw[0] == 0x18) {
+  } else if (load_bios("rom:/gba_bios.bin") == 0 && address8(bios_rom_raw, 0) == 0x18) {
     bios_ok = true;
   }
   if (!bios_ok) {

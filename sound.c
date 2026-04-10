@@ -449,12 +449,10 @@ void render_gbc_sound()
     if(gbc_sound_wave_update)
     {
        unsigned bank = (gs->wave_bank == 1) ? 1 : 0;
-       u8 *wave_ram = ((u8 *)io_registers_raw) + 0x90;
-
        wave_bank = wave_samples + (bank * 32);
        for(i = 0, i2 = 0; i < 16; i++, i2 += 2)
        {
-          current_sample = wave_ram[i];
+          current_sample = address8(io_registers_raw, 0x90 + i);
           wave_bank[i2] = (((current_sample >> 4) & 0x0F) - 8);
           wave_bank[i2 + 1] = ((current_sample & 0x0F) - 8);
        }
