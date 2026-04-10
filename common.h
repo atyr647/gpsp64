@@ -141,54 +141,37 @@ typedef u32 fixed8_24;
 #define fixed_div(numerator, denominator, bits)                               \
   (((numerator * (1 << bits)) + (denominator / 2)) / denominator)             \
 
-/*
- * N64 big-endian memory strategy: store GBA data word-swapped (each 32-bit
- * word in native byte order). This makes JIT word loads/stores zero-cost.
- * Sub-word accesses use XOR address trick: byte XOR 3, halfword XOR 2.
- * ROM/BIOS data is word-swapped at load time. eswap becomes identity.
- */
-#if defined(N64)
-  #define address8(base, offset)                                              \
-    *((u8 *)((u8 *)base + ((offset) ^ 3)))
-  #define address16(base, offset)                                             \
-    *((u16 *)((u8 *)base + ((offset) ^ 2)))
-  #define address32(base, offset)                                             \
-    *((u32 *)((u8 *)base + (offset)))
+#define address8(base, offset)                                                \
+  *((u8 *)((u8 *)base + (offset)))
 
-  #define eswap8(value)  (value)
+#define address16(base, offset)                                               \
+  *((u16 *)((u8 *)base + (offset)))
+
+#define address32(base, offset)                                               \
+  *((u32 *)((u8 *)base + (offset)))
+
+/* Native (non-GBA) 16-bit access */
+#define native16(base, offset) address16(base, offset)
+
+#define eswap8(value)  (value)
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  #define eswap16(value) __builtin_bswap16(value)
+  #define eswap32(value) __builtin_bswap32(value)
+#else
   #define eswap16(value) (value)
   #define eswap32(value) (value)
-#else
-  #define address8(base, offset)                                              \
-    *((u8 *)((u8 *)base + (offset)))
-  #define address16(base, offset)                                             \
-    *((u16 *)((u8 *)base + (offset)))
-  #define address32(base, offset)                                             \
-    *((u32 *)((u8 *)base + (offset)))
-
-  #define eswap8(value)  (value)
-  #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-    #define eswap16(value) __builtin_bswap16(value)
-    #define eswap32(value) __builtin_bswap32(value)
-  #else
-    #define eswap16(value) (value)
-    #define eswap32(value) (value)
-  #endif
 #endif
-
-/* Native (non-GBA) 16-bit access: no XOR even on N64 */
-#define native16(base, offset) *((u16 *)((u8 *)(base) + (offset)))
 
 #define  readaddress8(base, offset) eswap8( address8( base, offset))
 #define readaddress16(base, offset) eswap16(address16(base, offset))
 #define readaddress32(base, offset) eswap32(address32(base, offset))
 
-#define read_ioreg(regnum) (address16(io_registers, (regnum) * 2))
-#define write_ioreg(regnum, val) (address16(io_registers, (regnum) * 2) = (val))
+#define read_ioreg(regnum) (eswap16(io_registers[(regnum)]))
+#define write_ioreg(regnum, val) io_registers[(regnum)] = eswap16(val)
 #define read_ioreg32(regnum) (read_ioreg(regnum) | (read_ioreg((regnum)+1) << 16))
 
-#define read_dmareg(regnum, dmachan) (address16(io_registers, ((regnum) + (dmachan) * 6) * 2))
-#define write_dmareg(regnum, dmachan, val) (address16(io_registers, ((regnum) + (dmachan) * 6) * 2) = (val))
+#define read_dmareg(regnum, dmachan) (eswap16(io_registers[(regnum) + (dmachan) * 6]))
+#define write_dmareg(regnum, dmachan, val) io_registers[(regnum) + (dmachan) * 6] = eswap16(val)
 
 #include <unistd.h>
 #include <time.h>

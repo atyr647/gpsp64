@@ -77,10 +77,6 @@ static bool load_rom_and_bios(const char *rom_path)
   if (!bios_ok) {
     info_msg("Using built-in BIOS");
     memcpy(bios_rom, open_gba_bios_rom, sizeof(bios_rom));
-    /* Word-swap for N64 native byte order storage */
-    u32 *p = (u32 *)bios_rom;
-    for (int bi = 0; bi < (int)sizeof(bios_rom) / 4; bi++)
-      p[bi] = __builtin_bswap32(p[bi]);
   }
 
   /* Clear backup memory */
