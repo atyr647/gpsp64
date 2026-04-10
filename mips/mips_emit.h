@@ -1326,41 +1326,23 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
     generate_indirect_branch_arm();                                           \
   }                                                                           \
 
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  /* Big-endian: SP fast path can't use inline lw/sw (wrong byte order).
-     Fall back to the generic C-function path for correctness. */
-  #define arm_block_memory_sp_load()                                          \
-    mips_emit_addiu(reg_a0, reg_a2, offset);                                  \
-    arm_block_memory_load()
+#define arm_block_memory_sp_load()                                            \
+  mips_emit_lw(arm_to_mips_reg[i], reg_a1, offset);                           \
 
-  #define arm_block_memory_sp_store()                                         \
-    mips_emit_addiu(reg_a0, reg_a2, offset);                                  \
-    arm_block_memory_store()
+#define arm_block_memory_sp_store()                                           \
+{                                                                             \
+  u32 store_reg = i;                                                          \
+  check_load_reg_pc(arm_reg_a0, store_reg, 8);                                \
+  mips_emit_sw(arm_to_mips_reg[store_reg], reg_a1, offset);                   \
+}
 
-  #define arm_block_memory_sp_adjust_pc_store()                               \
-    arm_block_memory_adjust_pc_store()
+#define arm_block_memory_sp_adjust_pc_store()
 
-  #define arm_block_memory_sp_adjust_pc_load()                                \
-    arm_block_memory_adjust_pc_load()
-#else
-  #define arm_block_memory_sp_load()                                          \
-    mips_emit_lw(arm_to_mips_reg[i], reg_a1, offset);                        \
-
-  #define arm_block_memory_sp_store()                                         \
+#define arm_block_memory_sp_adjust_pc_load()                                  \
+  if(reg_list & 0x8000)                                                       \
   {                                                                           \
-    u32 store_reg = i;                                                        \
-    check_load_reg_pc(arm_reg_a0, store_reg, 8);                              \
-    mips_emit_sw(arm_to_mips_reg[store_reg], reg_a1, offset);                 \
+    generate_indirect_branch_arm();                                           \
   }
-
-  #define arm_block_memory_sp_adjust_pc_store()
-
-  #define arm_block_memory_sp_adjust_pc_load()                                \
-    if(reg_list & 0x8000)                                                     \
-    {                                                                         \
-      generate_indirect_branch_arm();                                         \
-    }
-#endif
 
 #define arm_block_memory_offset_down_a()                                      \
   mips_emit_addiu(reg_a2, base_reg, (-((word_bit_count(reg_list) * 4) - 4)))  \
@@ -1405,7 +1387,8 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
   arm_block_memory_offset_##offset_type();                                    \
   arm_block_memory_writeback_pre_##access_type(writeback_type);               \
                                                                               \
-  if(rn == REG_SP)                                                            \
+  /* Big-endian: skip SP fast path (inline lw/sw has wrong byte order) */     \
+  if(BE_SKIP_SP_FASTPATH && rn == REG_SP)                                     \
   {                                                                           \
     /* Assume IWRAM, the most common path by far */                           \
     mips_emit_andi(reg_a1, reg_a2, 0x7FFC);                                   \
@@ -1712,48 +1695,24 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
   generate_mov(reg_a0, reg_rv);                                               \
   generate_indirect_branch_cycle_update(thumb)                                \
 
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  /* Big-endian: SP fast path can't use inline lw/sw (wrong byte order). */
-  #define thumb_block_memory_sp_load()                                        \
-    mips_emit_addiu(reg_a0, reg_a2, offset);                                  \
-    thumb_block_memory_load()
+#define thumb_block_memory_sp_load()                                          \
+  mips_emit_lw(arm_to_mips_reg[i], reg_a1, offset)                            \
 
-  #define thumb_block_memory_sp_store()                                       \
-    mips_emit_addiu(reg_a0, reg_a2, offset);                                  \
-    thumb_block_memory_store()
+#define thumb_block_memory_sp_store()                                         \
+  mips_emit_sw(arm_to_mips_reg[i], reg_a1, offset)                            \
 
-  #define thumb_block_memory_sp_extra_no()
-  #define thumb_block_memory_sp_extra_up()
-  #define thumb_block_memory_sp_extra_down()
+#define thumb_block_memory_sp_extra_no()                                      \
 
-  #define thumb_block_memory_sp_extra_pop_pc()                                \
-    mips_emit_addiu(reg_a0, reg_a2, offset);                                  \
-    generate_function_call_swap_delay(execute_aligned_load32);                \
-    mips_emit_addu(reg_a0, reg_rv, reg_zero);                                 \
-    generate_indirect_branch_cycle_update(thumb)
+#define thumb_block_memory_sp_extra_up()                                      \
 
-  #define thumb_block_memory_sp_extra_push_lr()                               \
-    mips_emit_addiu(reg_a0, reg_a2, offset);                                  \
-    generate_load_reg(reg_a1, REG_LR);                                        \
-    generate_function_call_swap_delay(execute_aligned_store32)
-#else
-  #define thumb_block_memory_sp_load()                                        \
-    mips_emit_lw(arm_to_mips_reg[i], reg_a1, offset)
+#define thumb_block_memory_sp_extra_down()                                    \
 
-  #define thumb_block_memory_sp_store()                                       \
-    mips_emit_sw(arm_to_mips_reg[i], reg_a1, offset)
+#define thumb_block_memory_sp_extra_pop_pc()                                  \
+  mips_emit_lw(reg_a0, reg_a1, offset);                                       \
+  generate_indirect_branch_cycle_update(thumb)                                \
 
-  #define thumb_block_memory_sp_extra_no()
-  #define thumb_block_memory_sp_extra_up()
-  #define thumb_block_memory_sp_extra_down()
-
-  #define thumb_block_memory_sp_extra_pop_pc()                                \
-    mips_emit_lw(reg_a0, reg_a1, offset);                                     \
-    generate_indirect_branch_cycle_update(thumb)
-
-  #define thumb_block_memory_sp_extra_push_lr()                               \
-    mips_emit_sw(reg_r14, reg_a1, offset)
-#endif                                       \
+#define thumb_block_memory_sp_extra_push_lr()                                 \
+  mips_emit_sw(reg_r14, reg_a1, offset)                                       \
 
 #define thumb_block_memory(access_type, pre_op, post_op, base_reg)            \
 {                                                                             \
@@ -1764,7 +1723,8 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
   thumb_block_address_preadjust_##pre_op(base_reg);                           \
   thumb_block_address_postadjust_##post_op(base_reg);                         \
                                                                               \
-  if(base_reg == REG_SP)                                                      \
+  /* Big-endian: skip SP fast path (inline lw/sw has wrong byte order) */     \
+  if(BE_SKIP_SP_FASTPATH && base_reg == REG_SP)                               \
   {                                                                           \
     /* Assume IWRAM, the most common path by far */                           \
     mips_emit_andi(reg_a1, reg_a2, 0x7FFC);                                   \
@@ -2013,6 +1973,7 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
 // GBA memory is stored little-endian; native MIPS loads on big-endian
 // return byte-swapped values. These emit inline swap sequences.
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  #define BE_SKIP_SP_FASTPATH 0  /* Always skip SP inline lw/sw path */
 
 // Swap 16-bit value: 0x00AB -> 0x00BA  (clobbers reg_temp)
 #define emit_bswap16(rd, rs)                        \
@@ -2065,11 +2026,12 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
   mips_emit_or(reg_a1, reg_temp, reg_a0)
 
 #else
-#define emit_bswap16(rd, rs)
-#define emit_signext16(rd, rs)
-#define emit_bswap32(rd, rs)
-#define emit_bswap16_a1()
-#define emit_bswap32_a1()
+  #define BE_SKIP_SP_FASTPATH 1  /* Use SP fast path on little-endian */
+  #define emit_bswap16(rd, rs)
+  #define emit_signext16(rd, rs)
+  #define emit_bswap32(rd, rs)
+  #define emit_bswap16_a1()
+  #define emit_bswap32_a1()
 #endif
 
 // Register save layout as follows:
