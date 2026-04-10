@@ -118,6 +118,12 @@ int main(void)
   debug_init_isviewer();
   debug_init_usblog();
 
+  /* Require expansion pak — we need >4MB for GBA emulation */
+  if (!is_memory_expanded()) {
+    debugf("ERROR: Expansion pak required!\n");
+    while(1) {}
+  }
+
   /* Initialize subsystems */
   dfs_init(DFS_DEFAULT_LOCATION);
   n64_video_init();
@@ -198,10 +204,11 @@ int main(void)
 
       /* Run one GBA frame */
       run_frame();
-      if (++dbg_frame <= 30)
-        debugf("f%lu pc=%08lx dc=%04x\n",
+      if (++dbg_frame <= 100 && (dbg_frame % 10 == 0))
+        debugf("f%lu pc=%08lx dc=%04x halt=%lu\n",
                (unsigned long)dbg_frame, (unsigned long)reg[REG_PC],
-               read_ioreg(REG_DISPCNT));
+               read_ioreg(REG_DISPCNT),
+               (unsigned long)reg[CPU_HALT_STATE]);
 
       /* Audio disabled — saves significant CPU on the N64 */
       /* n64_audio_render_frame(); */
