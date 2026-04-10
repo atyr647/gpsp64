@@ -198,20 +198,10 @@ int main(void)
 
       /* Run one GBA frame */
       run_frame();
-      if (++dbg_frame == 1) {
-        /* Round-trip test: write known values, read back */
-        u16 saved_dc = read_ioreg(REG_DISPCNT);
-        u16 saved_vc = read_ioreg(REG_VCOUNT);
-        write_ioreg(REG_VCOUNT, 0x00AB);
-        u16 vc_back = read_ioreg(REG_VCOUNT);
-        u16 vc_mm = readaddress16(io_registers_raw, 0x006); /* memory-mapped */
-        u8 *raw = (u8*)io_registers_raw;
-        debugf("TEST: wrote vc=00AB, ioreg=%04x mmap=%04x\n", vc_back, vc_mm);
-        debugf("RAW[0..7]=%02x%02x %02x%02x %02x%02x %02x%02x\n",
-               raw[0],raw[1],raw[2],raw[3],raw[4],raw[5],raw[6],raw[7]);
-        write_ioreg(REG_VCOUNT, saved_vc);
-        write_ioreg(REG_DISPCNT, saved_dc);
-      }
+      if (++dbg_frame <= 30)
+        debugf("f%lu pc=%08lx dc=%04x\n",
+               (unsigned long)dbg_frame, (unsigned long)reg[REG_PC],
+               read_ioreg(REG_DISPCNT));
 
       /* Audio disabled — saves significant CPU on the N64 */
       /* n64_audio_render_frame(); */
