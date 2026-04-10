@@ -193,7 +193,7 @@ static inline void rend_part_tile_Nbpp(u32 bg_comb, u32 px_comb,
     u16 pxflg = px_comb | tilepal;
     const u16 *subpal = &paltbl[tilepal];
     // Read packed pixel data, skip start pixels
-    u32 tilepix = eswap32(*(u32*)tile_ptr);
+    u32 tilepix = gba_deref32(tile_ptr);
     if (hflip) tilepix <<= (start * 4);
     else       tilepix >>= (start * 4);
     // Only 32 bits (8 pixels * 4 bits)
@@ -234,7 +234,7 @@ static inline void render_tile_Nbpp(
 
   if (is8bpp) {
     for (u32 j = 0; j < 2; j++) {
-      u32 tilepix = eswap32(((u32*)tile_ptr)[hflip ? 1-j : j]);
+      u32 tilepix = gba_deref32(&((u32*)tile_ptr)[hflip ? 1-j : j]);
       if (tilepix) {
         for (u32 i = 0; i < 4; i++, dest_ptr++) {
           u8 pval = hflip ? (tilepix >> (24 - i*8)) : (tilepix >> (i*8));
@@ -257,7 +257,7 @@ static inline void render_tile_Nbpp(
       }
     }
   } else {
-    u32 tilepix = eswap32(*(u32*)tile_ptr);
+    u32 tilepix = gba_deref32(tile_ptr);
     if (tilepix) {  // We can skip it all if the row is transparent
       u16 tilepal = (tile >> 12) << 4;
       u16 pxflg = px_comb | tilepal;
@@ -359,7 +359,7 @@ static void render_scanline_text_fast(u32 layer,
     u32 todraw = MIN(end, partial_hcnt); // [1..7]
     u32 stop = tile_hoff + todraw;   // Usually 8, unless short run.
 
-    u16 tile = eswap16(*map_ptr++);
+    u16 tile = gba_deref16(map_ptr++);
     if (tile & 0x400)   // Tile horizontal flip
       rend_part_tile_Nbpp<stype, rdtype, is8bpp, isbase, true>(
         bg_comb, px_comb, dest_ptr, tile_hoff, stop, tile, tile_base, vflip_off, paltbl);
@@ -379,7 +379,7 @@ static void render_scanline_text_fast(u32 layer,
   u32 todraw = MIN(end, pixel_run) / 8;
 
   for (u32 i = 0; i < todraw; i++, dest_ptr += 8) {
-    u16 tile = eswap16(*map_ptr++);
+    u16 tile = gba_deref16(map_ptr++);
     if (tile & 0x400)   // Tile horizontal flip
       render_tile_Nbpp<stype, rdtype, is8bpp, isbase, true>(
         bg_comb, px_comb, dest_ptr, tile, tile_base, vflip_off, paltbl);
@@ -400,7 +400,7 @@ static void render_scanline_text_fast(u32 layer,
 
   todraw = end / 8;
   for (u32 i = 0; i < todraw; i++, dest_ptr += 8) {
-    u16 tile = eswap16(*map_ptr++);
+    u16 tile = gba_deref16(map_ptr++);
     if (tile & 0x400)   // Tile horizontal flip
       render_tile_Nbpp<stype, rdtype, is8bpp, isbase, true>(
         bg_comb, px_comb, dest_ptr, tile, tile_base, vflip_off, paltbl);
@@ -413,7 +413,7 @@ static void render_scanline_text_fast(u32 layer,
 
   // Finalize the tile rendering the left side of it (from 0 up to "end").
   if (end) {
-    u16 tile = eswap16(*map_ptr++);
+    u16 tile = gba_deref16(map_ptr++);
     if (tile & 0x400)   // Tile horizontal flip
       rend_part_tile_Nbpp<stype, rdtype, is8bpp, isbase, true>(
         bg_comb, px_comb, dest_ptr, 0, end, tile, tile_base, vflip_off, paltbl);
@@ -487,7 +487,7 @@ static void render_scanline_text_mosaic(u32 layer,
   // Iterate pixel by pixel, loading data every N pixels to honor mosaic effect
   u8 pval = 0;
   for (u32 i = 0; start < end; start++, i++, dest_ptr++) {
-    u16 tile = eswap16(*map_ptr);
+    u16 tile = gba_deref16(map_ptr);
 
     if (!(i % mosh)) {
       const u8 *tile_ptr = &tile_base[(tile & 0x3FF) * (is8bpp ? 64 : 32)];
@@ -1038,7 +1038,7 @@ static inline void render_obj_tile_Nbpp(u32 px_comb,
 
   if (is8bpp) {
     for (u32 j = 0; j < 2; j++) {
-      u32 tilepix = eswap32(((u32*)tile_ptr)[hflip ? 1-j : j]);
+      u32 tilepix = gba_deref32(&((u32*)tile_ptr)[hflip ? 1-j : j]);
       if (tilepix) {
         for (u32 i = 0; i < 4; i++, dest_ptr++) {
           u8 pval = hflip ? (tilepix >> (24 - i*8)) : (tilepix >> (i*8));
@@ -1061,7 +1061,7 @@ static inline void render_obj_tile_Nbpp(u32 px_comb,
         dest_ptr += 4;
     }
   } else {
-    u32 tilepix = eswap32(*(u32*)tile_ptr);
+    u32 tilepix = gba_deref32(tile_ptr);
     if (tilepix) {   // Can skip all pixels if the row is just transparent
       for (u32 i = 0; i < 8; i++, dest_ptr++) {
         u8 pval = (hflip ? (tilepix >> ((7-i)*4)) : (tilepix >> (i*4))) & 0xF;

@@ -623,8 +623,8 @@ u32 arm_to_mips_reg[] =
 u32 execute_spsr_restore_body(u32 address)
 {
   set_cpu_mode(cpu_modes[reg[REG_CPSR] & 0xF]);
-  if((io_registers[REG_IE] & io_registers[REG_IF]) &&
-   io_registers[REG_IME] && ((reg[REG_CPSR] & 0x80) == 0))
+  if((read_ioreg(REG_IE) & read_ioreg(REG_IF)) &&
+   read_ioreg(REG_IME) && ((reg[REG_CPSR] & 0x80) == 0))
   {
     REG_MODE(MODE_IRQ)[6] = address + 4;
     REG_SPSR(MODE_IRQ) = reg[REG_CPSR];
@@ -1168,8 +1168,8 @@ u32 execute_spsr_restore_body(u32 address)
 u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
 {
   set_cpu_mode(cpu_modes[_cpsr & 0xF]);
-  if((io_registers[REG_IE] & io_registers[REG_IF]) &&
-   io_registers[REG_IME] && ((_cpsr & 0x80) == 0))
+  if((read_ioreg(REG_IE) & read_ioreg(REG_IF)) &&
+   read_ioreg(REG_IME) && ((_cpsr & 0x80) == 0))
   {
     REG_MODE(MODE_IRQ)[6] = address + 4;
     REG_SPSR(MODE_IRQ) = _cpsr;
