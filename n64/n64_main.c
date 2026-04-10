@@ -26,7 +26,7 @@
 /* Global state required by the emulator core */
 u32 skip_next_frame = 0;
 u32 num_skipped_frames = 0;
-int dynarec_enable = 1;
+int dynarec_enable = 0;
 boot_mode selected_boot_mode = boot_game;
 int sprite_limit = 1;
 u32 netplay_num_clients = 0, netplay_client_id = 0;
@@ -39,7 +39,7 @@ static bool emulator_running = false;
 
 /* Simple frameskip state */
 static u32 frameskip_counter = 0;
-#define FRAMESKIP_INTERVAL 3  /* Render every 4th frame for speed */
+#define FRAMESKIP_INTERVAL 4  /* Render every 5th frame for speed */
 
 void error_msg(const char *text)
 {
@@ -172,7 +172,6 @@ int main(void)
 
     /* Main emulation loop */
     emulator_running = true;
-    u32 dbg_frame = 0;
     while (emulator_running) {
       /* Poll input */
       n64_input_poll();
@@ -180,11 +179,6 @@ int main(void)
 
       /* Run one GBA frame */
       run_frame();
-      if (++dbg_frame <= 5)
-        debugf("frame %lu pc=%08lx dispcnt=%04x\n",
-               (unsigned long)dbg_frame,
-               (unsigned long)reg[REG_PC],
-               read_ioreg(REG_DISPCNT));
 
       /* Audio disabled — saves significant CPU on the N64 */
       /* n64_audio_render_frame(); */
