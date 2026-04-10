@@ -1326,23 +1326,41 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
     generate_indirect_branch_arm();                                           \
   }                                                                           \
 
-#define arm_block_memory_sp_load()                                            \
-  mips_emit_lw(arm_to_mips_reg[i], reg_a1, offset);                           \
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  /* Big-endian: SP fast path can't use inline lw/sw (wrong byte order).
+     Fall back to the generic C-function path for correctness. */
+  #define arm_block_memory_sp_load()                                          \
+    mips_emit_addiu(reg_a0, reg_a2, offset);                                  \
+    arm_block_memory_load()
 
-#define arm_block_memory_sp_store()                                           \
-{                                                                             \
-  u32 store_reg = i;                                                          \
-  check_load_reg_pc(arm_reg_a0, store_reg, 8);                                \
-  mips_emit_sw(arm_to_mips_reg[store_reg], reg_a1, offset);                   \
-}                                                                             \
+  #define arm_block_memory_sp_store()                                         \
+    mips_emit_addiu(reg_a0, reg_a2, offset);                                  \
+    arm_block_memory_store()
 
-#define arm_block_memory_sp_adjust_pc_store()                                 \
+  #define arm_block_memory_sp_adjust_pc_store()                               \
+    arm_block_memory_adjust_pc_store()
 
-#define arm_block_memory_sp_adjust_pc_load()                                  \
-  if(reg_list & 0x8000)                                                       \
+  #define arm_block_memory_sp_adjust_pc_load()                                \
+    arm_block_memory_adjust_pc_load()
+#else
+  #define arm_block_memory_sp_load()                                          \
+    mips_emit_lw(arm_to_mips_reg[i], reg_a1, offset);                        \
+
+  #define arm_block_memory_sp_store()                                         \
   {                                                                           \
-    generate_indirect_branch_arm();                                           \
-  }                                                                           \
+    u32 store_reg = i;                                                        \
+    check_load_reg_pc(arm_reg_a0, store_reg, 8);                              \
+    mips_emit_sw(arm_to_mips_reg[store_reg], reg_a1, offset);                 \
+  }
+
+  #define arm_block_memory_sp_adjust_pc_store()
+
+  #define arm_block_memory_sp_adjust_pc_load()                                \
+    if(reg_list & 0x8000)                                                     \
+    {                                                                         \
+      generate_indirect_branch_arm();                                         \
+    }
+#endif
 
 #define arm_block_memory_offset_down_a()                                      \
   mips_emit_addiu(reg_a2, base_reg, (-((word_bit_count(reg_list) * 4) - 4)))  \
@@ -1694,24 +1712,48 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
   generate_mov(reg_a0, reg_rv);                                               \
   generate_indirect_branch_cycle_update(thumb)                                \
 
-#define thumb_block_memory_sp_load()                                          \
-  mips_emit_lw(arm_to_mips_reg[i], reg_a1, offset)                            \
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  /* Big-endian: SP fast path can't use inline lw/sw (wrong byte order). */
+  #define thumb_block_memory_sp_load()                                        \
+    mips_emit_addiu(reg_a0, reg_a2, offset);                                  \
+    thumb_block_memory_load()
 
-#define thumb_block_memory_sp_store()                                         \
-  mips_emit_sw(arm_to_mips_reg[i], reg_a1, offset)                            \
+  #define thumb_block_memory_sp_store()                                       \
+    mips_emit_addiu(reg_a0, reg_a2, offset);                                  \
+    thumb_block_memory_store()
 
-#define thumb_block_memory_sp_extra_no()                                      \
+  #define thumb_block_memory_sp_extra_no()
+  #define thumb_block_memory_sp_extra_up()
+  #define thumb_block_memory_sp_extra_down()
 
-#define thumb_block_memory_sp_extra_up()                                      \
+  #define thumb_block_memory_sp_extra_pop_pc()                                \
+    mips_emit_addiu(reg_a0, reg_a2, offset);                                  \
+    generate_function_call_swap_delay(execute_aligned_load32);                \
+    mips_emit_addu(reg_a0, reg_rv, reg_zero);                                 \
+    generate_indirect_branch_cycle_update(thumb)
 
-#define thumb_block_memory_sp_extra_down()                                    \
+  #define thumb_block_memory_sp_extra_push_lr()                               \
+    mips_emit_addiu(reg_a0, reg_a2, offset);                                  \
+    generate_load_reg(reg_a1, REG_LR);                                        \
+    generate_function_call_swap_delay(execute_aligned_store32)
+#else
+  #define thumb_block_memory_sp_load()                                        \
+    mips_emit_lw(arm_to_mips_reg[i], reg_a1, offset)
 
-#define thumb_block_memory_sp_extra_pop_pc()                                  \
-  mips_emit_lw(reg_a0, reg_a1, offset);                                       \
-  generate_indirect_branch_cycle_update(thumb)                                \
+  #define thumb_block_memory_sp_store()                                       \
+    mips_emit_sw(arm_to_mips_reg[i], reg_a1, offset)
 
-#define thumb_block_memory_sp_extra_push_lr()                                 \
-  mips_emit_sw(reg_r14, reg_a1, offset)                                       \
+  #define thumb_block_memory_sp_extra_no()
+  #define thumb_block_memory_sp_extra_up()
+  #define thumb_block_memory_sp_extra_down()
+
+  #define thumb_block_memory_sp_extra_pop_pc()                                \
+    mips_emit_lw(reg_a0, reg_a1, offset);                                     \
+    generate_indirect_branch_cycle_update(thumb)
+
+  #define thumb_block_memory_sp_extra_push_lr()                               \
+    mips_emit_sw(reg_r14, reg_a1, offset)
+#endif                                       \
 
 #define thumb_block_memory(access_type, pre_op, post_op, base_reg)            \
 {                                                                             \
@@ -1967,6 +2009,63 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
 
 #endif
 
+// Big-endian byte-swap macros for JIT memory stubs.
+// GBA memory is stored little-endian; native MIPS loads on big-endian
+// return byte-swapped values. These emit inline swap sequences.
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+
+// Swap 16-bit value: 0x00AB -> 0x00BA  (clobbers reg_temp)
+#define emit_bswap16(rd, rs)                        \
+  mips_emit_srl(reg_temp, rs, 8);                   \
+  mips_emit_andi(reg_temp, reg_temp, 0xFF);          \
+  mips_emit_sll(rd, rs, 8);                          \
+  mips_emit_andi(rd, rd, 0xFF00);                    \
+  mips_emit_or(rd, rd, reg_temp)
+
+// Re-sign-extend from bit 15 after a 16-bit swap
+#define emit_signext16(rd, rs)                       \
+  mips_emit_sll(rd, rs, 16);                         \
+  mips_emit_sra(rd, rd, 16)
+
+// Swap 32-bit value: ABCD -> DCBA  (clobbers reg_temp, reg_a0)
+#define emit_bswap32(rd, rs)                         \
+  mips_emit_sll(reg_temp, rs, 24);                   \
+  mips_emit_srl(reg_a0, rs, 24);                     \
+  mips_emit_or(reg_temp, reg_temp, reg_a0);          \
+  mips_emit_srl(reg_a0, rs, 8);                      \
+  mips_emit_andi(reg_a0, reg_a0, 0xFF00);            \
+  mips_emit_or(reg_temp, reg_temp, reg_a0);          \
+  mips_emit_sll(reg_a0, rs, 8);                      \
+  mips_emit_andi(reg_a0, reg_a0, 0xFF0000);          \
+  mips_emit_or(rd, reg_temp, reg_a0)
+
+// Swap 16-bit value in reg_a1 for stores (clobbers reg_temp, reg_a0)
+#define emit_bswap16_a1()                            \
+  mips_emit_srl(reg_temp, reg_a1, 8);               \
+  mips_emit_andi(reg_temp, reg_temp, 0xFF);          \
+  mips_emit_sll(reg_a0, reg_a1, 8);                  \
+  mips_emit_andi(reg_a0, reg_a0, 0xFF00);            \
+  mips_emit_or(reg_a1, reg_a0, reg_temp)
+
+// Swap 32-bit value in reg_a1 for stores (clobbers reg_temp, reg_a0)
+#define emit_bswap32_a1()                            \
+  mips_emit_sll(reg_temp, reg_a1, 24);               \
+  mips_emit_srl(reg_a0, reg_a1, 24);                 \
+  mips_emit_or(reg_temp, reg_temp, reg_a0);          \
+  mips_emit_srl(reg_a0, reg_a1, 8);                  \
+  mips_emit_andi(reg_a0, reg_a0, 0xFF00);            \
+  mips_emit_or(reg_temp, reg_temp, reg_a0);          \
+  mips_emit_sll(reg_a0, reg_a1, 8);                  \
+  mips_emit_andi(reg_a0, reg_a0, 0xFF0000);          \
+  mips_emit_or(reg_a1, reg_temp, reg_a0)
+
+#else
+#define emit_bswap16(rd, rs)
+#define emit_signext16(rd, rs)
+#define emit_bswap32(rd, rs)
+#define emit_bswap16_a1()
+#define emit_bswap32_a1()
+#endif
 
 // Register save layout as follows:
 #define ReOff_RegPC    (REG_PC    * 4) // REG_PC
@@ -2243,6 +2342,17 @@ static void emit_pmemld_stub(
   emit_mem_access_loadop(translation_ptr, base_addr, size, alignment, signext);
   translation_ptr += 4;
 
+  // Big-endian: byte-swap after load (GBA data is little-endian)
+  if (size == 2) {
+    emit_bswap32(reg_rv, reg_rv);
+  } else if (size == 1 && !(alignment && signext)) {
+    // Swap if actually a 16-bit load (not byte load for signed unaligned)
+    emit_bswap16(reg_rv, reg_rv);
+    if (signext) {
+      emit_signext16(reg_rv, reg_rv);
+    }
+  }
+
   if (!(alignment == 0 || (size == 1 && signext))) {
     // Unaligned accesses require rotation, except for size=1 & signext
     rotate_right(reg_rv, reg_rv, reg_temp, alignment * 8);
@@ -2311,6 +2421,14 @@ static void emit_pmemst_stub(
     mips_emit_andi(reg_a0, reg_a0, memmask);   // Clear upper bits (mirroring)
     mips_emit_addu(reg_rv, reg_rv, reg_a0);    // Adds to base addr
   }
+
+  // Big-endian: byte-swap store value (GBA data is little-endian)
+  if (realsize == 2) {
+    emit_bswap32_a1();
+  } else if (realsize == 1) {
+    emit_bswap16_a1();
+  }
+  // size == 0 (byte): no swap needed
 
   // Generate SMC write and tracking
   // TODO: Should we have SMC checks here also for aligned?
@@ -2409,22 +2527,27 @@ static void emit_palette_hdl(
   }
   mips_emit_addu(reg_rv, reg_rv, reg_base);
 
-  // Store the data in real palette memory
-  if (realsize == 2) {
-    mips_emit_sw(reg_a1, reg_rv, 0x100);
-  } else if (realsize == 1) {
-    mips_emit_sh(reg_a1, reg_rv, 0x100);
-  }
-
-  // Convert and store in mirror memory
+  // Convert and store to palette_ram_converted first (native endian).
+  // Must happen before byte-swap since palette_convert reads native reg_a1.
   palette_convert();
   mips_emit_sh(reg_temp, reg_rv, 0x500);
 
   if (size == 2) {
-    // Convert the second half-word also
+    // Save original 32-bit value, convert upper half, then byte-swap
+    mips_emit_sw(reg_a1, reg_base, ReOff_SaveR1);
     mips_emit_srl(reg_a1, reg_a1, 16);
     palette_convert();
     mips_emit_sh(reg_temp, reg_rv, 0x502);
+    mips_emit_lw(reg_a1, reg_base, ReOff_SaveR1);
+  }
+
+  // Store to raw palette_ram (must be little-endian)
+  if (realsize == 2) {
+    emit_bswap32_a1();
+    mips_emit_sw(reg_a1, reg_rv, 0x100);
+  } else if (realsize == 1) {
+    emit_bswap16_a1();
+    mips_emit_sh(reg_a1, reg_rv, 0x100);
   }
   generate_function_return_swap_delay();
 
