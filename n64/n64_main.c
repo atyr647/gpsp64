@@ -26,7 +26,7 @@
 /* Global state required by the emulator core */
 u32 skip_next_frame = 0;
 u32 num_skipped_frames = 0;
-int dynarec_enable = 1;
+int dynarec_enable = 0;  /* Use interpreter, but dynarec code is compiled */
 boot_mode selected_boot_mode = boot_game;
 int sprite_limit = 1;
 u32 netplay_num_clients = 0, netplay_client_id = 0;
