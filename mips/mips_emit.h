@@ -1973,6 +1973,7 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
 // GBA memory is stored little-endian; native MIPS loads on big-endian
 // return byte-swapped values. These emit inline swap sequences.
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  #define BE_SKIP_SP_FASTPATH 0  /* LE storage: inline lw/sw gives wrong byte order */
 
 // Swap 16-bit value: 0x00AB -> 0x00BA  (clobbers reg_temp)
 #define emit_bswap16(rd, rs)                        \
