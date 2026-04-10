@@ -204,11 +204,15 @@ int main(void)
 
       /* Run one GBA frame */
       run_frame();
-      if (++dbg_frame <= 100 && (dbg_frame % 10 == 0))
-        debugf("f%lu pc=%08lx dc=%04x halt=%lu\n",
-               (unsigned long)dbg_frame, (unsigned long)reg[REG_PC],
-               read_ioreg(REG_DISPCNT),
-               (unsigned long)reg[CPU_HALT_STATE]);
+      ++dbg_frame;
+      {
+        u16 dc = read_ioreg(REG_DISPCNT);
+        if (dc != 0x0080 && dc != 0x0000)
+          debugf("f%lu DC CHANGED: %04x pc=%08lx\n",
+                 (unsigned long)dbg_frame, dc, (unsigned long)reg[REG_PC]);
+        if (dbg_frame == 500)
+          debugf("f500: dc=%04x pc=%08lx\n", dc, (unsigned long)reg[REG_PC]);
+      }
 
       /* Audio disabled — saves significant CPU on the N64 */
       /* n64_audio_render_frame(); */
