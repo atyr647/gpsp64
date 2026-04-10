@@ -2567,8 +2567,8 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
     case 0x2:                                                                 \
     case 0x3:                                                                 \
     {                                                                         \
-      u16* tagp = (pcregion == 2) ? (u16 *)(ewram + (pc & 0x3FFFF) + 0x40000) \
-                                  : (u16 *)(iwram + (pc & 0x7FFF));           \
+      u16* tagp = (pcregion == 2) ? (u16 *)(ewram_raw + (pc & 0x3FFFF) + 0x40000) \
+                                  : (u16 *)(iwram_raw + (pc & 0x7FFF));           \
       ramtag_type* trentry;                                                   \
       /* Allocate a tag if not a valid one, and initialize header */          \
       if (!VALID_TAG(*tagp)) {                                                \
@@ -3365,18 +3365,18 @@ void flush_translation_cache_ram(void)
     if(iwram_code_max > iwram_code_min) {
       iwram_code_min &= ~15U;
       iwram_code_max = MIN(iwram_code_max + 8, 0x8000);
-      memset(&iwram[iwram_code_min], 0, iwram_code_max - iwram_code_min);
+      memset(&iwram_raw[iwram_code_min], 0, iwram_code_max - iwram_code_min);
     } else
-      memset(iwram, 0, 0x8000);
+      memset(iwram_raw, 0, 0x8000);
   }
 
   if (ewram_code_max) {
     if(ewram_code_max > ewram_code_min) {
       ewram_code_min &= ~15U;
       ewram_code_max = MIN(ewram_code_max + 8, 0x40000);
-      memset(&ewram[0x40000 + ewram_code_min], 0, ewram_code_max - ewram_code_min);
+      memset(&ewram_raw[0x40000 + ewram_code_min], 0, ewram_code_max - ewram_code_min);
     } else
-      memset(&ewram[0x40000], 0, 0x40000);
+      memset(&ewram_raw[0x40000], 0, 0x40000);
   }
 
   iwram_code_min = ~0U;
@@ -3402,8 +3402,8 @@ void init_dynarec_caches(void)
   memset(rom_branch_hash, 0, sizeof(rom_branch_hash));
 
   ram_translation_ptr = last_ram_translation_ptr = &ram_translation_cache[0];
-  memset(iwram, 0, 0x8000);
-  memset(&ewram[0x40000], 0, 0x40000);
+  memset(iwram_raw, 0, 0x8000);
+  memset(&ewram_raw[0x40000], 0, 0x40000);
 
   ewram_code_min = 0;
   ewram_code_max = 0x40000;

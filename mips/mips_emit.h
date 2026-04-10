@@ -1398,9 +1398,9 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
     mips_emit_bgezal(reg_temp,                                                \
                 mips_relative_offset(translation_ptr, spaccess_trampoline));  \
     /* Delay slot, will be overwritten anyway */                              \
-    mips_emit_lui(reg_a0, ((u32)(iwram + 0x8000 + 0x8000) >> 16));            \
+    mips_emit_lui(reg_a0, ((u32)(iwram_raw + 0x8000 + 0x8000) >> 16));            \
     mips_emit_addu(reg_a1, reg_a1, reg_a0);                                   \
-    offset = (u32)(iwram + 0x8000) & 0xFFFF;                                  \
+    offset = (u32)(iwram_raw + 0x8000) & 0xFFFF;                                  \
                                                                               \
     for(i = 0; i < 16; i++)                                                   \
     {                                                                         \
@@ -1734,9 +1734,9 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
     mips_emit_bgezal(reg_temp,                                                \
                 mips_relative_offset(translation_ptr, spaccess_trampoline));  \
     /* Delay slot, will be overwritten anyway */                              \
-    mips_emit_lui(reg_a0, ((u32)(iwram + 0x8000 + 0x8000) >> 16));            \
+    mips_emit_lui(reg_a0, ((u32)(iwram_raw + 0x8000 + 0x8000) >> 16));            \
     mips_emit_addu(reg_a1, reg_a1, reg_a0);                                   \
-    offset = (u32)(iwram + 0x8000) & 0xFFFF;                                  \
+    offset = (u32)(iwram_raw + 0x8000) & 0xFFFF;                                  \
                                                                               \
     for(i = 0; i < 8; i++)                                                    \
     {                                                                         \
@@ -2822,7 +2822,7 @@ void init_emitter(bool must_swap) {
   // Special trampoline for SP-relative ldm/stm (to EWRAM)
   generate_load_imm(reg_a1, 0x3FFFC);
   mips_emit_and(reg_a1, reg_a1, reg_a2);
-  mips_emit_lui(reg_a0, ((u32)(ewram + 0x8000) >> 16));
+  mips_emit_lui(reg_a0, ((u32)(ewram_raw + 0x8000) >> 16));
   generate_function_return_swap_delay();
 
   // Generate the openload handlers (for accesses to unmapped mem)
@@ -2842,14 +2842,14 @@ void init_emitter(bool must_swap) {
 
   // Generate memory handlers
   const t_stub_meminfo ldinfo [] = {
-    { emit_pmemld_stub,  0, 0x4000, false, false, (u32)bios_rom, 0},
+    { emit_pmemld_stub,  0, 0x4000, false, false, (u32)bios_rom_raw, 0},
     // 1 Open load / Ignore store
-    { emit_pmemld_stub,  2, 0x8000, true,  false, (u32)ewram, 0 },      // memsize wrong on purpose
-    { emit_pmemld_stub,  3, 0x8000, true,  false, (u32)&iwram[0x8000], 0 },
-    { emit_pmemld_stub,  4,  0x400, false, false, (u32)io_registers, 0 },
-    { emit_pmemld_stub,  5,  0x400, false, true,  (u32)palette_ram, 0x100 },
+    { emit_pmemld_stub,  2, 0x8000, true,  false, (u32)ewram_raw, 0 },      // memsize wrong on purpose
+    { emit_pmemld_stub,  3, 0x8000, true,  false, (u32)&iwram_raw[0x8000], 0 },
+    { emit_pmemld_stub,  4,  0x400, false, false, (u32)io_registers_raw, 0 },
+    { emit_pmemld_stub,  5,  0x400, false, true,  (u32)palette_ram_raw, 0x100 },
     { emit_pmemld_stub,  6,    0x0, false, true,  (u32)vram, 0 },             // same, vram is a special case
-    { emit_pmemld_stub,  7,  0x400, false, true,  (u32)oam_ram, 0x900 },
+    { emit_pmemld_stub,  7,  0x400, false, true,  (u32)oam_ram_raw, 0x900 },
     { emit_pmemld_stub,  8, 0x8000, false, false,  0, 0 },
     { emit_pmemld_stub,  9, 0x8000, false, false,  0, 0 },
     { emit_pmemld_stub, 10, 0x8000, false, false,  0, 0 },
@@ -2880,12 +2880,12 @@ void init_emitter(bool must_swap) {
   }
 
   const t_stub_meminfo stinfo [] = {
-    { emit_pmemst_stub, 2, 0x8000, true,  false, (u32)ewram, 0 },
-    { emit_pmemst_stub, 3, 0x8000, true,  false, (u32)&iwram[0x8000], 0 },
+    { emit_pmemst_stub, 2, 0x8000, true,  false, (u32)ewram_raw, 0 },
+    { emit_pmemst_stub, 3, 0x8000, true,  false, (u32)&iwram_raw[0x8000], 0 },
     // I/O is special and mapped with a function call
-    { emit_palette_hdl, 5,  0x400, false, true,  (u32)palette_ram, 0x100 },
+    { emit_palette_hdl, 5,  0x400, false, true,  (u32)palette_ram_raw, 0x100 },
     { emit_pmemst_stub, 6,    0x0, false, true,  (u32)vram, 0 },          // same, vram is a special case
-    { emit_pmemst_stub, 7,  0x400, false, true,  (u32)oam_ram, 0x900 },
+    { emit_pmemst_stub, 7,  0x400, false, true,  (u32)oam_ram_raw, 0x900 },
   };
 
   // Store only for "regular"-ish mem regions

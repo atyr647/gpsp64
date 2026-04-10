@@ -304,7 +304,7 @@ static void render_scanline_text_fast(u32 layer,
   // Background map data is in vram, at an offset specified in 2K blocks.
   // (each map data block is 32x32 tiles, at 16bpp, so 2KB)
   u32 base_block = (bg_control >> 8) & 0x1F;
-  u16 *map_base = (u16 *)&vram[base_block * 2048];
+  u16 *map_base = (u16 *)&vram_raw[base_block * 2048];
   u16 *map_ptr, *second_ptr;
 
   end -= start;
@@ -347,7 +347,7 @@ static void render_scanline_text_fast(u32 layer,
   // The tilemap base is selected via bgcnt (16KiB chunks)
   u32 tilecntrl = (bg_control >> 2) & 0x03;
   // Account for the base offset plus the tile vertical offset
-  u8 *tile_base = &vram[tilecntrl * 16*1024 + vert_pix_offset];
+  u8 *tile_base = &vram_raw[tilecntrl * 16*1024 + vert_pix_offset];
   // Number of pixels available until the end of the tile block
   u32 pixel_run = 256 - hoffset;
 
@@ -442,7 +442,7 @@ static void render_scanline_text_mosaic(u32 layer,
   u32 bg_comb = color_flags(5), px_comb = color_flags(layer);
 
   u32 base_block = (bg_control >> 8) & 0x1F;
-  u16 *map_base = (u16 *)&vram[base_block * 2048];
+  u16 *map_base = (u16 *)&vram_raw[base_block * 2048];
   u16 *map_ptr, *second_ptr;
 
   if ((map_size & 0x02) && (voffset >= 256))
@@ -480,7 +480,7 @@ static void render_scanline_text_mosaic(u32 layer,
   // The tilemap base is selected via bgcnt (16KiB chunks)
   u32 tilecntrl = (bg_control >> 2) & 0x03;
   // Account for the base offset plus the tile vertical offset
-  u8 *tile_base = &vram[tilecntrl * 16*1024 + vert_pix_offset];
+  u8 *tile_base = &vram_raw[tilecntrl * 16*1024 + vert_pix_offset];
 
   u16 bgcolor = paltbl[0];
 
@@ -776,10 +776,10 @@ static void render_scanline_affine(u32 layer,
 
   // Char block base pointer
   u32 base_block = (bg_control >> 8) & 0x1F;
-  u8 *map_base = &vram[base_block * 2048];
+  u8 *map_base = &vram_raw[base_block * 2048];
   // The tilemap base is selected via bgcnt (16KiB chunks)
   u32 tilecntrl = (bg_control >> 2) & 0x03;
-  u8 *tile_base = &vram[tilecntrl * 16*1024];
+  u8 *tile_base = &vram_raw[tilecntrl * 16*1024];
 
   dsttype *dest_ptr = ((dsttype*)scanline) + start;
   const u32 mosamount = read_ioreg(REG_MOSAIC) & 0xFF;
@@ -858,7 +858,7 @@ static inline void render_scanline_bitmap(
 
   // Modes 4 and 5 feature double buffering.
   bool second_frame = (mode >= 4) && (read_ioreg(REG_DISPCNT) & 0x10);
-  pixfmt *src_ptr = (pixfmt*)&vram[second_frame ? 0xA000 : 0x0000];
+  pixfmt *src_ptr = (pixfmt*)&vram_raw[second_frame ? 0xA000 : 0x0000];
   dsttype *dst_ptr = ((dsttype*)scanline) + start;
   u16 px_attr = color_flags(2);   // Always BG2
 
@@ -976,7 +976,7 @@ static inline void render_obj_part_tile_Nbpp(
   u32 tile_offset, u16 palette, const u16 *pal
 ) {
   // Note that the last VRAM bank wrap around, hence the offset aliasing
-  const u8* tile_ptr = &vram[0x10000 + (tile_offset & 0x7FFF)];
+  const u8* tile_ptr = &vram_raw[0x10000 + (tile_offset & 0x7FFF)];
   u32 px_attr = px_comb | palette | 0x100;  // Combine flags + high palette bit
 
   if (is8bpp) {
@@ -1033,7 +1033,7 @@ template<typename dsttype, rendtype rdtype, bool is8bpp, bool hflip>
 static inline void render_obj_tile_Nbpp(u32 px_comb,
   dsttype *dest_ptr, u32 tile_offset, u16 palette, const u16 *pal
 ) {
-  const u8* tile_ptr = &vram[0x10000 + (tile_offset & 0x7FFF)];
+  const u8* tile_ptr = &vram_raw[0x10000 + (tile_offset & 0x7FFF)];
   u32 px_attr = px_comb | palette | 0x100;  // Combine flags + high palette bit
 
   if (is8bpp) {
@@ -1165,7 +1165,7 @@ static void render_object_mosaic(
     if (!(i % mosh)) {
       // Load tile pixel color.
       u32 tile_offset = base_tile_offset + (offx / 8) * tile_size_off;
-      const u8* tile_ptr = &vram[0x10000 + (tile_offset & 0x7FFF)];
+      const u8* tile_ptr = &vram_raw[0x10000 + (tile_offset & 0x7FFF)];
 
       // Lookup for each mode and flip value.
       if (is8bpp) {
@@ -1288,7 +1288,7 @@ static void render_affine_object(
           ((pixel_y & 0x7) * tile_bwidth) +  // Skip vertical rows to the pixel
           (pixel_x & 0x7);                   // Skip the horizontal offset
 
-        pixval = address8(vram, 0x10000 + (tile_off & 0x7FFF));   // Read pixel value!
+        pixval = address8(vram_raw, 0x10000 + (tile_off & 0x7FFF));   // Read pixel value!
       } else {
         const u32 tile_off =
           base_tile +                        // Character base
@@ -1297,7 +1297,7 @@ static void render_affine_object(
           ((pixel_y & 0x7) * tile_bwidth) +  // Skip vertical rows to the pixel
           ((pixel_x >> 1) & 0x3);            // Skip the horizontal offset
 
-        u8 pixpair = address8(vram, 0x10000 + (tile_off & 0x7FFF)); // Read 2 pixels @4bpp
+        u8 pixpair = address8(vram_raw, 0x10000 + (tile_off & 0x7FFF)); // Read 2 pixels @4bpp
         pixval = ((pixel_x & 1) ? pixpair >> 4 : pixpair & 0xF);
       }
     }
@@ -1351,7 +1351,7 @@ inline static void render_sprite(
 
   if (is_affine) {
     u32 pnum = (obji->attr1 >> 9) & 0x1f;
-    const t_affp *affp_base = (t_affp*)oam_ram;
+    const t_affp *affp_base = (t_affp*)oam_ram_raw;
     const t_affp *affp = &affp_base[pnum];
 
     if (affp->dy == 0)     // No rotation happening (just scale)
@@ -1430,7 +1430,7 @@ void render_scanline_objs(
   for (objn = objcnt-1; objn >= 0; objn--) {
     // Objects in the list are pre-filtered and sorted in the appropriate order
     u32 objoff = objlist[objn];
-    const t_oam *oamentry = &((t_oam*)oam_ram)[objoff];
+    const t_oam *oamentry = &((t_oam*)oam_ram_raw)[objoff];
 
     u16 obj_attr0 = gba_deref16(&oamentry->attr0);
     u16 obj_attr1 = gba_deref16(&oamentry->attr1);
@@ -1513,7 +1513,7 @@ static void order_obj(u32 video_mode)
 {
   u32 obj_num;
   u32 row;
-  t_oam *oam_base = (t_oam*)oam_ram;
+  t_oam *oam_base = (t_oam*)oam_ram_raw;
   u16 rend_cycles[160];
 
   bool hblank_free = read_ioreg(REG_DISPCNT) & 0x20;

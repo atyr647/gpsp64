@@ -264,15 +264,28 @@ extern u32 gbc_sound_wave_update;
 extern dma_transfer_type dma[DMA_CHAN_CNT];
 
 extern u8 open_gba_bios_rom[1024*16];
-extern u16 palette_ram[512];
-extern u16 oam_ram[512];
+extern u16 palette_ram_raw[512];
+extern u16 oam_ram_raw[512];
 extern u16 palette_ram_converted[512];
-extern u16 io_registers[512];
-extern u8 vram[1024 * 96];
-extern u8 bios_rom[1024 * 16];
+extern u16 io_registers_raw[512];
+extern u8 vram_raw[1024 * 96];
+extern u8 bios_rom_raw[1024 * 16];
 // Double buffer used for SMC detection
-extern u8 ewram[1024 * 256 * 2];
-extern u8 iwram[1024 * 32 * 2];
+extern u8 ewram_raw[1024 * 256 * 2];
+extern u8 iwram_raw[1024 * 32 * 2];
+
+/* On non-N64 platforms, provide transparent aliases for compatibility.
+   On N64, these names are intentionally absent — any direct use is a
+   compile error, forcing access through proper macros. */
+#ifndef N64
+  #define io_registers   io_registers_raw
+  #define oam_ram        oam_ram_raw
+  #define palette_ram    palette_ram_raw
+  #define vram           vram_raw
+  #define ewram          ewram_raw
+  #define iwram          iwram_raw
+  #define bios_rom       bios_rom_raw
+#endif
 
 extern u8 *memory_map_read[8 * 1024];
 

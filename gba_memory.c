@@ -357,7 +357,7 @@ const u32 def_seq_cycles[16][2] =
 };
 
 
-u8 bios_rom[1024 * 16];
+u8 bios_rom_raw[1024 * 16];
 
 // Up to 128kb, store SRAM, flash ROM, or EEPROM here.
 u8 gamepak_backup[1024 * 128];
@@ -671,7 +671,7 @@ u32 function_cc read_eeprom(void)
         if(reg[REG_PC] >= 0x4000)                                             \
           value = (u##type)(reg[REG_BUS_VALUE] >> ((address & 0x03) << 3));   \
         else                                                                  \
-          value = readaddress##type(bios_rom, address & 0x3FFF);              \
+          value = readaddress##type(bios_rom_raw, address & 0x3FFF);          \
       } else {                                                                \
         read_open##type();                                                    \
       }                                                                       \
@@ -679,22 +679,22 @@ u32 function_cc read_eeprom(void)
                                                                               \
     case 0x02:                                                                \
       /* external work RAM */                                                 \
-      value = readaddress##type(ewram, (address & 0x3FFFF));                  \
+      value = readaddress##type(ewram_raw, (address & 0x3FFFF));              \
       break;                                                                  \
                                                                               \
     case 0x03:                                                                \
       /* internal work RAM */                                                 \
-      value = readaddress##type(iwram, (address & 0x7FFF) + 0x8000);          \
+      value = readaddress##type(iwram_raw, (address & 0x7FFF) + 0x8000);      \
       break;                                                                  \
                                                                               \
     case 0x04:                                                                \
       /* I/O registers */                                                     \
-      value = readaddress##type(io_registers, address & 0x3FF);               \
+      value = readaddress##type(io_registers_raw, address & 0x3FF);           \
       break;                                                                  \
                                                                               \
     case 0x05:                                                                \
       /* palette RAM */                                                       \
-      value = readaddress##type(palette_ram, address & 0x3FF);                \
+      value = readaddress##type(palette_ram_raw, address & 0x3FF);            \
       break;                                                                  \
                                                                               \
     case 0x06:                                                                \
@@ -703,12 +703,12 @@ u32 function_cc read_eeprom(void)
       if(address >= 0x18000)                                                  \
         address -= 0x8000;                                                    \
                                                                               \
-      value = readaddress##type(vram, address);                               \
+      value = readaddress##type(vram_raw, address);                            \
       break;                                                                  \
                                                                               \
     case 0x07:                                                                \
       /* OAM RAM */                                                           \
-      value = readaddress##type(oam_ram, address & 0x3FF);                    \
+      value = readaddress##type(oam_ram_raw, address & 0x3FF);                \
       break;                                                                  \
                                                                               \
     case 0x0D:                                                                \
@@ -1038,14 +1038,14 @@ cpu_alert_type function_cc write_io_register32(u32 address, u32 value)
 {                                                                             \
   u32 aladdr = address & ~1U;                                                 \
   u16 val16 = (value << 8) | value;                                           \
-  address16(palette_ram, aladdr) = eswap16(val16);                            \
+  address16(palette_ram_raw, aladdr) = eswap16(val16);                        \
   native16(palette_ram_converted, aladdr) = convert_palette(val16);           \
 }
 
 #define write_palette16(address, value)                                       \
 {                                                                             \
   u32 palette_address = address;                                              \
-  address16(palette_ram, palette_address) = eswap16(value);                   \
+  address16(palette_ram_raw, palette_address) = eswap16(value);               \
   value = convert_palette(value);                                             \
   native16(palette_ram_converted, palette_address) = value;                   \
 }                                                                             \
@@ -1055,7 +1055,7 @@ cpu_alert_type function_cc write_io_register32(u32 address, u32 value)
   u32 palette_address = address;                                              \
   u32 value_high = value >> 16;                                               \
   u32 value_low = value & 0xFFFF;                                             \
-  address32(palette_ram, palette_address) = eswap32(value);                   \
+  address32(palette_ram_raw, palette_address) = eswap32(value);               \
   value_high = convert_palette(value_high);                                   \
   native16(palette_ram_converted, palette_address + 2) = value_high;          \
   value_low = convert_palette(value_low);                                     \
@@ -1191,13 +1191,13 @@ void function_cc write_backup(u32 address, u32 value)
 
 #define write_vram8()                                                         \
   address &= ~0x01;                                                           \
-  address16(vram, address) = eswap16((value << 8) | value)                    \
+  address16(vram_raw, address) = eswap16((value << 8) | value)                \
 
 #define write_vram16()                                                        \
-  address16(vram, address) = eswap16(value)                                   \
+  address16(vram_raw, address) = eswap16(value)                               \
 
 #define write_vram32()                                                        \
-  address32(vram, address) = eswap32(value)                                   \
+  address32(vram_raw, address) = eswap32(value)                               \
 
 // RTC code derived from VBA's (due to lack of any real publically available
 // documentation...)
@@ -1440,12 +1440,12 @@ void function_cc write_gpio(u32 address, u32 value) {
   {                                                                           \
     case 0x02:                                                                \
       /* external work RAM */                                                 \
-      address##type(ewram, (address & 0x3FFFF)) = eswap##type(value);         \
+      address##type(ewram_raw, (address & 0x3FFFF)) = eswap##type(value);     \
       break;                                                                  \
                                                                               \
     case 0x03:                                                                \
       /* internal work RAM */                                                 \
-      address##type(iwram, (address & 0x7FFF) + 0x8000) = eswap##type(value); \
+      address##type(iwram_raw, (address & 0x7FFF) + 0x8000) = eswap##type(value); \
       break;                                                                  \
                                                                               \
     case 0x04:                                                                \
@@ -1470,7 +1470,7 @@ void function_cc write_gpio(u32 address, u32 value) {
       /* OAM RAM */                                                           \
       if (type != 8) {                                                        \
         reg[OAM_UPDATED] = 1;                                                 \
-        address##type(oam_ram, address & 0x3FF) = eswap##type(value);         \
+        address##type(oam_ram_raw, address & 0x3FF) = eswap##type(value);     \
       }                                                                       \
       break;                                                                  \
                                                                               \
@@ -1745,25 +1745,25 @@ const dma_region_type dma_region_map[17] =
   }                                                                           \
 
 #define dma_read_iwram(type, tfsize)                                          \
-  read_value = readaddress##tfsize(iwram + 0x8000, type##_ptr & 0x7FFF)       \
+  read_value = readaddress##tfsize(iwram_raw + 0x8000, type##_ptr & 0x7FFF)   \
 
 #define dma_read_vram(type, tfsize) {                                         \
   u32 rdaddr = type##_ptr & 0x1FFFF;                                          \
   if (rdaddr >= 0x18000) rdaddr -= 0x8000;                                    \
-  read_value = readaddress##tfsize(vram, rdaddr);                             \
+  read_value = readaddress##tfsize(vram_raw, rdaddr);                         \
 }
 
 #define dma_read_io(type, tfsize)                                             \
-  read_value = readaddress##tfsize(io_registers, type##_ptr & 0x3FF)          \
+  read_value = readaddress##tfsize(io_registers_raw, type##_ptr & 0x3FF)      \
 
 #define dma_read_oam_ram(type, tfsize)                                        \
-  read_value = readaddress##tfsize(oam_ram, type##_ptr & 0x3FF)               \
+  read_value = readaddress##tfsize(oam_ram_raw, type##_ptr & 0x3FF)           \
 
 #define dma_read_palette_ram(type, tfsize)                                    \
-  read_value = readaddress##tfsize(palette_ram, type##_ptr & 0x3FF)           \
+  read_value = readaddress##tfsize(palette_ram_raw, type##_ptr & 0x3FF)       \
 
 #define dma_read_ewram(type, tfsize)                                          \
-  read_value = readaddress##tfsize(ewram, type##_ptr & 0x3FFFF)               \
+  read_value = readaddress##tfsize(ewram_raw, type##_ptr & 0x3FFFF)           \
 
 #define dma_read_gamepak(type, tfsize)                                        \
   dma_gamepak_check_region(type);                                             \
@@ -1778,22 +1778,22 @@ const dma_region_type dma_region_map[17] =
   read_value = read_memory##tfsize(type##_ptr)                                \
 
 #define dma_write_iwram(type, tfsize)                                         \
-  address##tfsize(iwram + 0x8000, type##_ptr & 0x7FFF) =                      \
+  address##tfsize(iwram_raw + 0x8000, type##_ptr & 0x7FFF) =                  \
                                           eswap##tfsize(read_value);          \
-  if (address##tfsize(iwram, type##_ptr & 0x7FFF))                            \
+  if (address##tfsize(iwram_raw, type##_ptr & 0x7FFF))                        \
     alerts |= CPU_ALERT_SMC;                                                  \
 
 #define dma_write_vram(type, tfsize) {                                        \
   u32 wraddr = type##_ptr & 0x1FFFF;                                          \
   if (wraddr >= 0x18000) wraddr -= 0x8000;                                    \
-  address##tfsize(vram, wraddr) = eswap##tfsize(read_value);                  \
+  address##tfsize(vram_raw, wraddr) = eswap##tfsize(read_value);              \
 }
 
 #define dma_write_io(type, tfsize)                                            \
   alerts |= write_io_register##tfsize(type##_ptr, read_value)                 \
 
 #define dma_write_oam_ram(type, tfsize)                                       \
-  address##tfsize(oam_ram, type##_ptr & 0x3FF) = eswap##tfsize(read_value)    \
+  address##tfsize(oam_ram_raw, type##_ptr & 0x3FF) = eswap##tfsize(read_value)    \
 
 #define dma_write_palette_ram(type, tfsize)                                   \
   write_palette##tfsize(type##_ptr & 0x3FF, read_value)                       \
@@ -1802,8 +1802,8 @@ const dma_region_type dma_region_map[17] =
   write_memory##tfsize(type##_ptr, read_value)                                \
 
 #define dma_write_ewram(type, tfsize)                                         \
-  address##tfsize(ewram, type##_ptr & 0x3FFFF) = eswap##tfsize(read_value);   \
-  if (address##tfsize(ewram, (type##_ptr & 0x3FFFF) + 0x40000))               \
+  address##tfsize(ewram_raw, type##_ptr & 0x3FFFF) = eswap##tfsize(read_value);   \
+  if (address##tfsize(ewram_raw, (type##_ptr & 0x3FFFF) + 0x40000))               \
     alerts |= CPU_ALERT_SMC;                                                  \
 
 #define print_line()                                                          \
@@ -2164,10 +2164,10 @@ cpu_alert_type dma_transfer(unsigned dma_chan, int *usedcycles)
   for(map_offset = 0x6000000 / 0x8000; map_offset < (0x7000000 / 0x8000);     \
    map_offset += 4)                                                           \
   {                                                                           \
-    memory_map_##type[map_offset] = vram;                                     \
-    memory_map_##type[map_offset + 1] = vram + 0x8000;                        \
-    memory_map_##type[map_offset + 2] = vram + (0x8000 * 2);                  \
-    memory_map_##type[map_offset + 3] = vram + (0x8000 * 2);                  \
+    memory_map_##type[map_offset] = vram_raw;                                 \
+    memory_map_##type[map_offset + 1] = vram_raw + 0x8000;                    \
+    memory_map_##type[map_offset + 2] = vram_raw + (0x8000 * 2);              \
+    memory_map_##type[map_offset + 3] = vram_raw + (0x8000 * 2);              \
   }                                                                           \
 
 
@@ -2275,23 +2275,23 @@ void init_memory(void)
   }
 
   // Fill memory map regions, areas marked as NULL must be checked directly
-  map_region(read, 0x0000000, 0x1000000, 1, bios_rom);
+  map_region(read, 0x0000000, 0x1000000, 1, bios_rom_raw);
   map_null(read, 0x1000000, 0x2000000);
-  map_region(read, 0x2000000, 0x3000000, 8, ewram);
-  map_region(read, 0x3000000, 0x4000000, 1, &iwram[0x8000]);
-  map_region(read, 0x4000000, 0x5000000, 1, io_registers);
+  map_region(read, 0x2000000, 0x3000000, 8, ewram_raw);
+  map_region(read, 0x3000000, 0x4000000, 1, &iwram_raw[0x8000]);
+  map_region(read, 0x4000000, 0x5000000, 1, io_registers_raw);
   map_null(read, 0x5000000, 0x6000000);
   map_null(read, 0x6000000, 0x7000000);
   map_vram(read);
   map_null(read, 0x7000000, 0x8000000);
   map_null(read, 0xE000000, 0x10000000);
 
-  memset(io_registers, 0, sizeof(io_registers));
-  memset(oam_ram, 0, sizeof(oam_ram));
-  memset(palette_ram, 0, sizeof(palette_ram));
-  memset(iwram, 0, sizeof(iwram));
-  memset(ewram, 0, sizeof(ewram));
-  memset(vram, 0, sizeof(vram));
+  memset(io_registers_raw, 0, sizeof(io_registers_raw));
+  memset(oam_ram_raw, 0, sizeof(oam_ram_raw));
+  memset(palette_ram_raw, 0, sizeof(palette_ram_raw));
+  memset(iwram_raw, 0, sizeof(iwram_raw));
+  memset(ewram_raw, 0, sizeof(ewram_raw));
+  memset(vram_raw, 0, sizeof(vram_raw));
 
   write_ioreg(REG_DISPCNT, 0x80);
   write_ioreg(REG_P1, 0x3FF);
@@ -2398,12 +2398,12 @@ bool memory_read_savestate(const u8 *src)
     return false;
 
   if (!(
-    bson_read_bytes(memdoc, "iwram", &iwram[0x8000], 0x8000) &&
-    bson_read_bytes(memdoc, "ewram", ewram, 0x40000) &&
-    bson_read_bytes(memdoc, "vram", vram, sizeof(vram)) &&
-    bson_read_bytes(memdoc, "oamram", oam_ram, sizeof(oam_ram)) &&
-    bson_read_bytes(memdoc, "palram", palette_ram, sizeof(palette_ram)) &&
-    bson_read_bytes(memdoc, "ioregs", io_registers, sizeof(io_registers)) &&
+    bson_read_bytes(memdoc, "iwram", &iwram_raw[0x8000], 0x8000) &&
+    bson_read_bytes(memdoc, "ewram", ewram_raw, 0x40000) &&
+    bson_read_bytes(memdoc, "vram", vram_raw, sizeof(vram_raw)) &&
+    bson_read_bytes(memdoc, "oamram", oam_ram_raw, sizeof(oam_ram_raw)) &&
+    bson_read_bytes(memdoc, "palram", palette_ram_raw, sizeof(palette_ram_raw)) &&
+    bson_read_bytes(memdoc, "ioregs", io_registers_raw, sizeof(io_registers_raw)) &&
     bson_read_int32(memdoc, "dma-bus", &dma_bus_val) &&
 
     bson_read_int32(bakdoc, "backup-type", &backup_type) &&
@@ -2460,12 +2460,12 @@ unsigned memory_write_savestate(u8 *dst)
   u32 rtc_data_array[2] = { (u32)rtc_data, (u32)(rtc_data >> 32) };
 
   bson_start_document(dst, "memory", wbptr);
-  bson_write_bytes(dst, "iwram", &iwram[0x8000], 0x8000);
-  bson_write_bytes(dst, "ewram", ewram, 0x40000);
-  bson_write_bytes(dst, "vram", vram, sizeof(vram));
-  bson_write_bytes(dst, "oamram", oam_ram, sizeof(oam_ram));
-  bson_write_bytes(dst, "palram", palette_ram, sizeof(palette_ram));
-  bson_write_bytes(dst, "ioregs", io_registers, sizeof(io_registers));
+  bson_write_bytes(dst, "iwram", &iwram_raw[0x8000], 0x8000);
+  bson_write_bytes(dst, "ewram", ewram_raw, 0x40000);
+  bson_write_bytes(dst, "vram", vram_raw, sizeof(vram_raw));
+  bson_write_bytes(dst, "oamram", oam_ram_raw, sizeof(oam_ram_raw));
+  bson_write_bytes(dst, "palram", palette_ram_raw, sizeof(palette_ram_raw));
+  bson_write_bytes(dst, "ioregs", io_registers_raw, sizeof(io_registers_raw));
   bson_write_int32(dst, "dma-bus", dma_bus_val);
   bson_finish_document(dst, wbptr);
 
@@ -2603,7 +2603,7 @@ s32 load_bios(char *name)
   if(!fd)
     return -1;
 
-  filestream_read(fd, bios_rom, 0x4000);
+  filestream_read(fd, bios_rom_raw, 0x4000);
   filestream_close(fd);
 #ifdef N64
 #endif

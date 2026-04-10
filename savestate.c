@@ -142,7 +142,7 @@ bool gba_load_state(const void* src)
   // Generate converted palette (since it is not saved)
   for(i = 0; i < 512; i++)
   {
-     palette_ram_converted[i] = convert_palette(eswap16(palette_ram[i]));
+     palette_ram_converted[i] = convert_palette(eswap16(palette_ram_raw[i]));
   }
 
   video_reload_counters();

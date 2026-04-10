@@ -561,13 +561,13 @@ defsymbl(execute_arm_translate_internal)
 
 # Ensure iwram+0x8000 and ewram addresses have identical 31..16 bits
 # We place them at 128KB offset to ensure so.
-defsymbl(iwram)
+defsymbl(iwram_raw)
   .space 0x10000
-defsymbl(vram)
+defsymbl(vram_raw)
   .space 0x18000
-defsymbl(ewram)
+defsymbl(ewram_raw)
   .space 0x80000
-defsymbl(io_registers)
+defsymbl(io_registers_raw)
   .space 0x400
 
 .data
@@ -582,11 +582,11 @@ defobj(reg)
   .space 0x100
 
 # Placed here for easy access
-defobj(palette_ram)
+defobj(palette_ram_raw)
   .space 0x400
 defobj(palette_ram_converted)
   .space 0x400
-defobj(oam_ram)
+defobj(oam_ram_raw)
   .space 0x400
 defobj(spsr)
   .space 24     # u32[6]
