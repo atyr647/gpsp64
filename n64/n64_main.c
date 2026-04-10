@@ -181,15 +181,14 @@ int main(void)
       /* Run one GBA frame */
       run_frame();
       if (++dbg_frame <= 5) {
-        /* Raw memory dump of first 8 bytes of io_registers */
-        u8 *raw = (u8*)io_registers_raw;
-        debugf("f%lu raw=%02x%02x %02x%02x %02x%02x %02x%02x "
-               "vc_read=%u dc_read=%04x\n",
+        extern s32 video_count;
+        extern u32 execute_cycles;
+        debugf("f%lu vc_reg=%u vidcnt=%d excyc=%u pc=%08lx\n",
                (unsigned long)dbg_frame,
-               raw[0],raw[1],raw[2],raw[3],
-               raw[4],raw[5],raw[6],raw[7],
                read_ioreg(REG_VCOUNT),
-               read_ioreg(REG_DISPCNT));
+               (int)video_count,
+               execute_cycles,
+               (unsigned long)reg[REG_PC]);
       }
 
       /* Audio disabled — saves significant CPU on the N64 */
