@@ -1,11 +1,14 @@
 /* gameplaySP - N64 Cache Coherency Utilities
  *
- * The VR4300 has separate I-cache (16 KB) and D-cache (8 KB).
- * After writing JIT code to the translation cache, we must:
- *   1. Write back D-cache lines containing the new code
- *   2. Invalidate I-cache lines so the CPU fetches the new code
+ * The VR4300 has separate I-cache (16 KB, 32-byte lines) and
+ * D-cache (8 KB, 16-byte lines).
  *
- * N64 port Copyright (C) 2026
+ * After writing JIT code to the translation cache, we must:
+ *   1. Write back ALL dirty D-cache lines
+ *   2. Invalidate ALL I-cache lines
+ *
+ * Using full index-based flush because ares reports that hit-based
+ * writeback doesn't properly reach RDRAM.
  */
 
 #ifndef N64_CACHE_H
@@ -13,15 +16,19 @@
 
 #include <libdragon.h>
 
-/* Flush the data cache and invalidate the instruction cache
- * for the given address range. Must be called after writing
- * JIT code to the translation cache. */
+/* Full D-cache writeback + I-cache invalidate.
+   Brute-force: iterate ALL cache lines by index. */
 static inline void n64_flush_cache(void *addr, unsigned int len)
 {
-  /* Write back dirty D-cache lines */
-  data_cache_hit_writeback(addr, len);
-  /* Invalidate I-cache so CPU sees new code */
-  inst_cache_hit_invalidate(addr, len);
+  (void)addr; (void)len;
+
+  /* Writeback and invalidate ALL D-cache lines (8KB, 16-byte lines = 512 lines) */
+  for (unsigned i = 0; i < 8192; i += 16)
+    asm volatile("cache 0x01, 0(%0)" :: "r"(0x80000000 + i));
+
+  /* Invalidate ALL I-cache lines (16KB, 32-byte lines = 512 lines) */
+  for (unsigned i = 0; i < 16384; i += 32)
+    asm volatile("cache 0x00, 0(%0)" :: "r"(0x80000000 + i));
 }
 
 #endif
