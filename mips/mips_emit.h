@@ -2969,9 +2969,6 @@ u32 execute_arm_translate(u32 cycles) {
     execute_arm(cycles);
     return 0;
   }
-  if (frame_count == 300)
-    fprintf(stderr, "JIT ON pc=%08lx cycles=%lu\n",
-      (unsigned long)reg[15], (unsigned long)cycles);
 #endif
   {
     u32 rv = execute_arm_translate_internal(cycles, &reg[0]);

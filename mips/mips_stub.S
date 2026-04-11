@@ -565,16 +565,6 @@ defsymbl(execute_arm_translate_internal)
 1:
   cfncall block_lookup_address_thumb, 2
 
-#ifdef N64
-  # Workaround: calling a C function here prevents the 0x04fffed8 crash.
-  # This likely flushes/syncs something that the JIT needs.
-  sw $2, REG_SAVE($16)
-  save_registers
-  cfncall n64_jit_sync, 0
-  restore_registers
-  lw $2, REG_SAVE($16)
-#endif
-
   restore_registers               # load initial register values
   sll $2, $2, 0                   # Sign-extend block address for MIPS III
   jr $2                           # jump to translated block

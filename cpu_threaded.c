@@ -2622,7 +2622,6 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
       { /* Not found, go ahead and translate, and backfill the hash table */  \
         u8 *blkptr;                                                           \
         bool result;                                                          \
-        static u32 n64_blk_count = 0;                                         \
         bhdr = (hashhdr_type*)rom_translation_ptr;                            \
         bhdr->pc_value = key;                                                 \
         bhdr->next_entry = 0;                                                 \
@@ -2632,10 +2631,6 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
         result = translate_block_##type(pc, false);                           \
                                                                               \
         if (result) {                                                         \
-          n64_blk_count++;                                                    \
-          if (n64_blk_count <= 10 || (n64_blk_count % 500) == 0)             \
-            fprintf(stderr, "BLK#%lu pc=%08lx\n",                            \
-              (unsigned long)n64_blk_count, (unsigned long)pc);              \
           return blkptr;                                                      \
         }                                                                     \
       }                                                                       \
@@ -2674,19 +2669,6 @@ u8 function_cc *block_lookup_address_arm(u32 pc)
     u8 *ret = block_lookup_translate_arm(pc);
     if (ret) {
       translate_icache_sync();
-      #ifdef N64
-      {
-        u8 *rom_start = (u8*)rom_translation_cache;
-        u8 *rom_end = rom_start + sizeof(rom_translation_cache);
-        u8 *ram_start = (u8*)ram_translation_cache;
-        u8 *ram_end = ram_start + sizeof(ram_translation_cache);
-        if (!((ret >= rom_start && ret < rom_end) ||
-              (ret >= ram_start && ret < ram_end))) {
-          printf("BAD BLOCK ARM: pc=%08x ret=%p rom=[%p-%p] ram=[%p-%p]\n",
-            pc, ret, rom_start, rom_end, ram_start, ram_end);
-        }
-      }
-      #endif
       return ret;
     }
   }
@@ -2703,19 +2685,6 @@ u8 function_cc *block_lookup_address_thumb(u32 pc)
     u8 *ret = block_lookup_translate_thumb(pc);
     if (ret) {
       translate_icache_sync();
-      #ifdef N64
-      {
-        u8 *rom_start = (u8*)rom_translation_cache;
-        u8 *rom_end = rom_start + sizeof(rom_translation_cache);
-        u8 *ram_start = (u8*)ram_translation_cache;
-        u8 *ram_end = ram_start + sizeof(ram_translation_cache);
-        if (!((ret >= rom_start && ret < rom_end) ||
-              (ret >= ram_start && ret < ram_end))) {
-          printf("BAD BLOCK THUMB: pc=%08x ret=%p rom=[%p-%p] ram=[%p-%p]\n",
-            pc, ret, rom_start, rom_end, ram_start, ram_end);
-        }
-      }
-      #endif
       return ret;
     }
   }
@@ -3425,7 +3394,6 @@ void flush_translation_cache_ram(void)
 void flush_translation_cache_rom(void)
 {
   /* We flush the generated code except for everything below the watermark. */
-  fprintf(stderr, "CACHE FLUSH rom (watermark=%lu)\n", (unsigned long)rom_cache_watermark);
   last_rom_translation_ptr = &rom_translation_cache[rom_cache_watermark];
   rom_translation_ptr      = &rom_translation_cache[rom_cache_watermark];
 

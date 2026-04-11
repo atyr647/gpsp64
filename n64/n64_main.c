@@ -26,7 +26,7 @@
 /* Global state required by the emulator core */
 u32 skip_next_frame = 0;
 u32 num_skipped_frames = 0;
-int dynarec_enable = 1;
+int dynarec_enable = 0;
 boot_mode selected_boot_mode = boot_game;
 int sprite_limit = 1;
 u32 netplay_num_clients = 0, netplay_client_id = 0;
@@ -44,13 +44,6 @@ static u32 frameskip_counter = 0;
 void error_msg(const char *text)
 {
   debugf("[gpSP error]: %s\n", text);
-}
-
-/* Minimal sync function — calling ANY C function from the JIT entry
-   point somehow prevents the 0x04fffed8 crash. Investigating why. */
-void n64_jit_sync(void)
-{
-  /* empty — the function call itself is what matters */
 }
 
 void info_msg(const char *text)
@@ -215,14 +208,21 @@ int main(void)
           u32 ppu_pct = prof_emu ? (prof_ppu_ticks * 100) / prof_emu : 0;
           u32 cpu_pct = 100 - ppu_pct;  /* CPU = emulation minus PPU */
           u32 ms_per_frame = prof_total / (46875 * 60);
-          debugf("PROF 60F: E%lu%% B%lu%% | CPU%lu%% PPU%lu%% | %lums/f\n",
+          extern u32 prof_arm_insns, prof_thumb_insns;
+          u32 total_insns = prof_arm_insns + prof_thumb_insns;
+          u32 kips = total_insns ? (total_insns / ms_per_frame) : 0;
+          debugf("PROF: E%lu%% B%lu%% CPU%lu%% PPU%lu%% %lums/f | %luK arm %luK thumb %luKIPS\n",
                  (unsigned long)emu_pct,
                  (unsigned long)blit_pct,
                  (unsigned long)cpu_pct,
                  (unsigned long)ppu_pct,
-                 (unsigned long)ms_per_frame);
+                 (unsigned long)ms_per_frame,
+                 (unsigned long)(prof_arm_insns / 1000),
+                 (unsigned long)(prof_thumb_insns / 1000),
+                 (unsigned long)kips);
           prof_emu = prof_blit = prof_total = prof_frames = 0;
           prof_ppu_ticks = 0;
+          prof_arm_insns = prof_thumb_insns = 0;
         }
       }
     }

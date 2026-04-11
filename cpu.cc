@@ -22,6 +22,12 @@ extern "C" {
   #include "cpu_instrument.h"
 }
 
+#ifdef N64
+  /* Interpreter profiling: count instructions per mode */
+  u32 prof_arm_insns = 0;
+  u32 prof_thumb_insns = 0;
+#endif
+
 const u8 bit_count[256] =
 {
   0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3,
@@ -3042,6 +3048,9 @@ arm_loop:
 skip_instruction:
 
        /* End of Execute ARM instruction */
+       #ifdef N64
+       prof_arm_insns++;
+       #endif
        cycles_remaining -= ws_cyc_seq[(reg[REG_PC] >> 24) & 0xF][1];
 
        if (reg[REG_PC] == idle_loop_target_pc && cycles_remaining > 0) cycles_remaining = 0;
@@ -3522,6 +3531,9 @@ thumb_loop:
        }
 
        /* End of Execute THUMB instruction */
+       #ifdef N64
+       prof_thumb_insns++;
+       #endif
        cycles_remaining -= ws_cyc_seq[(reg[REG_PC] >> 24) & 0xF][0];
 
        if (reg[REG_PC] == idle_loop_target_pc && cycles_remaining > 0) cycles_remaining = 0;
