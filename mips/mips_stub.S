@@ -247,16 +247,6 @@ symbol:
 # This gets called every time the cycle counter runs out
 # (checked at every branch/jump)
 defsymbl(mips_update_gba)
-#ifdef N64
-  # Debug: trace that mips_update_gba was reached
-  sw $4, REG_SAVE3($16)
-  sw $ra, REG_SAVE4($16)
-  save_registers
-  cfncall n64_mips_update_trace, 0
-  restore_registers
-  lw $4, REG_SAVE3($16)
-  lw $ra, REG_SAVE4($16)
-#endif
   sw $4, REG_PC($16)              # current PC = $4
   sw $ra, REG_SAVE2($16)          # save return addr
   collapse_flags                  # update cpsr
@@ -554,16 +544,6 @@ defsymbl(execute_arm_translate_internal)
   move reg_cycles, $4             # load cycle counter register
   sll reg_cycles, reg_cycles, 0   # Sign-extend for MIPS III
 
-#ifdef N64
-  # Debug: print actual $17 value before block execution
-  move $4, reg_cycles
-  sw $16, REG_SAVE($16)
-  save_registers
-  cfncall n64_print_cycles, 0
-  restore_registers
-  lw $16, REG_SAVE($16)
-#endif
-
   extract_flags                   # load flag variables
 
   # CPU might be sleeping, do not wake ip up!
@@ -584,20 +564,6 @@ defsymbl(execute_arm_translate_internal)
 
 1:
   cfncall block_lookup_address_thumb, 2
-
-#ifdef N64
-  # Debug: verify the block pointer before executing
-  sw $2, REG_SAVE($16)            # save block pointer
-  sw $4, REG_SAVE3($16)           # save $4
-  save_registers
-  move $4, $2                     # arg0 = block pointer
-  lw $5, REG_PC($16)              # arg1 = GBA PC
-  cfncall n64_jit_trace, 0        # call trace function
-  restore_registers
-  lw $4, REG_SAVE3($16)           # restore $4
-  lw $2, REG_SAVE($16)            # restore block pointer
-#endif
-
   restore_registers               # load initial register values
   sll $2, $2, 0                   # Sign-extend block address for MIPS III
   jr $2                           # jump to translated block

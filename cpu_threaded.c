@@ -2701,23 +2701,6 @@ u8 function_cc *block_lookup_address_thumb(u32 pc)
       translate_icache_sync();
       #ifdef N64
       {
-        static int thumb_dump_count = 0;
-        if (thumb_dump_count == 0) {
-          thumb_dump_count = 1;
-          u32 *p = (u32*)(ret - 16);  /* Include 4-instruction prologue */
-          int j;
-          fprintf(stderr, "THUMB1@%p (prologue@%p) pc=%08lx:\n",
-            ret, ret-16, (unsigned long)pc);
-          for (j = 0; j < 68; j += 4)
-            fprintf(stderr, " %c%02x: %08lx %08lx %08lx %08lx\n",
-              j < 4 ? 'P' : '+', (j < 4 ? 0 : (j-4)*4),
-              (unsigned long)p[j], (unsigned long)p[j+1],
-              (unsigned long)p[j+2], (unsigned long)p[j+3]);
-        }
-      }
-      #endif
-      #ifdef N64
-      {
         u8 *rom_start = (u8*)rom_translation_cache;
         u8 *rom_end = rom_start + sizeof(rom_translation_cache);
         u8 *ram_start = (u8*)ram_translation_cache;

@@ -133,22 +133,6 @@ u32 function_cc update_gba(int remaining_cycles)
   int dma_cycles;
   trace_update_gba(remaining_cycles);
 
-  #ifdef N64
-  {
-    static u32 ugba_calls = 0;
-    static u32 jit_active = 0;
-    /* Set flag once JIT trace fires (n64_jit_trace sets this) */
-    extern volatile u32 n64_jit_running;
-    if (n64_jit_running && ugba_calls < 10) {
-      ugba_calls++;
-      fprintf(stderr, "UPD#%lu cy=%d pc=%08lx vc=%lu\n",
-        (unsigned long)ugba_calls, remaining_cycles,
-        (unsigned long)reg[REG_PC],
-        (unsigned long)read_ioreg(REG_VCOUNT));
-    }
-  }
-  #endif
-
   remaining_cycles = MAX(remaining_cycles, -64);
 
   do
