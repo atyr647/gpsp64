@@ -2778,18 +2778,10 @@ static void emit_phand(
   mips_emit_sw(reg_temp, mips_reg_ra, -8);      // Patch instruction!
 
   #if defined(N64)
-    /* N64: flush patched instruction through C function call.
-     * Save handler addr, call platform_cache_sync, then jump. */
-    mips_emit_sw(reg_rv, reg_base, ReOff_SaveR1);   // Save handler addr
-    mips_emit_sw(mips_reg_ra, reg_base, ReOff_SaveR2); // Save ra
-    mips_emit_addiu(reg_a0, mips_reg_ra, -8);        // arg0 = patched addr
-    mips_emit_addiu(reg_a1, mips_reg_ra, -4);        // arg1 = end addr
-    emit_save_regs(false);
-    genccall(&platform_cache_sync);
-    mips_emit_nop();
-    emit_restore_regs(false);
-    mips_emit_lw(reg_rv, reg_base, ReOff_SaveR1);   // Restore handler addr
-    mips_emit_lw(mips_reg_ra, reg_base, ReOff_SaveR2); // Restore ra
+    /* N64: skip inline cache flush — the D-cache line will be written back
+     * naturally when evicted, and the I-cache line will be refilled from
+     * RDRAM. Until then, the old JAL still goes through the patcher (slow
+     * but correct). This avoids the VR4300 write-buffer race condition. */
     mips_emit_jr(reg_rv);
     mips_emit_nop();
   #elif defined(PSP)
