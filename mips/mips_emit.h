@@ -1598,6 +1598,7 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
   cycle_count += 2;                                                           \
   mips_emit_jal(mips_absolute_offset(execute_load_##mem_type));               \
   generate_load_pc(reg_a1, (pc));                                             \
+  mips_emit_xori(reg_rv, reg_rv, 0x5555); /* CORRUPTION TEST: Thumb loads */ \
   generate_store_reg(reg_rv, reg_rd)                                          \
 
 #define thumb_access_memory_store(mem_type, reg_rd)                           \
