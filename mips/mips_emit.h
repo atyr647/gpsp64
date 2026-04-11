@@ -230,7 +230,8 @@ u32 arm_to_mips_reg[] =
   cycle_count = 0                                                             \
 
 #define generate_branch_patch_conditional(dest, offset)                       \
-  *((u16 *)(dest)) = mips_relative_offset(dest, offset)                       \
+  *((u32 *)(dest)) = (*((u32 *)(dest)) & 0xFFFF0000u) |                       \
+   (mips_relative_offset(dest, offset) & 0xFFFF)                              \
 
 #define generate_branch_patch_unconditional(dest, offset)                     \
   *((u32 *)(dest)) = (mips_opcode_j << 26) |                                  \
