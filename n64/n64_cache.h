@@ -1,29 +1,18 @@
-/* gameplaySP - N64 Cache Coherency for VR4300 (MIPS III)
- *
- * The VR4300 has separate I-cache (16KB, 32B lines) and D-cache (8KB, 16B lines).
- * It does NOT have synci (MIPS32R2) so __builtin___clear_cache won't work.
- * Must use explicit cache instructions:
- *   cache 0x15 = D-cache Hit Writeback Invalidate
- *   cache 0x10 = I-cache Hit Invalidate
- */
-
 #ifndef N64_CACHE_H
 #define N64_CACHE_H
 
+/* Invalidate I-cache for JIT code range.
+ * With KSEG1 writes, D-cache writeback is unnecessary — data is already
+ * in RDRAM. We only need to invalidate I-cache so the CPU fetches the
+ * new code from RDRAM instead of using stale I-cache lines.
+ * I-cache line size on VR4300: 32 bytes. */
 static inline void n64_flush_cache(void *addr, unsigned int len)
 {
-  /* Align start down to 16-byte boundary (D-cache line size) */
-  unsigned long start = (unsigned long)addr & ~15UL;
-  unsigned long end = (unsigned long)addr + len;
-
-  /* Write back all dirty D-cache lines in range */
-  for (unsigned long a = start; a < end; a += 16)
-    __asm__ volatile("cache 0x15, 0(%0)" :: "r"(a));
-
-  /* Invalidate all I-cache lines in range (32-byte line size) */
-  start = (unsigned long)addr & ~31UL;
-  for (unsigned long a = start; a < end; a += 32)
-    __asm__ volatile("cache 0x10, 0(%0)" :: "r"(a));
+  unsigned char *p;
+  unsigned char *end = (unsigned char*)addr + len;
+  /* Invalidate I-cache lines covering the range */
+  for (p = (unsigned char*)((unsigned long)addr & ~31UL); p < end; p += 32)
+    __asm__ volatile("cache 0x10, 0(%0)" :: "r"(p));  /* I-cache Hit Invalidate */
 }
 
 #endif

@@ -3398,18 +3398,25 @@ void flush_translation_cache_rom(void)
 void init_dynarec_caches(void)
 {
 #ifdef N64
-  /* Invalidate D-cache for translation caches BEFORE writing JIT code.
-     BSS zeroing left dirty D-cache lines. If we write JIT code through
-     KSEG1 (uncached), those dirty lines could be evicted later and
-     overwrite our JIT code in RDRAM. Invalidate (discard) them first. */
+  /* Invalidate BOTH D-cache and I-cache for translation caches.
+     BSS zeroing left dirty D-cache lines that could overwrite KSEG1 writes.
+     Old I-cache lines could have stale instructions from previous runs. */
   {
     unsigned char *p;
+    /* D-cache: 8KB, 16-byte lines. Invalidate (discard dirty BSS data) */
     for (p = rom_translation_cache;
          p < rom_translation_cache + ROM_TRANSLATION_CACHE_SIZE; p += 16)
       __asm__ volatile("cache 0x11, 0(%0)" :: "r"(p));  /* D-cache Hit Invalidate */
     for (p = ram_translation_cache;
          p < ram_translation_cache + RAM_TRANSLATION_CACHE_SIZE; p += 16)
       __asm__ volatile("cache 0x11, 0(%0)" :: "r"(p));
+    /* I-cache: 16KB, 32-byte lines. Invalidate stale instruction data */
+    for (p = rom_translation_cache;
+         p < rom_translation_cache + ROM_TRANSLATION_CACHE_SIZE; p += 32)
+      __asm__ volatile("cache 0x10, 0(%0)" :: "r"(p));  /* I-cache Hit Invalidate */
+    for (p = ram_translation_cache;
+         p < ram_translation_cache + RAM_TRANSLATION_CACHE_SIZE; p += 32)
+      __asm__ volatile("cache 0x10, 0(%0)" :: "r"(p));
   }
 #endif
   /* Initialize caches so that we can start initalizing the emitter. */
