@@ -2972,9 +2972,20 @@ u32 execute_arm_translate(u32 cycles) {
     execute_arm(cycles);
     return 0;
   }
-  fprintf(stderr, "JIT SINGLE FRAME pc=%08lx\n", (unsigned long)reg[15]);
+  fprintf(stderr, "JIT PRE: pc=%08lx sp=%08lx lr=%08lx cpsr=%08lx\n",
+    (unsigned long)reg[15], (unsigned long)reg[13],
+    (unsigned long)reg[14], (unsigned long)reg[16]);
+  fprintf(stderr, "  r0-r3: %08lx %08lx %08lx %08lx\n",
+    (unsigned long)reg[0], (unsigned long)reg[1],
+    (unsigned long)reg[2], (unsigned long)reg[3]);
 #endif
-  return execute_arm_translate_internal(cycles, &reg[0]);
+  {
+    u32 rv = execute_arm_translate_internal(cycles, &reg[0]);
+    fprintf(stderr, "JIT POST: pc=%08lx sp=%08lx lr=%08lx cpsr=%08lx\n",
+      (unsigned long)reg[15], (unsigned long)reg[13],
+      (unsigned long)reg[14], (unsigned long)reg[16]);
+    return rv;
+  }
 }
 
 #endif
