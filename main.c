@@ -135,12 +135,14 @@ u32 function_cc update_gba(int remaining_cycles)
 
   #ifdef N64
   {
+    extern u32 frame_counter;
     static u32 ugba_jit_calls = 0;
-    if (dynarec_enable && ugba_jit_calls < 5) {
+    if (frame_counter >= 10 && ugba_jit_calls < 10) {
       ugba_jit_calls++;
-      fprintf(stderr, "UPD#%lu cy=%d pc=%08lx\n",
+      fprintf(stderr, "UPD#%lu cy=%d pc=%08lx halt=%lu\n",
         (unsigned long)ugba_jit_calls, remaining_cycles,
-        (unsigned long)reg[REG_PC]);
+        (unsigned long)reg[REG_PC],
+        (unsigned long)reg[CPU_HALT_STATE]);
     }
   }
   #endif
