@@ -2309,10 +2309,10 @@ static void emit_pmemld_stub(
   emit_mem_access_loadop(translation_ptr, base_addr, size, alignment, signext);
   translation_ptr += 4;
 
-  // CACHE TEST: deliberately corrupt loaded values to prove stubs execute
+  // CACHE TEST: deliberately corrupt 32-bit loads to prove stubs execute
   #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
   if (size == 2) {
-    mips_emit_xori(reg_rv, reg_rv, 0xAAAA);  // Corrupt 32-bit loads
+    mips_emit_xori(reg_rv, reg_rv, 0xAAAA);
   }
   #endif
 
