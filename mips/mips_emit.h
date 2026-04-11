@@ -2315,6 +2315,21 @@ static void emit_pmemld_stub(
   emit_mem_access_loadop(translation_ptr, base_addr, size, alignment, signext);
   translation_ptr += 4;
 
+  // Big-endian byte-swap: GBA data is stored LE, native loads return BE values.
+  // Byte loads need no swap. Halfword and word loads must be swapped.
+  #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  if (size == 2) {
+    emit_bswap32(reg_rv, reg_rv);
+  } else if (size == 1 && !alignment) {
+    // Aligned halfword: swap bytes, then re-sign-extend if needed
+    emit_bswap16(reg_rv, reg_rv);
+    if (signext) {
+      emit_signext16(reg_rv, reg_rv);
+    }
+  }
+  // size==0 (byte) or halfword with alignment (byte load): no swap needed
+  #endif
+
   if (!(alignment == 0 || (size == 1 && signext))) {
     // Unaligned accesses require rotation, except for size=1 & signext
     rotate_right(reg_rv, reg_rv, reg_temp, alignment * 8);
@@ -2384,8 +2399,20 @@ static void emit_pmemst_stub(
     mips_emit_addu(reg_rv, reg_rv, reg_a0);    // Adds to base addr
   }
 
-  // LE storage: plain offset, byte-swap in emit_bswap macros handles endianness
+  // LE storage: plain offset
   u32 st_offset = base_addr;
+
+  // Big-endian byte-swap: convert native value to LE before storing.
+  // Must happen before SMC check since bswap clobbers reg_temp/reg_a0,
+  // and SMC check recalculates reg_temp afterwards.
+  #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  if (realsize == 2) {
+    emit_bswap32_a1();
+  } else if (realsize == 1) {
+    emit_bswap16_a1();
+  }
+  // byte stores need no swap
+  #endif
 
   // Generate SMC write and tracking
   // TODO: Should we have SMC checks here also for aligned?
@@ -2484,15 +2511,29 @@ static void emit_palette_hdl(
   }
   mips_emit_addu(reg_rv, reg_rv, reg_base);
 
-  // Store the data in real palette memory
+  // Store the data in real palette memory (must be LE format).
+  // On big-endian: bswap to LE, store, bswap back to restore native order
+  // for palette_convert below. bswap32 is its own inverse.
+  #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  if (realsize == 2) {
+    emit_bswap32_a1();
+    mips_emit_sw(reg_a1, reg_rv, 0x100);
+    emit_bswap32_a1();     // restore native order for palette_convert
+  } else {
+    emit_bswap16_a1();
+    mips_emit_sh(reg_a1, reg_rv, 0x100);
+    emit_bswap16_a1();     // restore native order for palette_convert
+  }
+  #else
   if (realsize == 2) {
     mips_emit_sw(reg_a1, reg_rv, 0x100);
-  } else if (realsize == 1) {
+  } else {
     mips_emit_sh(reg_a1, reg_rv, 0x100);
   }
+  #endif
 
   // Convert and store in mirror memory (palette_ram_converted).
-  // This is a native u16 lookup table, NOT GBA memory — no XOR.
+  // This is a native u16 lookup table, NOT GBA memory — no byte-swap.
   palette_convert();
   mips_emit_sh(reg_temp, reg_rv, 0x500);
 
