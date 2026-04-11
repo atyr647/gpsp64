@@ -245,13 +245,17 @@ symbol:
 # This gets called every time the cycle counter runs out
 # (checked at every branch/jump)
 defsymbl(mips_update_gba)
-  # CORRUPTION TEST: if this code runs, it proves the JIT dispatches here
-  # Corrupt ARM r0 ($3) to prove execution reaches this point
-  xori $3, $3, 0x1111
+  # CONTROL FLOW TEST: force immediate frame exit
+  # If game STOPS/FREEZES: JIT reaches here (proof of execution)
+  # If game continues normally: JIT never reaches here
+  collapse_flags
+  save_registers
+  b return_to_main
+  li $2, 0x80000000               # frame_complete flag (delay slot)
 
-  sw $4, REG_PC($16)              # current PC = $4
-
-  sw $ra, REG_SAVE2($16)          # save return addr
+  # Original code (unreachable during test):
+  sw $4, REG_PC($16)
+  sw $ra, REG_SAVE2($16)
   collapse_flags                  # update cpsr
   save_registers                  # save registers
   move $4, reg_cycles             # Remaining cycles as asg0
