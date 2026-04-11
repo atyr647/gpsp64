@@ -152,13 +152,9 @@ typedef enum
   mips_opcode_cache      = 0x2F,
 } mips_opcode;
 
-/* On N64, write JIT code through KSEG1 (uncached) to bypass D-cache.
-   Code executes from KSEG0 (cached). No cache flush needed. */
-#ifdef N64
-  #define JIT_PTR(p) ((u32*)((uintptr_t)(p) | 0x20000000))
-#else
-  #define JIT_PTR(p) ((u32*)(p))
-#endif
+/* Write JIT code through normal cached memory (KSEG0).
+   Cache flush is handled by platform_cache_sync after generation. */
+#define JIT_PTR(p) ((u32*)(p))
 
 #define mips_emit_cache(operation, rs, immediate)                             \
   *JIT_PTR(translation_ptr) = (mips_opcode_cache << 26) |                    \

@@ -194,14 +194,10 @@ u32 arm_to_mips_reg[] =
   translation_ptr += 4;                                                       \
 }                                                                             \
 
-/* Read/write previously-emitted JIT code — must use JIT_PTR on N64 */
-#define JIT_READ32(ptr, off)  (*((u32*)((uintptr_t)((u8*)(ptr)+(off)) | (N64_UNCACHED))))
-#define JIT_WRITE32(ptr, off, val) (*((u32*)((uintptr_t)((u8*)(ptr)+(off)) | (N64_UNCACHED))) = (val))
-#ifdef N64
-  #define N64_UNCACHED 0x20000000
-#else
-  #define N64_UNCACHED 0
-#endif
+/* Read/write previously-emitted JIT code */
+#define JIT_READ32(ptr, off)  (*((u32*)((u8*)(ptr)+(off))))
+#define JIT_WRITE32(ptr, off, val) (*((u32*)((u8*)(ptr)+(off))) = (val))
+#define N64_UNCACHED 0
 
 #define generate_function_return_swap_delay()                                 \
 {                                                                             \
@@ -234,11 +230,10 @@ u32 arm_to_mips_reg[] =
   cycle_count = 0                                                             \
 
 #define generate_branch_patch_conditional(dest, offset)                       \
-  *((u16 *)((uintptr_t)(dest) | N64_UNCACHED)) =                              \
-    mips_relative_offset(dest, offset)                                        \
+  *((u16 *)(dest)) = mips_relative_offset(dest, offset)                       \
 
 #define generate_branch_patch_unconditional(dest, offset)                     \
-  *((u32 *)((uintptr_t)(dest) | N64_UNCACHED)) = (mips_opcode_j << 26) |      \
+  *((u32 *)(dest)) = (mips_opcode_j << 26) |                                  \
    ((mips_absolute_offset(offset)) & 0x3FFFFFF)                               \
 
 #define generate_branch_no_cycle_update(writeback_location, new_pc)           \
@@ -2746,14 +2741,13 @@ static void emit_phand(
   mips_emit_addu(reg_temp, reg_temp, reg_base); // Add to the base_reg the table offset
   mips_emit_lw(reg_rv,   reg_temp, tbloff);     // Get func addr from 1st table
   mips_emit_lw(reg_temp, reg_temp, tbloff2);    // Get opcode from 2nd table
+  mips_emit_sw(reg_temp, mips_reg_ra, -8);      // Patch instruction!
+
   #if defined(N64)
-    /* Write patched instruction through KSEG1 (uncached) to bypass D-cache.
-       Convert ra to KSEG1: OR with 0x20000000. Use reg_a0 as temp. */
-    mips_emit_lui(reg_a0, 0x2000);              // reg_a0 = 0x20000000
-    mips_emit_or(reg_a0, mips_reg_ra, reg_a0);  // reg_a0 = ra | 0x20000000 (KSEG1)
-    mips_emit_sw(reg_temp, reg_a0, -8);         // Store through KSEG1 (uncached)
+    /* VR4300: writeback D-cache + invalidate I-cache for patched instruction */
+    mips_emit_cache(0x15, mips_reg_ra, -8);   // D-cache Hit Writeback Invalidate
     mips_emit_jr(reg_rv);
-    mips_emit_nop();
+    mips_emit_cache(0x10, mips_reg_ra, -8);   // I-cache Hit Invalidate
   #elif defined(PSP)
     mips_emit_sw(reg_temp, mips_reg_ra, -8);    // Patch instruction!
     mips_emit_cache(0x1A, mips_reg_ra, -8);
