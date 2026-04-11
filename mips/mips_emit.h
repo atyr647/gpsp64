@@ -2899,49 +2899,6 @@ void clear_gamepak_stickybits(void);
 
 u32 execute_arm_translate(u32 cycles) {
 #ifdef N64
-  /* VALIDATION: Run JIT for 1 frame, save state, compare with interpreter */
-  static int validated = 0;
-  if (!validated && reg[CPU_HALT_STATE] == 0) {
-    validated = 1;
-
-    /* Save initial state */
-    u32 saved_regs[32];
-    for (int i = 0; i < 32; i++) saved_regs[i] = reg[i];
-
-    /* Run JIT */
-    u32 jit_ret = execute_arm_translate_internal(cycles, &reg[0]);
-
-    /* Save JIT result */
-    u32 jit_regs[32];
-    for (int i = 0; i < 32; i++) jit_regs[i] = reg[i];
-    u32 jit_pc = reg[REG_PC];
-
-    /* Restore initial state */
-    for (int i = 0; i < 32; i++) reg[i] = saved_regs[i];
-
-    /* Run interpreter */
-    clear_gamepak_stickybits();
-    execute_arm(cycles);
-
-    /* Compare */
-    printf("JIT vs INTERP (after %u cycles):\n", cycles);
-    printf("  PC: jit=%08lx int=%08lx %s\n",
-           (unsigned long)jit_pc, (unsigned long)reg[REG_PC],
-           jit_pc == reg[REG_PC] ? "OK" : "MISMATCH");
-    for (int i = 0; i < 16; i++) {
-      if (jit_regs[i] != reg[i])
-        printf("  r%d: jit=%08lx int=%08lx MISMATCH\n",
-               i, (unsigned long)jit_regs[i], (unsigned long)reg[i]);
-    }
-    if (jit_regs[REG_CPSR] != reg[REG_CPSR])
-      printf("  CPSR: jit=%08lx int=%08lx MISMATCH\n",
-             (unsigned long)jit_regs[REG_CPSR], (unsigned long)reg[REG_CPSR]);
-    printf("  JIT ret=%08lx\n", (unsigned long)jit_ret);
-
-    /* Continue with interpreter result (correct) */
-    return 0;
-  }
-  /* After validation, use interpreter for correct gameplay */
   clear_gamepak_stickybits();
   execute_arm(cycles);
   return 0;
