@@ -46,33 +46,11 @@ void error_msg(const char *text)
   debugf("[gpSP error]: %s\n", text);
 }
 
-volatile u32 n64_jit_running = 0;
-
-void n64_mips_update_trace(void)
+/* Minimal sync function — calling ANY C function from the JIT entry
+   point somehow prevents the 0x04fffed8 crash. Investigating why. */
+void n64_jit_sync(void)
 {
-  static int count = 0;
-  if (n64_jit_running && count < 5) {
-    count++;
-    debugf("MUGBA #%d\n", count);
-  }
-}
-
-void n64_print_cycles(u32 cycles_reg_value)
-{
-  debugf("REG_CYCLES=$17=%08lx (%ld)\n",
-    (unsigned long)cycles_reg_value, (long)(s32)cycles_reg_value);
-}
-
-/* Debug: called from mips_stub.S before first block execution */
-void n64_jit_trace(u32 block_ptr, u32 gba_pc)
-{
-  static int count = 0;
-  n64_jit_running = 1;
-  if (count < 3) {
-    count++;
-    debugf("JIT EXEC #%d blk=%08lx pc=%08lx\n",
-      count, (unsigned long)block_ptr, (unsigned long)gba_pc);
-  }
+  /* empty — the function call itself is what matters */
 }
 
 void info_msg(const char *text)
