@@ -2774,9 +2774,23 @@ static void emit_phand(
   unsigned tbloff2 = tbloff + 960;              // JAL opcode table
   mips_emit_addu(reg_temp, reg_temp, reg_base); // Add to the base_reg the table offset
   mips_emit_lw(reg_rv,   reg_temp, tbloff);     // Get func addr from 1st table
-  /* N64 TEST: skip JAL patching entirely (no sw, no cache ops) */
+  mips_emit_lw(reg_temp, reg_temp, tbloff2);    // Get opcode from 2nd table
+  mips_emit_sw(reg_temp, mips_reg_ra, -8);      // Patch instruction!
+
   #if defined(N64)
-    mips_emit_jr(reg_rv);                        // Just jump to handler, no patch
+    /* N64: flush patched instruction through C function call.
+     * Save handler addr, call platform_cache_sync, then jump. */
+    mips_emit_sw(reg_rv, reg_base, ReOff_SaveR1);   // Save handler addr
+    mips_emit_sw(mips_reg_ra, reg_base, ReOff_SaveR2); // Save ra
+    mips_emit_addiu(reg_a0, mips_reg_ra, -8);        // arg0 = patched addr
+    mips_emit_addiu(reg_a1, mips_reg_ra, -4);        // arg1 = end addr
+    emit_save_regs(false);
+    genccall(&platform_cache_sync);
+    mips_emit_nop();
+    emit_restore_regs(false);
+    mips_emit_lw(reg_rv, reg_base, ReOff_SaveR1);   // Restore handler addr
+    mips_emit_lw(mips_reg_ra, reg_base, ReOff_SaveR2); // Restore ra
+    mips_emit_jr(reg_rv);
     mips_emit_nop();
   #elif defined(PSP)
     mips_emit_sw(reg_temp, mips_reg_ra, -8);    // Patch instruction!
@@ -2962,17 +2976,17 @@ u32 execute_arm_translate(u32 cycles) {
      then switch to JIT. If garble appears at frame 300, JIT is the cause. */
   static u32 frame_count = 0;
   frame_count++;
-  if (frame_count < 10) {
+  if (frame_count < 300) {
     clear_gamepak_stickybits();
     execute_arm(cycles);
     return 0;
   }
-  if (frame_count == 10)
+  if (frame_count == 300)
     fprintf(stderr, "JIT ON pc=%08lx cycles=%lu\n",
       (unsigned long)reg[15], (unsigned long)cycles);
 #endif
   {
-    u32 rv = execute_arm_translate_internal(1, &reg[0]); /* FORCE 1 cycle */
+    u32 rv = execute_arm_translate_internal(cycles, &reg[0]);
     return rv;
   }
 }
