@@ -275,6 +275,10 @@ void translate_icache_sync() {
         platform_cache_sync(last_ram_translation_ptr, ram_translation_ptr);
         last_ram_translation_ptr = ram_translation_ptr;
     }
+    #ifdef N64
+    /* Brute-force: invalidate entire I-cache to ensure no stale code */
+    inst_cache_invalidate_all();
+    #endif
 }
 
 /* End of Cache invalidation */
