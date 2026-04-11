@@ -128,14 +128,11 @@ int main(void)
   info_msg("gpSP N64 - GBA Emulator");
   info_msg("Initializing...");
 
-  /* Allocate GBA screen buffer */
+  /* Static GBA screen buffer — avoids heap address issues with rdpq */
   extern u16 *gba_screen_pixels;
-  gba_screen_pixels = (u16 *)malloc(GBA_SCREEN_BUFFER_SIZE);
-  if (!gba_screen_pixels) {
-    error_msg("Failed to allocate screen buffer");
-    while (1) {}
-  }
-  memset(gba_screen_pixels, 0, GBA_SCREEN_BUFFER_SIZE);
+  static u16 __attribute__((aligned(16))) screen_buf[GBA_SCREEN_PITCH * (GBA_SCREEN_HEIGHT + 1)];
+  gba_screen_pixels = screen_buf;
+  memset(gba_screen_pixels, 0, sizeof(screen_buf));
 
   /* Initialize sound */
   init_sound();

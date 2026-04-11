@@ -2899,16 +2899,14 @@ void clear_gamepak_stickybits(void);
 
 u32 execute_arm_translate(u32 cycles) {
 #ifdef N64
-  /* Debug: check halt state and bypass assembly entirely if sleeping */
-  if (reg[CPU_HALT_STATE] != 0) {
-    /* CPU is sleeping — the assembly goes to cpu_sleep_loop which
-       calls the interpreter anyway. Skip the assembly entirely. */
-    clear_gamepak_stickybits();
-    execute_arm(cycles);
-    return 0;
-  }
-#endif
+  /* Bypass JIT assembly — use interpreter directly.
+     JIT stubs and translation cache are compiled but not executed. */
+  clear_gamepak_stickybits();
+  execute_arm(cycles);
+  return 0;
+#else
   return execute_arm_translate_internal(cycles, &reg[0]);
+#endif
 }
 
 #endif
