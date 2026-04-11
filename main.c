@@ -20,6 +20,14 @@
 #include "common.h"
 #include <ctype.h>
 
+/* CPU vs PPU profiling (N64 COUNT register) */
+#ifdef N64
+  #define PROF_TICK() ({ u32 _t; __asm__ volatile("mfc0 %0, $9" : "=r"(_t)); _t; })
+  u32 prof_ppu_ticks = 0;
+#else
+  #define PROF_TICK() 0
+#endif
+
 timer_type timer[4];
 
 u32 frame_counter = 0;
@@ -168,7 +176,9 @@ u32 function_cc update_gba(int remaining_cycles)
           if(reg[OAM_UPDATED])
             oam_update_count++;
 
+          { u32 _ps = PROF_TICK();
           update_scanline();
+          prof_ppu_ticks += PROF_TICK() - _ps; }
 
           // Trigger the HBlank DMAs if enabled
           for (i = 0; i < 4; i++)

@@ -172,20 +172,54 @@ int main(void)
 
     /* Main emulation loop */
     emulator_running = true;
-    while (emulator_running) {
-      /* Poll input */
-      n64_input_poll();
-      n64_input_update();
+    {
+      /* Profiling counters (VR4300 COUNT register, ticks at CPU/2 = 46.875 MHz) */
+      u32 prof_emu = 0, prof_blit = 0, prof_total = 0;
+      u32 prof_frames = 0;
+      extern u32 prof_ppu_ticks;
+      #define PROF_TICK() ({ u32 _t; __asm__ volatile("mfc0 %0, $9" : "=r"(_t)); _t; })
 
-      /* Run one GBA frame */
-      run_frame();
+      while (emulator_running) {
+        u32 t_frame_start = PROF_TICK();
 
-      /* Audio disabled — saves significant CPU on the N64 */
-      /* n64_audio_render_frame(); */
+        /* Poll input */
+        n64_input_poll();
+        n64_input_update();
 
-      /* Output video (blit GBA framebuffer to N64 display) */
-      if (!skip_next_frame) {
-        n64_video_render_frame();
+        /* Run one GBA frame (CPU + PPU) */
+        u32 t0 = PROF_TICK();
+        run_frame();
+        u32 t1 = PROF_TICK();
+        prof_emu += t1 - t0;
+
+        /* Output video (blit GBA framebuffer to N64 display) */
+        u32 tb0 = PROF_TICK();
+        if (!skip_next_frame) {
+          n64_video_render_frame();
+        }
+        u32 tb1 = PROF_TICK();
+        prof_blit += tb1 - tb0;
+
+        u32 t_frame_end = PROF_TICK();
+        prof_total += t_frame_end - t_frame_start;
+        prof_frames++;
+
+        /* Print profiling every 60 frames */
+        if (prof_frames == 60) {
+          u32 emu_pct = (prof_emu * 100) / prof_total;
+          u32 blit_pct = (prof_blit * 100) / prof_total;
+          u32 ppu_pct = prof_emu ? (prof_ppu_ticks * 100) / prof_emu : 0;
+          u32 cpu_pct = 100 - ppu_pct;  /* CPU = emulation minus PPU */
+          u32 ms_per_frame = prof_total / (46875 * 60);
+          debugf("PROF 60F: E%lu%% B%lu%% | CPU%lu%% PPU%lu%% | %lums/f\n",
+                 (unsigned long)emu_pct,
+                 (unsigned long)blit_pct,
+                 (unsigned long)cpu_pct,
+                 (unsigned long)ppu_pct,
+                 (unsigned long)ms_per_frame);
+          prof_emu = prof_blit = prof_total = prof_frames = 0;
+          prof_ppu_ticks = 0;
+        }
       }
     }
   }
