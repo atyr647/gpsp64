@@ -2618,6 +2618,7 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
       { /* Not found, go ahead and translate, and backfill the hash table */  \
         u8 *blkptr;                                                           \
         bool result;                                                          \
+        static u32 n64_blk_count = 0;                                         \
         bhdr = (hashhdr_type*)rom_translation_ptr;                            \
         bhdr->pc_value = key;                                                 \
         bhdr->next_entry = 0;                                                 \
@@ -2626,8 +2627,16 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
         blkptr = rom_translation_ptr + block_prologue_size;                   \
         result = translate_block_##type(pc, false);                           \
                                                                               \
-        if (result)                                                           \
+        if (result) {                                                         \
+          n64_blk_count++;                                                    \
+          if ((n64_blk_count % 200) == 0)                                     \
+            printf("BLK#%lu pc=%08lx cache=%lu/%lu\n",                        \
+              (unsigned long)n64_blk_count,                                   \
+              (unsigned long)pc,                                              \
+              (unsigned long)(rom_translation_ptr - rom_translation_cache),   \
+              (unsigned long)ROM_TRANSLATION_CACHE_SIZE);                     \
           return blkptr;                                                      \
+        }                                                                     \
       }                                                                       \
       return NULL;                                                            \
     }                                                                         \

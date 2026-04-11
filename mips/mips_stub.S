@@ -225,12 +225,12 @@ symbol:
 .macro cfncall target, targetid
   lw $t9, (FNPTRS_BASE + \targetid * 4)($16)
   jalr $t9
-  REG_L $28, GP_SAVE($16)
+  lw $28, GP_SAVE($16)            # Always 32-bit: matches emit_save_regs lw
 .endm
 #else
 .macro cfncall target, targetid
   jal \target
-  REG_L $28, GP_SAVE($16)
+  lw $28, GP_SAVE($16)            # Always 32-bit: matches emit_save_regs lw
 .endm
 #endif
 
@@ -282,7 +282,7 @@ defsymbl(mips_cheat_hook)
 # Loads the main context and returns to it.
 # ARM regs must be saved before branching here
 return_to_main:
-  REG_L $28, GP_SAVE($16)            # Restore previous state
+  lw $28, GP_SAVE($16)               # Restore GP (32-bit, sign-extends correctly)
   REG_L $s0,  4*SZREG($sp)
   REG_L $s1,  5*SZREG($sp)
   REG_L $s2,  6*SZREG($sp)
@@ -537,7 +537,7 @@ defsymbl(execute_arm_translate_internal)
 
   move $16, $5
   sll $16, $16, 0                 # Sign-extend reg base pointer for MIPS III
-  REG_S $28, GP_SAVE($16)
+  sw $28, GP_SAVE($16)            # Always 32-bit: JIT emit_save_regs uses lw
 
   move reg_cycles, $4             # load cycle counter register
   sll reg_cycles, reg_cycles, 0   # Sign-extend for MIPS III
