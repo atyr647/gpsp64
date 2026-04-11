@@ -2808,14 +2808,10 @@ static void emit_phand(
   unsigned tbloff2 = tbloff + 960;              // JAL opcode table
   mips_emit_addu(reg_temp, reg_temp, reg_base); // Add to the base_reg the table offset
   mips_emit_lw(reg_rv,   reg_temp, tbloff);     // Get func addr from 1st table
-  mips_emit_lw(reg_temp, reg_temp, tbloff2);    // Get opcode from 2nd table
-  mips_emit_sw(reg_temp, mips_reg_ra, -8);      // Patch instruction!
 
   #if defined(N64)
-    /* N64: skip inline cache flush — the D-cache line will be written back
-     * naturally when evicted, and the I-cache line will be refilled from
-     * RDRAM. Until then, the old JAL still goes through the patcher (slow
-     * but correct). This avoids the VR4300 write-buffer race condition. */
+    /* N64: do NOT patch JAL at all — avoids D-cache/I-cache coherency issues.
+     * Every memory access goes through the patcher. Slower but no crash. */
     mips_emit_jr(reg_rv);
     mips_emit_nop();
   #elif defined(PSP)
