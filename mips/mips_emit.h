@@ -1149,57 +1149,23 @@ u32 execute_spsr_restore_body(u32 address)
 
 #define arm_multiply_long_flags_no(_rdlo, _rdhi)                              \
 
-#ifdef N64
-  /* N64 MIPS III: no madd/maddu. Do multiply then manually add to
-     the accumulator registers (rdlo/rdhi) that were set before. */
-  #define arm_multiply_long_add_yes(name)                                       \
-    generate_multiply_##name();                                                 \
-    mips_emit_mflo(reg_a0);                                                     \
-    mips_emit_mfhi(reg_a1);                                                     \
-    mips_emit_addu(arm_to_mips_reg[rdlo], arm_to_mips_reg[rdlo], reg_a0);       \
-    mips_emit_sltu(reg_temp, arm_to_mips_reg[rdlo], reg_a0);                    \
-    mips_emit_addu(arm_to_mips_reg[rdhi], arm_to_mips_reg[rdhi], reg_a1);       \
-    mips_emit_addu(arm_to_mips_reg[rdhi], arm_to_mips_reg[rdhi], reg_temp)
-#else
-  #define arm_multiply_long_add_yes(name)                                       \
-    mips_emit_mtlo(arm_to_mips_reg[rdlo]);                                      \
-    mips_emit_mthi(arm_to_mips_reg[rdhi]);                                      \
-    generate_multiply_##name()
-#endif                                                  \
+#define arm_multiply_long_add_yes(name)                                       \
+  mips_emit_mtlo(arm_to_mips_reg[rdlo]);                                      \
+  mips_emit_mthi(arm_to_mips_reg[rdhi]);                                      \
+  generate_multiply_##name()
 
-#ifdef N64
-  /* N64: _add_no still needs mflo/mfhi since we skip them in the main macro */
-  #define arm_multiply_long_add_no(name)                                        \
-    generate_multiply_##name();                                                 \
-    mips_emit_mflo(arm_to_mips_reg[rdlo]);                                      \
-    mips_emit_mfhi(arm_to_mips_reg[rdhi])
-#else
-  #define arm_multiply_long_add_no(name)                                        \
-    generate_multiply_##name()
-#endif                                                  \
+#define arm_multiply_long_add_no(name)                                        \
+  generate_multiply_##name()
 
-#ifdef N64
-  /* N64: for _add_yes, results are already in rdlo/rdhi (no mflo/mfhi needed).
-     For _add_no, still need mflo/mfhi from the multiply. Use a unified macro
-     that always does mflo/mfhi — the _add_yes path will overwrite them. */
-  #define arm_multiply_long(name, add_op, flags)                                \
-  {                                                                             \
-    arm_decode_multiply_long();                                                 \
-    arm_multiply_long_add_##add_op(name);                                       \
-    arm_multiply_long_flags_##flags(arm_to_mips_reg[rdlo],                      \
-     arm_to_mips_reg[rdhi]);                                                    \
-  }
-#else
-  #define arm_multiply_long(name, add_op, flags)                                \
-  {                                                                             \
-    arm_decode_multiply_long();                                                 \
-    arm_multiply_long_add_##add_op(name);                                       \
-    mips_emit_mflo(arm_to_mips_reg[rdlo]);                                      \
-    mips_emit_mfhi(arm_to_mips_reg[rdhi]);                                      \
-    arm_multiply_long_flags_##flags(arm_to_mips_reg[rdlo],                      \
-     arm_to_mips_reg[rdhi]);                                                    \
-  }
-#endif                                                                             \
+#define arm_multiply_long(name, add_op, flags)                                \
+{                                                                             \
+  arm_decode_multiply_long();                                                 \
+  arm_multiply_long_add_##add_op(name);                                       \
+  mips_emit_mflo(arm_to_mips_reg[rdlo]);                                      \
+  mips_emit_mfhi(arm_to_mips_reg[rdhi]);                                      \
+  arm_multiply_long_flags_##flags(arm_to_mips_reg[rdlo],                      \
+   arm_to_mips_reg[rdhi]);                                                    \
+}                                                                             \
 
 #define arm_psr_read(op_type, psr_reg)                                        \
   generate_function_call(execute_read_##psr_reg);                             \
