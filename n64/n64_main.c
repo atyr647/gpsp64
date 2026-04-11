@@ -46,10 +46,13 @@ void error_msg(const char *text)
   debugf("[gpSP error]: %s\n", text);
 }
 
+volatile u32 n64_jit_running = 0;
+
 /* Debug: called from mips_stub.S before first block execution */
 void n64_jit_trace(u32 block_ptr, u32 gba_pc)
 {
   static int count = 0;
+  n64_jit_running = 1;
   if (count < 3) {
     count++;
     debugf("JIT EXEC #%d blk=%08lx pc=%08lx\n",

@@ -135,14 +135,16 @@ u32 function_cc update_gba(int remaining_cycles)
 
   #ifdef N64
   {
-    extern u32 frame_counter;
-    static u32 ugba_jit_calls = 0;
-    if (frame_counter >= 10 && ugba_jit_calls < 10) {
-      ugba_jit_calls++;
-      fprintf(stderr, "UPD#%lu cy=%d pc=%08lx halt=%lu\n",
-        (unsigned long)ugba_jit_calls, remaining_cycles,
+    static u32 ugba_calls = 0;
+    static u32 jit_active = 0;
+    /* Set flag once JIT trace fires (n64_jit_trace sets this) */
+    extern volatile u32 n64_jit_running;
+    if (n64_jit_running && ugba_calls < 10) {
+      ugba_calls++;
+      fprintf(stderr, "UPD#%lu cy=%d pc=%08lx vc=%lu\n",
+        (unsigned long)ugba_calls, remaining_cycles,
         (unsigned long)reg[REG_PC],
-        (unsigned long)reg[CPU_HALT_STATE]);
+        (unsigned long)read_ioreg(REG_VCOUNT));
     }
   }
   #endif
