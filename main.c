@@ -133,6 +133,18 @@ u32 function_cc update_gba(int remaining_cycles)
   int dma_cycles;
   trace_update_gba(remaining_cycles);
 
+  #ifdef N64
+  {
+    static u32 ugba_jit_calls = 0;
+    if (dynarec_enable && ugba_jit_calls < 5) {
+      ugba_jit_calls++;
+      fprintf(stderr, "UPD#%lu cy=%d pc=%08lx\n",
+        (unsigned long)ugba_jit_calls, remaining_cycles,
+        (unsigned long)reg[REG_PC]);
+    }
+  }
+  #endif
+
   remaining_cycles = MAX(remaining_cycles, -64);
 
   do
