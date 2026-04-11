@@ -152,46 +152,54 @@ typedef enum
   mips_opcode_cache      = 0x2F,
 } mips_opcode;
 
+/* On N64, write JIT code through KSEG1 (uncached) to bypass D-cache.
+   Code executes from KSEG0 (cached). No cache flush needed. */
+#ifdef N64
+  #define JIT_PTR(p) ((u32*)((uintptr_t)(p) | 0x20000000))
+#else
+  #define JIT_PTR(p) ((u32*)(p))
+#endif
+
 #define mips_emit_cache(operation, rs, immediate)                             \
-  *((u32 *)translation_ptr) = (mips_opcode_cache << 26) |                     \
+  *JIT_PTR(translation_ptr) = (mips_opcode_cache << 26) |                    \
    (rs << 21) | (operation << 16) | (immediate & 0xFFFF);                     \
   translation_ptr += 4                                                        \
 
 #define mips_emit_reg(opcode, rs, rt, rd, shift, function)                    \
-  *((u32 *)translation_ptr) = (mips_opcode_##opcode << 26) |                  \
+  *JIT_PTR(translation_ptr) = (mips_opcode_##opcode << 26) |                  \
   (rs << 21) | (rt << 16) | (rd << 11) | ((shift) << 6) | function;           \
   translation_ptr += 4                                                        \
 
 #define mips_emit_special(function, rs, rt, rd, shift)                        \
-  *((u32 *)translation_ptr) = (mips_opcode_special << 26) |                   \
+  *JIT_PTR(translation_ptr) = (mips_opcode_special << 26) |                   \
    (rs << 21) | (rt << 16) | (rd << 11) | ((shift) << 6) |                    \
    mips_special_##function;                                                   \
   translation_ptr += 4                                                        \
 
 #define mips_emit_special2(function, rs, rt, rd, shift)                       \
-  *((u32 *)translation_ptr) = (mips_opcode_special2 << 26) |                  \
+  *JIT_PTR(translation_ptr) = (mips_opcode_special2 << 26) |                  \
    (rs << 21) | (rt << 16) | (rd << 11) | ((shift) << 6) |                    \
    mips_special2_##function;                                                  \
   translation_ptr += 4                                                        \
 
 #define mips_emit_special3(function, rs, rt, imm_a, imm_b)                    \
-  *((u32 *)translation_ptr) = (mips_opcode_special3 << 26) |                  \
+  *JIT_PTR(translation_ptr) = (mips_opcode_special3 << 26) |                  \
    (rs << 21) | (rt << 16) | (imm_a << 11) | (imm_b << 6) |                   \
    mips_special3_##function;                                                  \
   translation_ptr += 4                                                        \
 
 #define mips_emit_imm(opcode, rs, rt, immediate)                              \
-  *((u32 *)translation_ptr) = (mips_opcode_##opcode << 26) |                  \
+  *JIT_PTR(translation_ptr) = (mips_opcode_##opcode << 26) |                  \
    (rs << 21) | (rt << 16) | ((immediate) & 0xFFFF);                          \
   translation_ptr += 4                                                        \
 
 #define mips_emit_regimm(function, rs, immediate)                             \
-  *((u32 *)translation_ptr) = (mips_opcode_regimm << 26) |                    \
+  *JIT_PTR(translation_ptr) = (mips_opcode_regimm << 26) |                    \
    (rs << 21) | (mips_regimm_##function << 16) | ((immediate) & 0xFFFF);      \
   translation_ptr += 4                                                        \
 
 #define mips_emit_jump(opcode, offset)                                        \
-  *((u32 *)translation_ptr) = (mips_opcode_##opcode << 26) |                  \
+  *JIT_PTR(translation_ptr) = (mips_opcode_##opcode << 26) |                  \
    (offset & 0x3FFFFFF);                                                      \
   translation_ptr += 4                                                        \
 
