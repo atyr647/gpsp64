@@ -1219,7 +1219,6 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
   cycle_count += 2;                                                           \
   mips_emit_jal(mips_absolute_offset(execute_load_##mem_type));               \
   generate_load_pc(reg_a1, (pc));                                             \
-  mips_emit_xori(reg_rv, reg_rv, 0x5555); /* CORRUPTION TEST: in translated block */ \
   generate_store_reg(reg_rv, rd);                                             \
   check_store_reg_pc_no_flags(rd)                                             \
 
@@ -1598,7 +1597,6 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
   cycle_count += 2;                                                           \
   mips_emit_jal(mips_absolute_offset(execute_load_##mem_type));               \
   generate_load_pc(reg_a1, (pc));                                             \
-  mips_emit_xori(reg_rv, reg_rv, 0x5555); /* CORRUPTION TEST: Thumb loads */ \
   generate_store_reg(reg_rv, reg_rd)                                          \
 
 #define thumb_access_memory_store(mem_type, reg_rd)                           \
@@ -2315,13 +2313,6 @@ static void emit_pmemld_stub(
   // Emit load operation
   emit_mem_access_loadop(translation_ptr, base_addr, size, alignment, signext);
   translation_ptr += 4;
-
-  // CACHE TEST: deliberately corrupt 32-bit loads to prove stubs execute
-  #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  if (size == 2) {
-    mips_emit_xori(reg_rv, reg_rv, 0xAAAA);
-  }
-  #endif
 
   if (!(alignment == 0 || (size == 1 && signext))) {
     // Unaligned accesses require rotation, except for size=1 & signext
