@@ -598,6 +598,7 @@ const u8 bit_count[256] =
   if((read_ioreg(REG_IE) & read_ioreg(REG_IF)) &&                             \
    read_ioreg(REG_IME) && ((reg[REG_CPSR] & 0x80) == 0))                      \
   {                                                                           \
+    collapse_flags();  /* Must pack flags before saving as SPSR */             \
     REG_MODE(MODE_IRQ)[6] = reg[REG_PC] + 4;                                  \
     REG_SPSR(MODE_IRQ) = reg[REG_CPSR];                                       \
     reg[REG_CPSR] = 0xD2;                                                     \
@@ -795,6 +796,7 @@ const u32 spsr_masks[4] = { 0x00000000, 0x000000EF, 0xF0000000, 0xF00000EF };
   reg[rd] = psr_reg                                                           \
 
 #define arm_psr_store_cpsr(source)                                            \
+  collapse_flags();  /* Must pack flags before read-modify-write of CPSR */   \
   const u32 store_mask = cpsr_masks[psr_pfield][PRIVMODE(reg[CPU_MODE])];     \
   reg[REG_CPSR] = (source & store_mask) | (reg[REG_CPSR] & (~store_mask));    \
   extract_flags();                                                            \
@@ -1504,7 +1506,9 @@ void execute_arm(u32 cycles)
     {
 arm_loop:
 
-       collapse_flags();
+       /* Flags are kept lazy (unpacked in n/z/c/v_flag variables).
+        * Only collapsed to reg[REG_CPSR] when actually needed
+        * (PSR read/write, IRQ entry, cycle expiry, mode switch). */
 
        /* Process cheats if we are about to execute the cheat hook */
        if (reg[REG_PC] == cheat_master_hook)
@@ -3071,7 +3075,7 @@ skip_instruction:
     {
 thumb_loop:
 
-       collapse_flags();
+       /* Flags kept lazy — see arm_loop comment */
 
        /* Process cheats if we are about to execute the cheat hook */
        if (reg[REG_PC] == cheat_master_hook)
