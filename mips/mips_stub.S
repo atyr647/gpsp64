@@ -26,9 +26,11 @@
   #define REG_S sd
 #elif defined(N64)
   .set mips3
-  #define SZREG 4
-  #define REG_L lw
-  #define REG_S sw
+  /* N64 compiler (mips64-elf-gcc) uses sd/ld for callee-saved registers.
+     We must match, or upper 32 bits of s-regs are lost on return. */
+  #define SZREG 8
+  #define REG_L ld
+  #define REG_S sd
 #else
   .set mips32r2
   #define SZREG 4
@@ -292,7 +294,7 @@ return_to_main:
   REG_L $fp, 12*SZREG($sp)
   REG_L $ra, 13*SZREG($sp)
   jr $ra                          # Return to main
-  addiu $sp, $sp, 112             # Restore stack pointer (delay slot)
+  addiu $sp, $sp, 128             # Restore stack pointer (delay slot)
 
 # Perform an indirect branch.
 
@@ -521,7 +523,7 @@ defsymbl(execute_store_spsr)
 
 defsymbl(execute_arm_translate_internal)
 
-  addiu $sp, $sp, -112            # Store the main thread context
+  addiu $sp, $sp, -128            # Store the main thread context
   REG_S $s0,  4*SZREG($sp)
   REG_S $s1,  5*SZREG($sp)
   REG_S $s2,  6*SZREG($sp)

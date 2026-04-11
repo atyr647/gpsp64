@@ -2664,6 +2664,19 @@ u8 function_cc *block_lookup_address_arm(u32 pc)
     u8 *ret = block_lookup_translate_arm(pc);
     if (ret) {
       translate_icache_sync();
+      #ifdef N64
+      {
+        u8 *rom_start = (u8*)rom_translation_cache;
+        u8 *rom_end = rom_start + sizeof(rom_translation_cache);
+        u8 *ram_start = (u8*)ram_translation_cache;
+        u8 *ram_end = ram_start + sizeof(ram_translation_cache);
+        if (!((ret >= rom_start && ret < rom_end) ||
+              (ret >= ram_start && ret < ram_end))) {
+          printf("BAD BLOCK ARM: pc=%08x ret=%p rom=[%p-%p] ram=[%p-%p]\n",
+            pc, ret, rom_start, rom_end, ram_start, ram_end);
+        }
+      }
+      #endif
       return ret;
     }
   }
@@ -2680,6 +2693,19 @@ u8 function_cc *block_lookup_address_thumb(u32 pc)
     u8 *ret = block_lookup_translate_thumb(pc);
     if (ret) {
       translate_icache_sync();
+      #ifdef N64
+      {
+        u8 *rom_start = (u8*)rom_translation_cache;
+        u8 *rom_end = rom_start + sizeof(rom_translation_cache);
+        u8 *ram_start = (u8*)ram_translation_cache;
+        u8 *ram_end = ram_start + sizeof(ram_translation_cache);
+        if (!((ret >= rom_start && ret < rom_end) ||
+              (ret >= ram_start && ret < ram_end))) {
+          printf("BAD BLOCK THUMB: pc=%08x ret=%p rom=[%p-%p] ram=[%p-%p]\n",
+            pc, ret, rom_start, rom_end, ram_start, ram_end);
+        }
+      }
+      #endif
       return ret;
     }
   }
