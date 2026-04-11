@@ -2927,6 +2927,27 @@ void init_emitter(bool must_swap) {
   // Ensure rom flushes do not wipe this area
   rom_cache_watermark = (u32)(translation_ptr - rom_translation_cache);
 
+  fprintf(stderr, "STUBS: watermark=%lu bytes, BE_SWAP=%d\n",
+    (unsigned long)rom_cache_watermark,
+  #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    1
+  #else
+    0
+  #endif
+  );
+  // Dump first load u32 stub (memop 6, region 3 = IWRAM) to verify swap instrs
+  {
+    u32 *p = (u32*)(uintptr_t)tmemld[6][3];
+    fprintf(stderr, "LD32[3]@%p: %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n",
+      p, (unsigned long)p[0], (unsigned long)p[1], (unsigned long)p[2],
+      (unsigned long)p[3], (unsigned long)p[4], (unsigned long)p[5],
+      (unsigned long)p[6], (unsigned long)p[7]);
+    fprintf(stderr, "  +8: %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n",
+      (unsigned long)p[8], (unsigned long)p[9], (unsigned long)p[10],
+      (unsigned long)p[11], (unsigned long)p[12], (unsigned long)p[13],
+      (unsigned long)p[14], (unsigned long)p[15]);
+  }
+
   // Flush I-cache for the stubs we just generated. translate_icache_sync()
   // only covers code AFTER the watermark, so the stubs below it would have
   // stale I-cache data on platforms with split I/D caches (N64).
