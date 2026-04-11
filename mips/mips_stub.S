@@ -554,6 +554,16 @@ defsymbl(execute_arm_translate_internal)
   move reg_cycles, $4             # load cycle counter register
   sll reg_cycles, reg_cycles, 0   # Sign-extend for MIPS III
 
+#ifdef N64
+  # Debug: print actual $17 value before block execution
+  move $4, reg_cycles
+  sw $16, REG_SAVE($16)
+  save_registers
+  cfncall n64_print_cycles, 0
+  restore_registers
+  lw $16, REG_SAVE($16)
+#endif
+
   extract_flags                   # load flag variables
 
   # CPU might be sleeping, do not wake ip up!

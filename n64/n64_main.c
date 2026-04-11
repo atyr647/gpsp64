@@ -57,6 +57,12 @@ void n64_mips_update_trace(void)
   }
 }
 
+void n64_print_cycles(u32 cycles_reg_value)
+{
+  debugf("REG_CYCLES=$17=%08lx (%ld)\n",
+    (unsigned long)cycles_reg_value, (long)(s32)cycles_reg_value);
+}
+
 /* Debug: called from mips_stub.S before first block execution */
 void n64_jit_trace(u32 block_ptr, u32 gba_pc)
 {
