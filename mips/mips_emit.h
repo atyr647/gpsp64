@@ -2898,15 +2898,7 @@ void execute_arm(u32 cycles);
 void clear_gamepak_stickybits(void);
 
 u32 execute_arm_translate(u32 cycles) {
-#ifdef N64
-  /* Bypass JIT assembly — use interpreter directly.
-     JIT stubs and translation cache are compiled but not executed. */
-  clear_gamepak_stickybits();
-  execute_arm(cycles);
-  return 0;
-#else
   return execute_arm_translate_internal(cycles, &reg[0]);
-#endif
 }
 
 #endif
