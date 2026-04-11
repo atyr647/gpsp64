@@ -2701,6 +2701,28 @@ u8 function_cc *block_lookup_address_thumb(u32 pc)
       translate_icache_sync();
       #ifdef N64
       {
+        static int thumb_dump_count = 0;
+        if (thumb_dump_count == 0) {
+          thumb_dump_count = 1;
+          u32 *p = (u32*)ret;
+          fprintf(stderr, "THUMB1@%p pc=%08lx:\n", ret, (unsigned long)pc);
+          fprintf(stderr, " %08lx %08lx %08lx %08lx\n",
+            (unsigned long)p[0], (unsigned long)p[1],
+            (unsigned long)p[2], (unsigned long)p[3]);
+          fprintf(stderr, " %08lx %08lx %08lx %08lx\n",
+            (unsigned long)p[4], (unsigned long)p[5],
+            (unsigned long)p[6], (unsigned long)p[7]);
+          fprintf(stderr, " %08lx %08lx %08lx %08lx\n",
+            (unsigned long)p[8], (unsigned long)p[9],
+            (unsigned long)p[10], (unsigned long)p[11]);
+          fprintf(stderr, " %08lx %08lx %08lx %08lx\n",
+            (unsigned long)p[12], (unsigned long)p[13],
+            (unsigned long)p[14], (unsigned long)p[15]);
+        }
+      }
+      #endif
+      #ifdef N64
+      {
         u8 *rom_start = (u8*)rom_translation_cache;
         u8 *rom_end = rom_start + sizeof(rom_translation_cache);
         u8 *ram_start = (u8*)ram_translation_cache;
