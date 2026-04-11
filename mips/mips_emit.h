@@ -2972,7 +2972,7 @@ u32 execute_arm_translate(u32 cycles) {
       (unsigned long)reg[15], (unsigned long)cycles);
 #endif
   {
-    u32 rv = execute_arm_translate_internal(cycles, &reg[0]);
+    u32 rv = execute_arm_translate_internal(1, &reg[0]); /* FORCE 1 cycle */
     return rv;
   }
 }
