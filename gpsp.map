@@ -3945,19 +3945,19 @@ LOAD /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/
  *fill*         0x80000470       0x10 
  .text          0x80000480      0x980 mips/mips_stub.o
                 0x80000480                mips_update_gba
-                0x80000554                mips_cheat_hook
-                0x80000618                mips_indirect_branch_arm
-                0x800006a4                mips_indirect_branch_thumb
-                0x80000730                mips_indirect_branch_dual
-                0x800007c0                write_io_epilogue
-                0x80000904                smc_write
-                0x80000954                execute_read_cpsr
-                0x80000988                execute_read_spsr
-                0x800009a0                execute_swi
-                0x80000a80                execute_spsr_restore
-                0x80000b54                execute_store_cpsr
-                0x80000ca4                execute_store_spsr
-                0x80000cd0                execute_arm_translate_internal
+                0x80000558                mips_cheat_hook
+                0x8000061c                mips_indirect_branch_arm
+                0x800006a8                mips_indirect_branch_thumb
+                0x80000734                mips_indirect_branch_dual
+                0x800007c4                write_io_epilogue
+                0x80000908                smc_write
+                0x80000958                execute_read_cpsr
+                0x8000098c                execute_read_spsr
+                0x800009a4                execute_swi
+                0x80000a84                execute_spsr_restore
+                0x80000b58                execute_store_cpsr
+                0x80000ca8                execute_store_spsr
+                0x80000cd4                execute_arm_translate_internal
  .text          0x80000e00      0x380 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inthandler.o)
                 0x80000e00                inthandler
                 0x80001180                inthandler_end

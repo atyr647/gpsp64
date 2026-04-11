@@ -245,6 +245,10 @@ symbol:
 # This gets called every time the cycle counter runs out
 # (checked at every branch/jump)
 defsymbl(mips_update_gba)
+  # CORRUPTION TEST: if this code runs, it proves the JIT dispatches here
+  # Corrupt ARM r0 ($3) to prove execution reaches this point
+  xori $3, $3, 0x1111
+
   sw $4, REG_PC($16)              # current PC = $4
 
   sw $ra, REG_SAVE2($16)          # save return addr
