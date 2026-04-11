@@ -2630,7 +2630,7 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
         if (result) {                                                         \
           n64_blk_count++;                                                    \
           if ((n64_blk_count % 200) == 0)                                     \
-            printf("BLK#%lu pc=%08lx cache=%lu/%lu\n",                        \
+            fprintf(stderr, "BLK#%lu pc=%08lx c=%lu/%lu\n",                            \
               (unsigned long)n64_blk_count,                                   \
               (unsigned long)pc,                                              \
               (unsigned long)(rom_translation_ptr - rom_translation_cache),   \
@@ -3424,6 +3424,7 @@ void flush_translation_cache_ram(void)
 void flush_translation_cache_rom(void)
 {
   /* We flush the generated code except for everything below the watermark. */
+  fprintf(stderr, "CACHE FLUSH rom (watermark=%lu)\n", (unsigned long)rom_cache_watermark);
   last_rom_translation_ptr = &rom_translation_cache[rom_cache_watermark];
   rom_translation_ptr      = &rom_translation_cache[rom_cache_watermark];
 

@@ -2951,7 +2951,7 @@ u32 execute_arm_translate(u32 cycles) {
     return 0;
   }
   if (frame_count == 300)
-    printf("SWITCHING TO JIT at frame 300\n");
+    fprintf(stderr, "JIT START frame 300 pc=%08lx\n", (unsigned long)reg[15]);
 #endif
   return execute_arm_translate_internal(cycles, &reg[0]);
 }
