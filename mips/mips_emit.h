@@ -2895,14 +2895,7 @@ void init_emitter(bool must_swap) {
 
 u32 execute_arm_translate_internal(u32 cycles, void *regptr);
 u32 execute_arm_translate(u32 cycles) {
-#ifdef N64
-  /* ISOLATION TEST: bypass JIT entirely, use interpreter */
-  clear_gamepak_stickybits();
-  execute_arm(cycles);
-  return 0;
-#else
   return execute_arm_translate_internal(cycles, &reg[0]);
-#endif
 }
 
 #endif

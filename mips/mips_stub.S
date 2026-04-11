@@ -303,14 +303,16 @@ defsymbl(mips_indirect_branch_arm)
   save_registers
   cfncall block_lookup_address_arm, 1
   restore_registers
-  jr $2                           # $2 = value returned
+  sll $2, $2, 0                   # Sign-extend for MIPS III
+  jr $2
   nop
 
 defsymbl(mips_indirect_branch_thumb)
   save_registers
   cfncall block_lookup_address_thumb, 2
   restore_registers
-  jr $2                           # $2 = value returned
+  sll $2, $2, 0                   # Sign-extend for MIPS III
+  jr $2
   nop
 
 defsymbl(mips_indirect_branch_dual)
@@ -318,7 +320,8 @@ defsymbl(mips_indirect_branch_dual)
   cfncall block_lookup_address_dual, 3
   nop
   restore_registers
-  jr $2                           # $2 = value returned
+  sll $2, $2, 0                   # Sign-extend for MIPS III
+  jr $2
   nop
 
 
@@ -364,12 +367,14 @@ lookup_pc_noflags:
 
   cfncall block_lookup_address_thumb, 2  # get Thumb address
   restore_registers
-  jr $2                                  # jump to result
+  sll $2, $2, 0                          # Sign-extend for MIPS III
+  jr $2
   nop
 1:
   cfncall block_lookup_address_arm, 1  # get ARM address
   restore_registers
-  jr $2                                # jump to result
+  sll $2, $2, 0                        # Sign-extend for MIPS III
+  jr $2
   nop
 
 
@@ -490,6 +495,7 @@ defsymbl(execute_store_cpsr)
   addu $4, $2, $0                      # load new address in $4
   cfncall block_lookup_address_arm, 1  # GBA address is in $4
   restore_registers                    # restore registers
+  sll $2, $2, 0                        # Sign-extend for MIPS III
   jr $2                                # jump to the new address
   nop
 
@@ -529,9 +535,11 @@ defsymbl(execute_arm_translate_internal)
   REG_S $ra, 13*SZREG($sp)
 
   move $16, $5
+  sll $16, $16, 0                 # Sign-extend reg base pointer for MIPS III
   REG_S $28, GP_SAVE($16)
 
   move reg_cycles, $4             # load cycle counter register
+  sll reg_cycles, reg_cycles, 0   # Sign-extend for MIPS III
 
   extract_flags                   # load flag variables
 
@@ -547,13 +555,15 @@ defsymbl(execute_arm_translate_internal)
 
   cfncall block_lookup_address_arm, 1
   restore_registers               # load initial register values
-  jr $2                           # jump to return
+  sll $2, $2, 0                   # Sign-extend block address for MIPS III
+  jr $2                           # jump to translated block
   nop
 
 1:
   cfncall block_lookup_address_thumb, 2
   restore_registers               # load initial register values
-  jr $2                           # jump to return
+  sll $2, $2, 0                   # Sign-extend block address for MIPS III
+  jr $2                           # jump to translated block
   nop
 
 .bss
