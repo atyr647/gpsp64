@@ -2774,21 +2774,9 @@ static void emit_phand(
   unsigned tbloff2 = tbloff + 960;              // JAL opcode table
   mips_emit_addu(reg_temp, reg_temp, reg_base); // Add to the base_reg the table offset
   mips_emit_lw(reg_rv,   reg_temp, tbloff);     // Get func addr from 1st table
-  mips_emit_lw(reg_temp, reg_temp, tbloff2);    // Get opcode from 2nd table
-  mips_emit_sw(reg_temp, mips_reg_ra, -8);      // Patch instruction!
-
+  /* N64 TEST: skip JAL patching entirely (no sw, no cache ops) */
   #if defined(N64)
-    /* VR4300: writeback D-cache + invalidate I-cache for patched instruction.
-     * Must add NOPs between cache ops: the writeback goes through the write
-     * buffer and needs time to reach RDRAM before I-cache invalidation,
-     * otherwise the next I-cache fill gets stale data. */
-    mips_emit_cache(0x15, mips_reg_ra, -8);   // D-cache Hit Writeback Invalidate
-    mips_emit_nop();                           // Write buffer drain time
-    mips_emit_nop();
-    mips_emit_nop();
-    mips_emit_nop();
-    mips_emit_cache(0x10, mips_reg_ra, -8);   // I-cache Hit Invalidate
-    mips_emit_jr(reg_rv);
+    mips_emit_jr(reg_rv);                        // Just jump to handler, no patch
     mips_emit_nop();
   #elif defined(PSP)
     mips_emit_sw(reg_temp, mips_reg_ra, -8);    // Patch instruction!
