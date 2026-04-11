@@ -2899,12 +2899,19 @@ void clear_gamepak_stickybits(void);
 
 u32 execute_arm_translate(u32 cycles) {
 #ifdef N64
-  clear_gamepak_stickybits();
-  execute_arm(cycles);
-  return 0;
-#else
-  return execute_arm_translate_internal(cycles, &reg[0]);
+  /* Gradually introduce JIT: interpreter for first 300 frames,
+     then switch to JIT. If garble appears at frame 300, JIT is the cause. */
+  static u32 frame_count = 0;
+  frame_count++;
+  if (frame_count < 300) {
+    clear_gamepak_stickybits();
+    execute_arm(cycles);
+    return 0;
+  }
+  if (frame_count == 300)
+    printf("SWITCHING TO JIT at frame 300\n");
 #endif
+  return execute_arm_translate_internal(cycles, &reg[0]);
 }
 
 #endif
