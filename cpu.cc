@@ -28,6 +28,44 @@ extern "C" {
   u32 prof_thumb_insns = 0;
 #endif
 
+/* ARM condition lookup table: indexed by (condition << 4) | (N<<3|Z<<2|C<<1|V)
+ * Returns 1 if the condition is MET (instruction should execute).
+ * Replaces the 16-way condition switch with a single table lookup. */
+static const u8 arm_cond_table[256] = {
+  /* EQ: Z set */
+  0,0,0,0, 1,1,1,1, 0,0,0,0, 1,1,1,1,
+  /* NE: Z clear */
+  1,1,1,1, 0,0,0,0, 1,1,1,1, 0,0,0,0,
+  /* CS: C set */
+  0,0,1,1, 0,0,1,1, 0,0,1,1, 0,0,1,1,
+  /* CC: C clear */
+  1,1,0,0, 1,1,0,0, 1,1,0,0, 1,1,0,0,
+  /* MI: N set */
+  0,0,0,0, 0,0,0,0, 1,1,1,1, 1,1,1,1,
+  /* PL: N clear */
+  1,1,1,1, 1,1,1,1, 0,0,0,0, 0,0,0,0,
+  /* VS: V set */
+  0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1,
+  /* VC: V clear */
+  1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0,
+  /* HI: C set AND Z clear */
+  0,0,1,1, 0,0,0,0, 0,0,1,1, 0,0,0,0,
+  /* LS: C clear OR Z set */
+  1,1,0,0, 1,1,1,1, 1,1,0,0, 1,1,1,1,
+  /* GE: N == V */
+  1,0,1,0, 1,0,1,0, 0,1,0,1, 0,1,0,1,
+  /* LT: N != V */
+  0,1,0,1, 0,1,0,1, 1,0,1,0, 1,0,1,0,
+  /* GT: Z clear AND N == V */
+  1,0,1,0, 0,0,0,0, 0,1,0,1, 0,0,0,0,
+  /* LE: Z set OR N != V */
+  0,1,0,1, 1,1,1,1, 1,0,1,0, 1,1,1,1,
+  /* AL: always */
+  1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1,
+  /* NV: never (reserved) */
+  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
+};
+
 const u8 bit_count[256] =
 {
   0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3,
@@ -1521,96 +1559,11 @@ arm_loop:
        opcode = readaddress32(pc_address_block, (reg[REG_PC] & 0x7FFF));
        condition = opcode >> 28;
 
-       switch(condition)
+       /* Fast condition check via lookup table */
        {
-          case 0x0:
-             /* EQ */
-             if(!z_flag)
-                arm_next_instruction();
-             break;
-          case 0x1:
-             /* NE      */
-             if(z_flag)
-                arm_next_instruction();
-             break;
-          case 0x2:
-             /* CS       */
-             if(!c_flag)
-                arm_next_instruction();
-             break;
-          case 0x3:
-             /* CC       */
-             if(c_flag)
-                arm_next_instruction();
-             break;
-          case 0x4:
-             /* MI       */
-             if(!n_flag)
-                arm_next_instruction();
-             break;
-
-          case 0x5:
-             /* PL       */
-             if(n_flag)
-                arm_next_instruction();
-             break;
-
-          case 0x6:
-             /* VS       */
-             if(!v_flag)
-                arm_next_instruction();
-             break;
-
-          case 0x7:
-             /* VC       */
-             if(v_flag)
-                arm_next_instruction();
-             break;
-
-          case 0x8:
-             /* HI       */
-             if((c_flag == 0) | z_flag)
-                arm_next_instruction();
-             break;
-
-          case 0x9:
-             /* LS       */
-             if(c_flag & (z_flag ^ 1))
-                arm_next_instruction();
-             break;
-
-          case 0xA:
-             /* GE       */
-             if(n_flag != v_flag)
-                arm_next_instruction();
-             break;
-
-          case 0xB:
-             /* LT       */
-             if(n_flag == v_flag)
-                arm_next_instruction();
-             break;
-
-          case 0xC:
-             /* GT       */
-             if(z_flag | (n_flag != v_flag))
-                arm_next_instruction();
-             break;
-
-          case 0xD:
-             /* LE       */
-             if((z_flag == 0) & (n_flag == v_flag))
-                arm_next_instruction();
-             break;
-
-          case 0xE:
-             /* AL       */
-             break;
-
-          case 0xF:
-             /* Reserved - treat as "never" */
+          u32 flag_bits = (n_flag << 3) | (z_flag << 2) | (c_flag << 1) | v_flag;
+          if(!arm_cond_table[(condition << 4) | flag_bits])
              arm_next_instruction();
-             break;
        }
 
        #ifdef TRACE_INSTRUCTIONS
