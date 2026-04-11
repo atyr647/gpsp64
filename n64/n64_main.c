@@ -99,6 +99,12 @@ static void run_frame(void)
   skip_next_frame = (frameskip_counter % (FRAMESKIP_INTERVAL + 1)) != 0;
   frameskip_counter++;
 
+  static int once = 0;
+  if (!once) {
+    once = 1;
+    debugf("RUN_FRAME: dynarec_enable=%d HAVE_DYNAREC=yes\n", dynarec_enable);
+  }
+
   /* Run the CPU for one frame */
 #ifdef HAVE_DYNAREC
   if (dynarec_enable)
