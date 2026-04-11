@@ -302,6 +302,7 @@ return_to_main:
 
 defsymbl(mips_indirect_branch_arm)
   save_registers
+  addu $4, $19, $0                # $4 = ARM PC ($19) for block_lookup arg
   cfncall block_lookup_address_arm, 1
   restore_registers
   sll $2, $2, 0                   # Sign-extend for MIPS III
@@ -310,6 +311,7 @@ defsymbl(mips_indirect_branch_arm)
 
 defsymbl(mips_indirect_branch_thumb)
   save_registers
+  addu $4, $19, $0                # $4 = ARM PC ($19) for block_lookup arg
   cfncall block_lookup_address_thumb, 2
   restore_registers
   sll $2, $2, 0                   # Sign-extend for MIPS III

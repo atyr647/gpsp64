@@ -2966,24 +2966,16 @@ u32 execute_arm_translate(u32 cycles) {
      then switch to JIT. If garble appears at frame 300, JIT is the cause. */
   static u32 frame_count = 0;
   frame_count++;
-  /* Test: run JIT for 1 frame only (frame 100), then back to interpreter */
-  if (frame_count != 100) {
+  if (frame_count < 10) {
     clear_gamepak_stickybits();
     execute_arm(cycles);
     return 0;
   }
-  fprintf(stderr, "JIT PRE: pc=%08lx sp=%08lx lr=%08lx cpsr=%08lx\n",
-    (unsigned long)reg[15], (unsigned long)reg[13],
-    (unsigned long)reg[14], (unsigned long)reg[16]);
-  fprintf(stderr, "  r0-r3: %08lx %08lx %08lx %08lx\n",
-    (unsigned long)reg[0], (unsigned long)reg[1],
-    (unsigned long)reg[2], (unsigned long)reg[3]);
+  if (frame_count == 10)
+    fprintf(stderr, "JIT ON pc=%08lx\n", (unsigned long)reg[15]);
 #endif
   {
     u32 rv = execute_arm_translate_internal(cycles, &reg[0]);
-    fprintf(stderr, "JIT POST: pc=%08lx sp=%08lx lr=%08lx cpsr=%08lx\n",
-      (unsigned long)reg[15], (unsigned long)reg[13],
-      (unsigned long)reg[14], (unsigned long)reg[16]);
     return rv;
   }
 }
