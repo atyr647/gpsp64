@@ -2778,10 +2778,18 @@ static void emit_phand(
   mips_emit_sw(reg_temp, mips_reg_ra, -8);      // Patch instruction!
 
   #if defined(N64)
-    /* VR4300: writeback D-cache + invalidate I-cache for patched instruction */
+    /* VR4300: writeback D-cache + invalidate I-cache for patched instruction.
+     * Must add NOPs between cache ops: the writeback goes through the write
+     * buffer and needs time to reach RDRAM before I-cache invalidation,
+     * otherwise the next I-cache fill gets stale data. */
     mips_emit_cache(0x15, mips_reg_ra, -8);   // D-cache Hit Writeback Invalidate
-    mips_emit_jr(reg_rv);
+    mips_emit_nop();                           // Write buffer drain time
+    mips_emit_nop();
+    mips_emit_nop();
+    mips_emit_nop();
     mips_emit_cache(0x10, mips_reg_ra, -8);   // I-cache Hit Invalidate
+    mips_emit_jr(reg_rv);
+    mips_emit_nop();
   #elif defined(PSP)
     mips_emit_sw(reg_temp, mips_reg_ra, -8);    // Patch instruction!
     mips_emit_cache(0x1A, mips_reg_ra, -8);
