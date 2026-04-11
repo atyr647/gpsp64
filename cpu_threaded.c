@@ -2705,19 +2705,12 @@ u8 function_cc *block_lookup_address_thumb(u32 pc)
         if (thumb_dump_count == 0) {
           thumb_dump_count = 1;
           u32 *p = (u32*)ret;
+          int j;
           fprintf(stderr, "THUMB1@%p pc=%08lx:\n", ret, (unsigned long)pc);
-          fprintf(stderr, " %08lx %08lx %08lx %08lx\n",
-            (unsigned long)p[0], (unsigned long)p[1],
-            (unsigned long)p[2], (unsigned long)p[3]);
-          fprintf(stderr, " %08lx %08lx %08lx %08lx\n",
-            (unsigned long)p[4], (unsigned long)p[5],
-            (unsigned long)p[6], (unsigned long)p[7]);
-          fprintf(stderr, " %08lx %08lx %08lx %08lx\n",
-            (unsigned long)p[8], (unsigned long)p[9],
-            (unsigned long)p[10], (unsigned long)p[11]);
-          fprintf(stderr, " %08lx %08lx %08lx %08lx\n",
-            (unsigned long)p[12], (unsigned long)p[13],
-            (unsigned long)p[14], (unsigned long)p[15]);
+          for (j = 0; j < 64; j += 4)
+            fprintf(stderr, " +%02x: %08lx %08lx %08lx %08lx\n", j*4,
+              (unsigned long)p[j], (unsigned long)p[j+1],
+              (unsigned long)p[j+2], (unsigned long)p[j+3]);
         }
       }
       #endif
