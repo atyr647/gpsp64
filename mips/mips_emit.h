@@ -2945,13 +2945,13 @@ u32 execute_arm_translate(u32 cycles) {
      then switch to JIT. If garble appears at frame 300, JIT is the cause. */
   static u32 frame_count = 0;
   frame_count++;
-  if (frame_count < 300) {
+  if (frame_count < 10) {
     clear_gamepak_stickybits();
     execute_arm(cycles);
     return 0;
   }
-  if (frame_count == 300)
-    fprintf(stderr, "JIT START frame 300 pc=%08lx\n", (unsigned long)reg[15]);
+  if (frame_count == 10)
+    fprintf(stderr, "JIT ON pc=%08lx\n", (unsigned long)reg[15]);
 #endif
   return execute_arm_translate_internal(cycles, &reg[0]);
 }
