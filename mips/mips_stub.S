@@ -564,6 +564,20 @@ defsymbl(execute_arm_translate_internal)
 
 1:
   cfncall block_lookup_address_thumb, 2
+
+#ifdef N64
+  # Debug: verify the block pointer before executing
+  sw $2, REG_SAVE($16)            # save block pointer
+  sw $4, REG_SAVE3($16)           # save $4
+  save_registers
+  move $4, $2                     # arg0 = block pointer
+  lw $5, REG_PC($16)              # arg1 = GBA PC
+  cfncall n64_jit_trace, 0        # call trace function
+  restore_registers
+  lw $4, REG_SAVE3($16)           # restore $4
+  lw $2, REG_SAVE($16)            # restore block pointer
+#endif
+
   restore_registers               # load initial register values
   sll $2, $2, 0                   # Sign-extend block address for MIPS III
   jr $2                           # jump to translated block
