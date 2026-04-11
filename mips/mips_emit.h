@@ -2894,7 +2894,20 @@ void init_emitter(bool must_swap) {
 }
 
 u32 execute_arm_translate_internal(u32 cycles, void *regptr);
+void execute_arm(u32 cycles);
+void clear_gamepak_stickybits(void);
+
 u32 execute_arm_translate(u32 cycles) {
+#ifdef N64
+  /* Debug: check halt state and bypass assembly entirely if sleeping */
+  if (reg[CPU_HALT_STATE] != 0) {
+    /* CPU is sleeping — the assembly goes to cpu_sleep_loop which
+       calls the interpreter anyway. Skip the assembly entirely. */
+    clear_gamepak_stickybits();
+    execute_arm(cycles);
+    return 0;
+  }
+#endif
   return execute_arm_translate_internal(cycles, &reg[0]);
 }
 
