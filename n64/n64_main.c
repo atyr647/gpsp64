@@ -210,16 +210,16 @@ int main(void)
           u32 ms_per_frame = prof_total / (46875 * 60);
           extern u32 prof_arm_insns, prof_thumb_insns;
           u32 total_insns = prof_arm_insns + prof_thumb_insns;
-          u32 kips = total_insns ? (total_insns / ms_per_frame) : 0;
-          debugf("PROF: E%lu%% B%lu%% CPU%lu%% PPU%lu%% %lums/f | %luK arm %luK thumb %luKIPS\n",
-                 (unsigned long)emu_pct,
-                 (unsigned long)blit_pct,
+          u32 total_ms = ms_per_frame * 60;
+          u32 kips = total_ms ? (total_insns / total_ms) : 0;
+          u32 cyc_per_insn = total_insns ? (u32)((u64)prof_total * 2 / total_insns) : 0;
+          debugf("PROF: CPU%lu%% PPU%lu%% %lums/f | %luK insns %luKIPS ~%lu cyc/i\n",
                  (unsigned long)cpu_pct,
                  (unsigned long)ppu_pct,
                  (unsigned long)ms_per_frame,
-                 (unsigned long)(prof_arm_insns / 1000),
-                 (unsigned long)(prof_thumb_insns / 1000),
-                 (unsigned long)kips);
+                 (unsigned long)(total_insns / 1000),
+                 (unsigned long)kips,
+                 (unsigned long)cyc_per_insn);
           prof_emu = prof_blit = prof_total = prof_frames = 0;
           prof_ppu_ticks = 0;
           prof_arm_insns = prof_thumb_insns = 0;
