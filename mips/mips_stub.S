@@ -247,6 +247,16 @@ symbol:
 # This gets called every time the cycle counter runs out
 # (checked at every branch/jump)
 defsymbl(mips_update_gba)
+#ifdef N64
+  # Debug: trace that mips_update_gba was reached
+  sw $4, REG_SAVE3($16)
+  sw $ra, REG_SAVE4($16)
+  save_registers
+  cfncall n64_mips_update_trace, 0
+  restore_registers
+  lw $4, REG_SAVE3($16)
+  lw $ra, REG_SAVE4($16)
+#endif
   sw $4, REG_PC($16)              # current PC = $4
   sw $ra, REG_SAVE2($16)          # save return addr
   collapse_flags                  # update cpsr

@@ -48,6 +48,15 @@ void error_msg(const char *text)
 
 volatile u32 n64_jit_running = 0;
 
+void n64_mips_update_trace(void)
+{
+  static int count = 0;
+  if (n64_jit_running && count < 5) {
+    count++;
+    debugf("MUGBA #%d\n", count);
+  }
+}
+
 /* Debug: called from mips_stub.S before first block execution */
 void n64_jit_trace(u32 block_ptr, u32 gba_pc)
 {
