@@ -3092,26 +3092,17 @@ thumb_loop:
           &&thumb_pop, &&thumb_pop_pc,                     /* BC-BD */
           &&thumb_adjust_sp, &&thumb_adjust_sp,            /* BE-BF */
           T8(&&thumb_stmia),      T8(&&thumb_ldmia),       /* C0-CF */
-          &&thumb_bcond, &&thumb_bcond, &&thumb_bcond,      /* D0-D2 */
-          &&thumb_bcond, &&thumb_bcond, &&thumb_bcond,      /* D3-D5 */
-          &&thumb_bcond, &&thumb_bcond, &&thumb_bcond,      /* D6-D8 */
-          &&thumb_bcond, &&thumb_bcond, &&thumb_bcond,      /* D9-DB */
-          &&thumb_bcond, &&thumb_bcond,                     /* DC-DD */
+          &&thumb_beq, &&thumb_bne, &&thumb_bcs,             /* D0-D2 */
+          &&thumb_bcc, &&thumb_bmi, &&thumb_bpl,            /* D3-D5 */
+          &&thumb_bvs, &&thumb_bvc, &&thumb_bhi,            /* D6-D8 */
+          &&thumb_bls, &&thumb_bge, &&thumb_blt,            /* D9-DB */
+          &&thumb_bgt, &&thumb_ble,                         /* DC-DD */
           &&thumb_undef, &&thumb_swi,                       /* DE-DF */
           T8(&&thumb_b),                                    /* E0-E7 */
           T8(&&thumb_undef),                                /* E8-EF */
           T8(&&thumb_bl_prefix),  T8(&&thumb_bl_suffix),   /* F0-FF */
        };
 
-       {
-          static int _trc = 0;
-          if (_trc < 30) {
-             _trc++;
-             fprintf(stderr, "T%02x pc=%08x op=%04x\n",
-               (unsigned)((opcode >> 8) & 0xFF), (unsigned)reg[REG_PC],
-               (unsigned)opcode);
-          }
-       }
        goto *thumb_table[(opcode >> 8) & 0xFF];
        }
        #undef T8
@@ -3512,58 +3503,46 @@ thumb_loop:
                (opcode >> 8) & 7, (opcode & 0xFF), cycles_remaining);
              goto thumb_next;
 
-          case 0xD0:   /* BEQ label */
-          thumb_bcond:
-          {
-             /* Unified conditional branch using condition lookup table */
-             u32 cond = (opcode >> 8) & 0xF;
-             u32 flag_bits = (n_flag << 3) | (z_flag << 2) | (c_flag << 1) | v_flag;
-             s32 offset = (s8)(opcode & 0xFF);
-             if (arm_cond_table[(cond << 4) | flag_bits]) {
-                thumb_pc_offset((offset * 2) + 4);
-             } else {
-                thumb_pc_offset(2);
-             }
-             cycles_remaining -= ws_cyc_nseq[reg[REG_PC] >> 24][0];
+          case 0xD0: thumb_beq:
+             thumb_conditional_branch(z_flag == 1);
              goto thumb_next;
-          }
-          case 0xD1:   /* BNE label */
+          case 0xD1: thumb_bne:
              thumb_conditional_branch(z_flag == 0);
              goto thumb_next;
-          case 0xD2:   /* BCS label */
+          case 0xD2: thumb_bcs:
              thumb_conditional_branch(c_flag == 1);
              goto thumb_next;
-          case 0xD3:   /* BCC label */
+          case 0xD3: thumb_bcc:
              thumb_conditional_branch(c_flag == 0);
              goto thumb_next;
-          case 0xD4:   /* BMI label */
+          case 0xD4: thumb_bmi:
              thumb_conditional_branch(n_flag == 1);
              goto thumb_next;
-          case 0xD5:   /* BPL label */
+          case 0xD5: thumb_bpl:
              thumb_conditional_branch(n_flag == 0);
              goto thumb_next;
-          case 0xD6:   /* BVS label */
+          case 0xD6: thumb_bvs:
              thumb_conditional_branch(v_flag == 1);
              goto thumb_next;
-          case 0xD7:   /* BVC label */
+          case 0xD7: thumb_bvc:
              thumb_conditional_branch(v_flag == 0);
              goto thumb_next;
-          case 0xD8:   /* BHI label */
+          case 0xD8: thumb_bhi:
              thumb_conditional_branch(c_flag & (z_flag ^ 1));
              goto thumb_next;
-          case 0xD9:   /* BLS label */
+          case 0xD9: thumb_bls:
              thumb_conditional_branch((c_flag == 0) | z_flag);
              goto thumb_next;
-          case 0xDA:   /* BGE label */
+          case 0xDA: thumb_bge:
              thumb_conditional_branch(n_flag == v_flag);
              goto thumb_next;
-          case 0xDB:   /* BLT label */
+          case 0xDB: thumb_blt:
              thumb_conditional_branch(n_flag != v_flag);
              goto thumb_next;
-          case 0xDC:   /* BGT label */
+          case 0xDC: thumb_bgt:
              thumb_conditional_branch((z_flag == 0) & (n_flag == v_flag));
              goto thumb_next;
-          case 0xDD:   /* BLE label */
+          case 0xDD: thumb_ble:
              thumb_conditional_branch(z_flag | (n_flag != v_flag));
              goto thumb_next;
 
