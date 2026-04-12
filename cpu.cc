@@ -20,10 +20,6 @@
 extern "C" {
   #include "common.h"
   #include "cpu_instrument.h"
-  #ifdef N64
-    u32 execute_thumb_fast(u32 cycles, u32 *regptr, void **table);
-    extern void *thumb_handler_table[];
-  #endif
 }
 
 #ifdef N64
@@ -1548,22 +1544,8 @@ void execute_arm(u32 cycles)
     cpu_alert = CPU_ALERT_NONE;
     extract_flags();
 
-#ifdef N64
-    if(reg[REG_CPSR] & 0x20)
-    {
-      /* Use assembly Thumb dispatch for better performance */
-      collapse_flags();
-      u32 asm_ret = execute_thumb_fast(cycles_remaining, reg, thumb_handler_table);
-      extract_flags();
-      if (completed_frame(asm_ret))
-        return;
-      cycles_remaining = cycles_to_run(asm_ret);
-      continue;
-    }
-#else
     if(reg[REG_CPSR] & 0x20)
       goto thumb_loop;
-#endif
 
     do
     {
