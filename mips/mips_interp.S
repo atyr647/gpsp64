@@ -166,8 +166,8 @@ thumb_asm_expired:
     jal   update_gba
     nop
 
-    /* Check return value */
-    bltz  $v0, thumb_asm_return       /* bit 31 = frame complete */
+    /* Check return value: bit 31 = frame complete */
+    bltz  $v0, thumb_asm_frame_done
     nop
 
     /* Update cycle count */
@@ -189,7 +189,7 @@ thumb_asm_expired:
 
     /* Check if mode changed to ARM */
     andi  $t0, $t0, 0x20
-    beqz  $t0, thumb_asm_return       /* bit 5 clear = ARM mode, exit */
+    beqz  $t0, thumb_asm_mode_change  /* bit 5 clear = ARM mode, exit */
     nop
 
     /* Reload pc_address_block for new PC region */
@@ -204,8 +204,44 @@ thumb_asm_expired:
     nop
 
 /*=========================================================================
- * thumb_asm_return: return to C caller
+ * Exit paths
  *========================================================================*/
+thumb_asm_frame_done:
+    /* Frame complete: $v0 already has update_gba return (bit 31 set) */
+    /* Save final state */
+    sw    reg_pc, REG_PC(reg_base)
+    lw    $t0, REG_CPSR(reg_base)
+    andi  $t0, $t0, 0xFF
+    sll   $t1, reg_n, 31
+    or    $t0, $t0, $t1
+    sll   $t1, reg_z, 30
+    or    $t0, $t0, $t1
+    sll   $t1, reg_c, 29
+    or    $t0, $t0, $t1
+    sll   $t1, reg_v, 28
+    or    $t0, $t0, $t1
+    sw    $t0, REG_CPSR(reg_base)
+    b     thumb_asm_return
+    nop
+
+thumb_asm_mode_change:
+    /* Switched to ARM mode: return with cycles remaining (no bit 31) */
+    sw    reg_pc, REG_PC(reg_base)
+    lw    $t0, REG_CPSR(reg_base)
+    andi  $t0, $t0, 0xFF
+    sll   $t1, reg_n, 31
+    or    $t0, $t0, $t1
+    sll   $t1, reg_z, 30
+    or    $t0, $t0, $t1
+    sll   $t1, reg_c, 29
+    or    $t0, $t0, $t1
+    sll   $t1, reg_v, 28
+    or    $t0, $t0, $t1
+    sw    $t0, REG_CPSR(reg_base)
+    move  $v0, reg_cycles            /* return cycles remaining */
+    b     thumb_asm_return
+    nop
+
 thumb_asm_return:
     /* Restore callee-saved registers */
     ld    $s0,  0*8($sp)
@@ -226,6 +262,7 @@ thumb_asm_return:
  * Used for complex/uncommon opcodes not yet implemented in asm
  *========================================================================*/
 .align 5
+.globl thumb_asm_c_fallback
 thumb_asm_c_fallback:
     /* Save PC and flags to reg[] */
     sw    reg_pc, REG_PC(reg_base)

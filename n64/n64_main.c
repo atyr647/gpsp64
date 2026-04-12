@@ -140,6 +140,10 @@ int main(void)
   /* Initialize emulator core memory */
   init_gamepak_buffer();
 
+  /* Initialize assembly Thumb interpreter handler table */
+  extern void init_thumb_handler_table(void);
+  init_thumb_handler_table();
+
   /* ROM selection screen */
   char rom_path[512];
   while (1) {
