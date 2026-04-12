@@ -3103,7 +3103,8 @@ thumb_loop:
           T8(&&thumb_bl_prefix),  T8(&&thumb_bl_suffix),   /* F0-FF */
        };
 
-       goto *thumb_table[(opcode >> 8) & 0xFF];
+       /* TEMPORARILY DISABLED: test if computed goto is the issue */
+       if (0) goto *thumb_table[(opcode >> 8) & 0xFF];
        }
        #undef T8
        #undef T4
