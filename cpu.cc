@@ -3109,191 +3109,152 @@ thumb_loop:
        #undef T4
        #undef T2
 
-       /* Switch is bypassed by computed goto above but kept for
-        * code structure. Labels inside cases are the goto targets. */
-       switch((opcode >> 8) & 0xFF)
+       /* Handler labels (case lines are comments for documentation) */
        {
-          case 0x00 ... 0x07:
           thumb_lsl_imm:
              /* LSL rd, rs, offset */
              thumb_shift(shift, lsl, imm);
              goto thumb_next;
 
-          case 0x08 ... 0x0F:
           thumb_lsr_imm:
              /* LSR rd, rs, offset */
              thumb_shift(shift, lsr, imm);
              goto thumb_next;
 
-          case 0x10 ... 0x17:
           thumb_asr_imm:
              /* ASR rd, rs, offset */
              thumb_shift(shift, asr, imm);
              goto thumb_next;
 
-          case 0x18:
           thumb_add_reg:
-          case 0x19:
              /* ADD rd, rs, rn */
              thumb_add(add_sub, rd, reg[rs], reg[rn], 0);
              goto thumb_next;
 
-          case 0x1A:
           thumb_sub_reg:
-          case 0x1B:
              /* SUB rd, rs, rn */
              thumb_sub(add_sub, rd, reg[rs], reg[rn], 1);
              goto thumb_next;
 
-          case 0x1C:
           thumb_add_imm3:
-          case 0x1D:
              /* ADD rd, rs, imm */
              thumb_add(add_sub_imm, rd, reg[rs], imm, 0);
              goto thumb_next;
 
-          case 0x1E:
           thumb_sub_imm3:
-          case 0x1F:
              /* SUB rd, rs, imm */
              thumb_sub(add_sub_imm, rd, reg[rs], imm, 1);
              goto thumb_next;
 
-          case 0x20 ... 0x27:
           thumb_mov_imm:
              /* MOV r0..7, imm */
              thumb_logic(imm, ((opcode >> 8) & 7), imm);
              goto thumb_next;
 
-          case 0x28 ... 0x2F:
           thumb_cmp_imm:
              /* CMP r0..7, imm */
              thumb_test_sub(imm, reg[(opcode >> 8) & 7], imm);
              goto thumb_next;
 
-          case 0x30 ... 0x37:
           thumb_add_imm8:
              /* ADD r0..7, imm */
              thumb_add(imm, ((opcode >> 8) & 7), reg[(opcode >> 8) & 7], imm, 0);
              goto thumb_next;
 
-          case 0x38 ... 0x3F:
           thumb_sub_imm8:
              /* SUB r0..7, imm */
              thumb_sub(imm, ((opcode >> 8) & 7), reg[(opcode >> 8) & 7], imm, 1);
              goto thumb_next;
 
-          case 0x40:
           thumb_alu_0:
              switch((opcode >> 6) & 0x03)
              {
-                case 0x00:
                    /* AND rd, rs */
                    thumb_logic(alu_op, rd, reg[rd] & reg[rs]);
                    goto thumb_next;
 
-                case 0x01:
                    /* EOR rd, rs */
                    thumb_logic(alu_op, rd, reg[rd] ^ reg[rs]);
                    goto thumb_next;
 
-                case 0x02:
                    /* LSL rd, rs */
                    thumb_shift(alu_op, lsl, reg);
                    goto thumb_next;
 
-                case 0x03:
                    /* LSR rd, rs */
                    thumb_shift(alu_op, lsr, reg);
                    goto thumb_next;
              }
              goto thumb_next;
 
-          case 0x41:
           thumb_alu_1:
              switch((opcode >> 6) & 0x03)
              {
-                case 0x00:
                    /* ASR rd, rs */
                    thumb_shift(alu_op, asr, reg);
                    goto thumb_next;
 
-                case 0x01:
                    /* ADC rd, rs */
                    thumb_add(alu_op, rd, reg[rd], reg[rs], c_flag);
                    goto thumb_next;
 
-                case 0x02:
                    /* SBC rd, rs */
                    thumb_sub(alu_op, rd, reg[rd], reg[rs], c_flag);
                    goto thumb_next;
 
-                case 0x03:
                    /* ROR rd, rs */
                    thumb_shift(alu_op, ror, reg);
                    goto thumb_next;
              }
              goto thumb_next;
 
-          case 0x42:
           thumb_alu_2:
              switch((opcode >> 6) & 0x03)
              {
-                case 0x00:
                    /* TST rd, rs */
                    thumb_test_logic(alu_op, reg[rd] & reg[rs]);
                    goto thumb_next;
 
-                case 0x01:
                    /* NEG rd, rs */
                    thumb_sub(alu_op, rd, 0, reg[rs], 1);
                    goto thumb_next;
 
-                case 0x02:
                    /* CMP rd, rs */
                    thumb_test_sub(alu_op, reg[rd], reg[rs]);
                    goto thumb_next;
 
-                case 0x03:
                    /* CMN rd, rs */
                    thumb_test_add(alu_op, reg[rd], reg[rs]);
                    goto thumb_next;
              }
              goto thumb_next;
 
-          case 0x43:
           thumb_alu_3:
              switch((opcode >> 6) & 0x03)
              {
-                case 0x00:
                    /* ORR rd, rs */
                    thumb_logic(alu_op, rd, reg[rd] | reg[rs]);
                    goto thumb_next;
 
-                case 0x01:
                    /* MUL rd, rs */
                    thumb_logic(alu_op, rd, reg[rd] * reg[rs]);
                    goto thumb_next;
 
-                case 0x02:
                    /* BIC rd, rs */
                    thumb_logic(alu_op, rd, reg[rd] & (~reg[rs]));
                    goto thumb_next;
 
-                case 0x03:
                    /* MVN rd, rs */
                    thumb_logic(alu_op, rd, ~reg[rs]);
                    goto thumb_next;
              }
              goto thumb_next;
 
-          case 0x44:
           thumb_hireg_0:
              /* ADD rd, rs */
              thumb_hireg_op(reg[rd] + reg[rs]);
              goto thumb_next;
 
-          case 0x45:
           thumb_hireg_1:
              /* CMP rd, rs */
              {
@@ -3307,13 +3268,11 @@ thumb_loop:
              }
              goto thumb_next;
 
-          case 0x46:
           thumb_hireg_2:
              /* MOV rd, rs */
              thumb_hireg_op(reg[rs]);
              goto thumb_next;
 
-          case 0x47:
           thumb_hireg_3:
              /* BX rs */
              {
@@ -3336,125 +3295,94 @@ thumb_loop:
              }
              goto thumb_next;
 
-          case 0x48 ... 0x4F:
           thumb_ldr_pc:
              /* LDR r0..7, [pc + imm] */
              thumb_access_memory(load, imm, ((reg[REG_PC] - 2) & ~2) + (imm * 4) + 4, reg[(opcode >> 8) & 7], u32);
              goto thumb_next;
 
-          case 0x50:
-          case 0x51:
              /* STR rd, [rb + ro] */
              thumb_access_memory(store, mem_reg, reg[rb] + reg[ro], reg[rd], u32);
              goto thumb_next;
 
-          case 0x52:
-          case 0x53:
              /* STRH rd, [rb + ro] */
              thumb_access_memory(store, mem_reg, reg[rb] + reg[ro], reg[rd], u16);
              goto thumb_next;
 
-          case 0x54:
-          case 0x55:
              /* STRB rd, [rb + ro] */
              thumb_access_memory(store, mem_reg, reg[rb] + reg[ro], reg[rd], u8);
              goto thumb_next;
 
-          case 0x56:
-          case 0x57:
              /* LDSB rd, [rb + ro] */
              thumb_access_memory(load, mem_reg, reg[rb] + reg[ro], reg[rd], s8);
              goto thumb_next;
 
-          case 0x58:
-          case 0x59:
              /* LDR rd, [rb + ro] */
              thumb_access_memory(load, mem_reg, reg[rb] + reg[ro], reg[rd], u32);
              goto thumb_next;
 
-          case 0x5A:
-          case 0x5B:
              /* LDRH rd, [rb + ro] */
              thumb_access_memory(load, mem_reg, reg[rb] + reg[ro], reg[rd], u16);
              goto thumb_next;
 
-          case 0x5C:
-          case 0x5D:
              /* LDRB rd, [rb + ro] */
              thumb_access_memory(load, mem_reg, reg[rb] + reg[ro], reg[rd], u8);
              goto thumb_next;
 
-          case 0x5E:
-          case 0x5F:
              /* LDSH rd, [rb + ro] */
              thumb_access_memory(load, mem_reg, reg[rb] + reg[ro], reg[rd], s16);
              goto thumb_next;
 
-          case 0x60 ... 0x67:
           thumb_str_imm:
              /* STR rd, [rb + imm] */
              thumb_access_memory(store, mem_imm, reg[rb] + (imm * 4), reg[rd], u32);
              goto thumb_next;
 
-          case 0x68 ... 0x6F:
           thumb_ldr_imm:
              /* LDR rd, [rb + imm] */
              thumb_access_memory(load, mem_imm, reg[rb] + (imm * 4), reg[rd], u32);
              goto thumb_next;
 
-          case 0x70 ... 0x77:
           thumb_strb_imm:
              /* STRB rd, [rb + imm] */
              thumb_access_memory(store, mem_imm, reg[rb] + imm, reg[rd], u8);
              goto thumb_next;
 
-          case 0x78 ... 0x7F:
           thumb_ldrb_imm:
              /* LDRB rd, [rb + imm] */
              thumb_access_memory(load, mem_imm, reg[rb] + imm, reg[rd], u8);
              goto thumb_next;
 
-          case 0x80 ... 0x87:
           thumb_strh_imm:
              /* STRH rd, [rb + imm] */
              thumb_access_memory(store, mem_imm, reg[rb] + (imm * 2), reg[rd], u16);
              goto thumb_next;
 
-          case 0x88 ... 0x8F:
           thumb_ldrh_imm:
              /* LDRH rd, [rb + imm] */
              thumb_access_memory(load, mem_imm, reg[rb] + (imm * 2), reg[rd], u16);
              goto thumb_next;
 
-          case 0x90 ... 0x97:
           thumb_str_sp:
              /* STR r0..7, [sp + imm] */
              thumb_access_memory(store, imm, reg[REG_SP] + (imm * 4), reg[(opcode >> 8) & 7], u32);
              goto thumb_next;
 
-          case 0x98 ... 0x9F:
           thumb_ldr_sp:
              /* LDR r0..7, [sp + imm] */
              thumb_access_memory(load, imm, reg[REG_SP] + (imm * 4), reg[(opcode >> 8) & 7], u32);
              goto thumb_next;
 
-          case 0xA0 ... 0xA7:
           thumb_add_pc:
              /* ADD r0..7, pc, +imm */
              thumb_add_noflags(imm, ((opcode >> 8) & 7), (reg[REG_PC] & ~2) + 4, (imm * 4));
              goto thumb_next;
 
-          case 0xA8 ... 0xAF:
           thumb_add_sp:
              /* ADD r0..7, sp, +imm */
              thumb_add_noflags(imm, ((opcode >> 8) & 7), reg[REG_SP], (imm * 4));
              goto thumb_next;
 
-          case 0xB0:
           thumb_adjust_sp:
-          case 0xB1:
-          case 0xB2:
-          case 0xB3:
              if((opcode >> 7) & 0x01)
              {
                 /* ADD sp, -imm */
@@ -3467,86 +3395,79 @@ thumb_loop:
              }
              goto thumb_next;
 
-          case 0xB4:  /* PUSH rlist */
           thumb_push:
              cpu_alert |= exec_thumb_block_mem<AccStore, AddrPreDec>(
                REG_SP, opcode & 0xFF, cycles_remaining);
              goto thumb_next;
 
-          case 0xB5:  /* PUSH rlist, lr */
           thumb_push_lr:
              cpu_alert |= exec_thumb_block_mem<AccStore, AddrPreDec>(
                REG_SP, (opcode & 0xFF) | (1 << REG_LR), cycles_remaining);
              goto thumb_next;
 
-          case 0xBC:  /* POP rlist */
           thumb_pop:
              cpu_alert |= exec_thumb_block_mem<AccLoad, AddrPostInc>(
                REG_SP, opcode & 0xFF, cycles_remaining);
              goto thumb_next;
 
-          case 0xBD:  /* POP rlist, pc */
           thumb_pop_pc:
              cpu_alert |= exec_thumb_block_mem<AccLoad, AddrPostInc>(
                REG_SP, (opcode & 0xFF) | (1 << REG_PC), cycles_remaining);
              goto thumb_next;
 
-          case 0xC0 ... 0xC7:    /* STMIA r0..7!, rlist */
           thumb_stmia:
              cpu_alert |= exec_thumb_block_mem<AccStore, AddrPostInc>(
                (opcode >> 8) & 7, (opcode & 0xFF), cycles_remaining);
              goto thumb_next;
 
-          case 0xC8 ... 0xCF:    /* LDMIA r0..7!, rlist */
           thumb_ldmia:
              cpu_alert |= exec_thumb_block_mem<AccLoad, AddrPostInc>(
                (opcode >> 8) & 7, (opcode & 0xFF), cycles_remaining);
              goto thumb_next;
 
-          case 0xD0: thumb_beq:
+          thumb_beq:
              thumb_conditional_branch(z_flag == 1);
              goto thumb_next;
-          case 0xD1: thumb_bne:
+          thumb_bne:
              thumb_conditional_branch(z_flag == 0);
              goto thumb_next;
-          case 0xD2: thumb_bcs:
+          thumb_bcs:
              thumb_conditional_branch(c_flag == 1);
              goto thumb_next;
-          case 0xD3: thumb_bcc:
+          thumb_bcc:
              thumb_conditional_branch(c_flag == 0);
              goto thumb_next;
-          case 0xD4: thumb_bmi:
+          thumb_bmi:
              thumb_conditional_branch(n_flag == 1);
              goto thumb_next;
-          case 0xD5: thumb_bpl:
+          thumb_bpl:
              thumb_conditional_branch(n_flag == 0);
              goto thumb_next;
-          case 0xD6: thumb_bvs:
+          thumb_bvs:
              thumb_conditional_branch(v_flag == 1);
              goto thumb_next;
-          case 0xD7: thumb_bvc:
+          thumb_bvc:
              thumb_conditional_branch(v_flag == 0);
              goto thumb_next;
-          case 0xD8: thumb_bhi:
+          thumb_bhi:
              thumb_conditional_branch(c_flag & (z_flag ^ 1));
              goto thumb_next;
-          case 0xD9: thumb_bls:
+          thumb_bls:
              thumb_conditional_branch((c_flag == 0) | z_flag);
              goto thumb_next;
-          case 0xDA: thumb_bge:
+          thumb_bge:
              thumb_conditional_branch(n_flag == v_flag);
              goto thumb_next;
-          case 0xDB: thumb_blt:
+          thumb_blt:
              thumb_conditional_branch(n_flag != v_flag);
              goto thumb_next;
-          case 0xDC: thumb_bgt:
+          thumb_bgt:
              thumb_conditional_branch((z_flag == 0) & (n_flag == v_flag));
              goto thumb_next;
-          case 0xDD: thumb_ble:
+          thumb_ble:
              thumb_conditional_branch(z_flag | (n_flag != v_flag));
              goto thumb_next;
 
-          case 0xDF:
           thumb_swi:
              collapse_flags();
              REG_MODE(MODE_SUPERVISOR)[6] = reg[REG_PC] + 2;
@@ -3559,7 +3480,6 @@ thumb_loop:
              goto arm_loop;
              goto thumb_next;
 
-          case 0xE0 ... 0xE7:
           thumb_b:
              {
                 /* B label */
@@ -3570,7 +3490,6 @@ thumb_loop:
                 goto thumb_next;
              }
 
-          case 0xF0 ... 0xF7:
           thumb_bl_prefix:
              {
                 /* (low word) BL label */
@@ -3580,7 +3499,6 @@ thumb_loop:
                 goto thumb_next;
              }
 
-          case 0xF8 ... 0xFF:
           thumb_bl_suffix:
              {
                 /* (high word) BL label */

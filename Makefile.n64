@@ -26,7 +26,7 @@ CFLAGS += -I$(CURDIR) -I$(CURDIR)/n64
 CFLAGS += -w   # gpsp has many warnings incompatible with libdragon's -Werror
 CFLAGS += -mtune=vr4300 -falign-functions=32 -falign-loops=16
 
-CXXFLAGS += $(filter-out -std=gnu17,$(filter -D% -I% -W%,$(CFLAGS)))
+CXXFLAGS += $(filter-out -std=gnu17,$(filter -D% -I% -W%,$(CFLAGS))) -w
 CXXFLAGS += -fno-rtti -fno-exceptions
 
 ASFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH -DTINY_TRANSLATION_CACHE
