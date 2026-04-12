@@ -614,6 +614,13 @@ const u8 bit_count[256] =
       pc_address_block = load_gamepak_page(pc_region & 0x3FF);                \
   }                                                                           \
 
+/* Reload pc_ptr from reg[REG_PC] after a branch or region change */
+#define reload_pc_ptr()                                                       \
+{                                                                             \
+  check_pc_region();                                                          \
+  pc_ptr = pc_address_block + (reg[REG_PC] & 0x7FFE);                         \
+}
+
 
 #define arm_pc_offset(val)                                                    \
   reg[REG_PC] += val                                                          \
@@ -1543,10 +1550,6 @@ void execute_arm(u32 cycles)
     do
     {
 arm_loop:
-
-       /* Flags are kept lazy (unpacked in n/z/c/v_flag variables).
-        * Only collapsed to reg[REG_CPSR] when actually needed
-        * (PSR read/write, IRQ entry, cycle expiry, mode switch). */
 
        /* Process cheats if we are about to execute the cheat hook */
        if (reg[REG_PC] == cheat_master_hook)

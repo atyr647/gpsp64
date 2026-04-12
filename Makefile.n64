@@ -63,7 +63,11 @@ gpsp.elf: $(OBJS)
 # Force DFS rebuild whenever filesystem contents change
 gpsp.dfs: $(shell find filesystem -type f 2>/dev/null)
 
-# C++ files need .cc -> .o rule
+# C++ files need .cc -> .o rule — use -O3 for CPU-critical files
+cpu.o: cpu.cc
+	@echo "    [CXX-O3] $<"
+	$(CXX) -c $(CXXFLAGS) -O3 -o $@ $<
+
 %.o: %.cc
 	@mkdir -p $(dir $@)
 	@echo "    [CXX] $<"
