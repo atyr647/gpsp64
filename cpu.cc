@@ -3062,7 +3062,7 @@ thumb_loop:
        #define T4(x) x,x,x,x
        #define T2(x) x,x
        {
-       static const void *thumb_table[256] = {
+       const void *thumb_table[256] = {
           T8(&&thumb_lsl_imm),    T8(&&thumb_lsr_imm),   /* 00-0F */
           T8(&&thumb_asr_imm),                            /* 10-17 */
           T2(&&thumb_add_reg), T2(&&thumb_sub_reg),       /* 18-1B */
@@ -3103,8 +3103,7 @@ thumb_loop:
           T8(&&thumb_bl_prefix),  T8(&&thumb_bl_suffix),   /* F0-FF */
        };
 
-       /* TEST: disable goto dispatch, use switch, but keep goto thumb_next */
-       if (0) goto *thumb_table[(opcode >> 8) & 0xFF];
+       goto *thumb_table[(opcode >> 8) & 0xFF];
        }
        #undef T8
        #undef T4
