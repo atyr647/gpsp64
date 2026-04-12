@@ -97,7 +97,9 @@ execute_thumb_fast:
     /* Load pc_address_block from memory_map_read[pc >> 15] */
     srl   $t0, reg_pc, 15
     sll   $t0, $t0, 2
-    subu  $t1, reg_base, 0x8000       /* memory_map_read is before reg[] */
+    .set at
+    la    $t1, memory_map_read
+    .set noat
     addu  $t0, $t0, $t1
     lw    reg_pcblk, 0($t0)
 
@@ -195,7 +197,9 @@ thumb_asm_expired:
     /* Reload pc_address_block for new PC region */
     srl   $t0, reg_pc, 15
     sll   $t0, $t0, 2
-    subu  $t1, reg_base, 0x8000       /* memory_map_read base */
+    .set at
+    la    $t1, memory_map_read         /* use actual symbol address */
+    .set noat
     addu  $t0, $t0, $t1
     lw    reg_pcblk, 0($t0)
 

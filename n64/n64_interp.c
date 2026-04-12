@@ -41,11 +41,10 @@ void init_thumb_handler_table(void)
 void thumb_asm_handle_opcode(u32 opcode)
 {
     (void)opcode;
-    /* Run the C interpreter for exactly 1 cycle. It will:
-     * - Fetch the opcode from reg[REG_PC] (already set by asm dispatch)
-     * - Execute the instruction
-     * - Update reg[REG_PC], flags, memory state
-     * - Return after 1 instruction due to cycle budget
-     */
-    execute_arm(1);
+    /* Run the C interpreter for a small cycle budget.
+     * PC and CPSR are already saved to reg[] by the asm dispatch.
+     * execute_arm will fetch the opcode, execute ONE instruction
+     * (since cycle budget is tiny), then return.
+     * The asm dispatch handles update_gba separately. */
+    execute_arm(16);
 }
