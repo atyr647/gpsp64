@@ -3504,9 +3504,20 @@ thumb_loop:
              goto thumb_next;
 
           case 0xD0:   /* BEQ label */
-             thumb_conditional_branch(z_flag == 1);
           thumb_bcond:
+          {
+             /* Unified conditional branch using condition lookup table */
+             u32 cond = (opcode >> 8) & 0xF;
+             u32 flag_bits = (n_flag << 3) | (z_flag << 2) | (c_flag << 1) | v_flag;
+             s32 offset = (s8)(opcode & 0xFF);
+             if (arm_cond_table[(cond << 4) | flag_bits]) {
+                thumb_pc_offset((offset * 2) + 4);
+             } else {
+                thumb_pc_offset(2);
+             }
+             cycles_remaining -= ws_cyc_nseq[reg[REG_PC] >> 24][0];
              goto thumb_next;
+          }
           case 0xD1:   /* BNE label */
              thumb_conditional_branch(z_flag == 0);
              goto thumb_next;
