@@ -24,6 +24,7 @@ CFLAGS += -DROM_BUFFER_SIZE=2
 CFLAGS += -DUSE_XBGR1555_FORMAT
 CFLAGS += -I$(CURDIR) -I$(CURDIR)/n64
 CFLAGS += -w   # gpsp has many warnings incompatible with libdragon's -Werror
+CFLAGS += -mtune=vr4300 -falign-functions=32 -falign-loops=16
 
 CXXFLAGS += $(filter-out -std=gnu17,$(filter -D% -I% -W%,$(CFLAGS)))
 CXXFLAGS += -fno-rtti -fno-exceptions
@@ -63,12 +64,7 @@ gpsp.elf: $(OBJS)
 # Force DFS rebuild whenever filesystem contents change
 gpsp.dfs: $(shell find filesystem -type f 2>/dev/null)
 
-# C++ files need .cc -> .o rule — use -Os for CPU interpreter
-# (VR4300 has only 16KB I-cache; smaller code = fewer misses)
-cpu.o: cpu.cc
-	@echo "    [CXX-Os] $<"
-	$(CXX) -c $(CXXFLAGS) -Os -o $@ $<
-
+# C++ files need .cc -> .o rule
 %.o: %.cc
 	@mkdir -p $(dir $@)
 	@echo "    [CXX] $<"
