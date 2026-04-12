@@ -79,6 +79,7 @@ execute_thumb_inner:
     srl   reg_v, $t0, 28
     andi  reg_v, reg_v, 1
 
+thumb_inner_reload_page:
     srl   $t0, reg_pc, 15
     sll   $t0, $t0, 2
     .set at
@@ -86,6 +87,15 @@ execute_thumb_inner:
     .set noat
     addu  $t0, $t0, $t1
     lw    reg_pcblk, 0($t0)
+    bnez  reg_pcblk, thumb_inner_dispatch
+    nop
+    /* Page is NULL — load from ROM */
+    srl   $a0, reg_pc, 15
+    andi  $a0, $a0, 0x3FF
+    ld    $gp, 80($sp)
+    jal   load_gamepak_page
+    nop
+    move  reg_pcblk, $v0
 
     b     thumb_inner_dispatch
     nop
@@ -182,13 +192,5 @@ thumb_inner_c_fallback:
     beqz  $t0, thumb_inner_exit
     nop
 
-    srl   $t0, reg_pc, 15
-    sll   $t0, $t0, 2
-    .set at
-    la    $t1, memory_map_read
-    .set noat
-    addu  $t0, $t0, $t1
-    lw    reg_pcblk, 0($t0)
-
-    b     thumb_inner_next
+    b     thumb_inner_reload_page
     nop

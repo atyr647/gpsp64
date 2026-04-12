@@ -3976,8 +3976,8 @@ LOAD /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/
                 0x80000cd8                execute_arm_translate_internal
  .text          0x80000e00      0x200 mips/mips_interp.o
                 0x80000e00                execute_thumb_inner
-                0x80000ee0                thumb_inner_next
-                0x80000f60                thumb_inner_c_fallback
+                0x80000f00                thumb_inner_next
+                0x80000f80                thumb_inner_c_fallback
  .text          0x80001000      0x380 /opt/libdragon/bin/../lib/gcc/mips64-elf/14.2.0/../../../../mips64-elf/lib/libdragon.a(inthandler.o)
                 0x80001000                inthandler
                 0x80001380                inthandler_end
