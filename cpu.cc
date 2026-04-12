@@ -3103,8 +3103,16 @@ thumb_loop:
           T8(&&thumb_bl_prefix),  T8(&&thumb_bl_suffix),   /* F0-FF */
        };
 
-       /* TEMPORARILY DISABLED: test if computed goto is the issue */
-       if (0) goto *thumb_table[(opcode >> 8) & 0xFF];
+       {
+          static int _trc = 0;
+          if (_trc < 30) {
+             _trc++;
+             fprintf(stderr, "T%02x pc=%08x op=%04x\n",
+               (unsigned)((opcode >> 8) & 0xFF), (unsigned)reg[REG_PC],
+               (unsigned)opcode);
+          }
+       }
+       goto *thumb_table[(opcode >> 8) & 0xFF];
        }
        #undef T8
        #undef T4
