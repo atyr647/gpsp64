@@ -8,7 +8,7 @@
 #include "../common.h"
 
 /* External symbols from mips_interp.S */
-extern void thumb_asm_c_fallback(void);
+extern void thumb_inner_c_fallback(void);
 
 /* Handler table: all entries initially point to C fallback.
  * As assembly handlers are added, their entries are replaced. */
@@ -18,7 +18,7 @@ void init_thumb_handler_table(void)
 {
     int i;
     for (i = 0; i < 256; i++)
-        thumb_handler_table[i] = (void*)thumb_asm_c_fallback;
+        thumb_handler_table[i] = (void*)thumb_inner_c_fallback;
 
     /* TODO: Replace entries with assembly handler addresses as they're
      * implemented. Example:

@@ -23,9 +23,13 @@ extern "C" {
 }
 
 #ifdef N64
-  /* Interpreter profiling: count instructions per mode */
+  extern "C" s32 execute_thumb_inner(s32 cycles, u32 *regptr, void **table);
+  extern "C" void *thumb_handler_table[];
+  #define N64_THUMB_ENTRY thumb_asm_entry
   u32 prof_arm_insns = 0;
   u32 prof_thumb_insns = 0;
+#else
+  #define N64_THUMB_ENTRY thumb_loop
 #endif
 
 /* ARM condition lookup table: indexed by (condition << 4) | (N<<3|Z<<2|C<<1|V)
@@ -663,7 +667,7 @@ const u8 bit_count[256] =
     }                                                                         \
                                                                               \
     if(reg[REG_CPSR] & 0x20)                                                  \
-      goto thumb_loop;                                                        \
+      goto N64_THUMB_ENTRY;                                                   \
   }                                                                           \
 
 #define arm_spsr_restore_check()                                              \
@@ -1544,8 +1548,13 @@ void execute_arm(u32 cycles)
     cpu_alert = CPU_ALERT_NONE;
     extract_flags();
 
+#ifdef N64
     if(reg[REG_CPSR] & 0x20)
-      goto thumb_loop;
+      goto thumb_asm_entry;
+#else
+    if(reg[REG_CPSR] & 0x20)
+      goto N64_THUMB_ENTRY;
+#endif
 
     do
     {
@@ -2048,7 +2057,7 @@ arm_loop:
                    {
                       reg[REG_PC] = src - 1;
                       reg[REG_CPSR] |= 0x20;
-                      goto thumb_loop;
+                      goto N64_THUMB_ENTRY;
                    }
                    else
                    {
@@ -3027,6 +3036,19 @@ skip_instruction:
     cycles_remaining = cycles_to_run(update_ret);
     continue;
 
+#ifdef N64
+    thumb_asm_entry:
+    /* Use assembly inner loop for Thumb mode */
+    {
+      collapse_flags();
+      cycles_remaining = execute_thumb_inner(cycles_remaining, reg,
+                                              thumb_handler_table);
+      extract_flags();
+      /* Check if we switched to ARM mode */
+      if (!(reg[REG_CPSR] & 0x20))
+        goto arm_loop;
+    }
+#else
     do
     {
 thumb_loop:
@@ -3502,6 +3524,7 @@ thumb_loop:
           goto alert;
 
     } while(cycles_remaining > 0);
+#endif  /* !N64 — end of C Thumb inner loop */
 
     collapse_flags();
     update_ret = update_gba(cycles_remaining);
@@ -3515,6 +3538,54 @@ thumb_loop:
       collapse_flags();
   }
 }
+
+#ifdef N64
+/* Execute ONE Thumb instruction. Called by assembly dispatch C fallback.
+ * PC and CPSR already saved to reg[]. Modifies reg[] and CPSR.
+ * Does NOT call update_gba — caller handles events. */
+extern "C" void thumb_c_execute_one(u32 opcode_param)
+{
+  u32 opcode;
+  u32 n_flag, z_flag, c_flag, v_flag;
+  u32 pc_region = (reg[REG_PC] >> 15);
+  u8 *pc_address_block = memory_map_read[pc_region];
+  u32 new_pc_region;
+  s32 cycles_remaining = 100; /* dummy — not used for real cycle tracking */
+  cpu_alert_type cpu_alert = CPU_ALERT_NONE;
+
+  if(!pc_address_block)
+    pc_address_block = load_gamepak_page(pc_region & 0x3FF);
+
+  extract_flags();
+
+  /* Re-fetch opcode from reg[REG_PC] (safer than using parameter) */
+  reg[REG_PC] &= ~0x01;
+  opcode = readaddress16(pc_address_block, (reg[REG_PC] & 0x7FFF));
+
+  /* Execute via the SAME switch as the main interpreter */
+  switch((opcode >> 8) & 0xFF)
+  {
+    case 0x00 ... 0x07: thumb_shift(shift, lsl, imm); break;
+    case 0x08 ... 0x0F: thumb_shift(shift, lsr, imm); break;
+    case 0x10 ... 0x17: thumb_shift(shift, asr, imm); break;
+    case 0x18: case 0x19: thumb_add(add_sub, rd, reg[rs], reg[rn], 0); break;
+    case 0x1A: case 0x1B: thumb_sub(add_sub, rd, reg[rs], reg[rn], 1); break;
+    case 0x1C: case 0x1D: thumb_add(add_sub_imm, rd, reg[rs], imm, 0); break;
+    case 0x1E: case 0x1F: thumb_sub(add_sub_imm, rd, reg[rs], imm, 1); break;
+    case 0x20 ... 0x27: thumb_logic(imm, ((opcode >> 8) & 7), imm); break;
+    case 0x28 ... 0x2F: thumb_test_sub(imm, reg[(opcode >> 8) & 7], imm); break;
+    case 0x30 ... 0x37: thumb_add(imm, ((opcode >> 8) & 7), reg[(opcode >> 8) & 7], imm, 0); break;
+    case 0x38 ... 0x3F: thumb_sub(imm, ((opcode >> 8) & 7), reg[(opcode >> 8) & 7], imm, 1); break;
+    default:
+      /* For opcodes not listed above, advance PC as NOP.
+       * TODO: Add remaining handlers as needed. */
+      thumb_pc_offset(2);
+      break;
+  }
+
+  collapse_flags();
+}
+#endif
 
 void init_cpu(void)
 {
