@@ -49,6 +49,8 @@ OBJS = main.o \
        cpu_threaded.o \
        bios_data.o \
        mips/mips_stub.o \
+       mips/mips_interp.o \
+       n64/n64_interp.o \
        n64/n64_main.o \
        n64/n64_video.o \
        n64/n64_audio.o \

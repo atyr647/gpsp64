@@ -672,6 +672,46 @@ Discarded input sections
  .reginfo       0x00000000       0x18 mips/mips_stub.o
  .MIPS.abiflags
                 0x00000000       0x18 mips/mips_stub.o
+ .text          0x00000000      0x260 mips/mips_interp.o
+ .data          0x00000000        0x0 mips/mips_interp.o
+ .bss           0x00000000        0x0 mips/mips_interp.o
+ .reginfo       0x00000000       0x18 mips/mips_interp.o
+ .MIPS.abiflags
+                0x00000000       0x18 mips/mips_interp.o
+ .pdr           0x00000000        0x0 mips/mips_interp.o
+ .gnu.attributes
+                0x00000000       0x10 mips/mips_interp.o
+ .text          0x00000000        0x0 n64/n64_interp.o
+ .data          0x00000000        0x0 n64/n64_interp.o
+ .bss           0x00000000        0x0 n64/n64_interp.o
+ .reginfo       0x00000000       0x18 n64/n64_interp.o
+ .MIPS.abiflags
+                0x00000000       0x18 n64/n64_interp.o
+ .pdr           0x00000000       0x40 n64/n64_interp.o
+ .mdebug.abiO64
+                0x00000000        0x0 n64/n64_interp.o
+ .gcc_compiled_long32
+                0x00000000        0x0 n64/n64_interp.o
+ .text.init_thumb_handler_table
+                0x00000000       0x40 n64/n64_interp.o
+ .text.thumb_asm_handle_opcode
+                0x00000000       0x20 n64/n64_interp.o
+ .bss.thumb_handler_table
+                0x00000000      0x400 n64/n64_interp.o
+ .debug_info    0x00000000      0x139 n64/n64_interp.o
+ .debug_abbrev  0x00000000      0x114 n64/n64_interp.o
+ .debug_loclists
+                0x00000000       0x35 n64/n64_interp.o
+ .debug_aranges
+                0x00000000       0x28 n64/n64_interp.o
+ .debug_rnglists
+                0x00000000       0x19 n64/n64_interp.o
+ .debug_line    0x00000000      0x10f n64/n64_interp.o
+ .debug_str     0x00000000      0x234 n64/n64_interp.o
+ .comment       0x00000000       0x13 n64/n64_interp.o
+ .debug_frame   0x00000000       0x30 n64/n64_interp.o
+ .gnu.attributes
+                0x00000000       0x10 n64/n64_interp.o
  .text          0x00000000        0x0 n64/n64_main.o
  .data          0x00000000        0x0 n64/n64_main.o
  .bss           0x00000000        0x0 n64/n64_main.o
@@ -3919,6 +3959,8 @@ LOAD cpu.o
 LOAD cpu_threaded.o
 LOAD bios_data.o
 LOAD mips/mips_stub.o
+LOAD mips/mips_interp.o
+LOAD n64/n64_interp.o
 LOAD n64/n64_main.o
 LOAD n64/n64_video.o
 LOAD n64/n64_audio.o
