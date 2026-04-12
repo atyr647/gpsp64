@@ -3103,7 +3103,8 @@ thumb_loop:
           T8(&&thumb_bl_prefix),  T8(&&thumb_bl_suffix),   /* F0-FF */
        };
 
-       goto *thumb_table[(opcode >> 8) & 0xFF];
+       /* TEST: disable goto dispatch, use switch, but keep goto thumb_next */
+       if (0) goto *thumb_table[(opcode >> 8) & 0xFF];
        }
        #undef T8
        #undef T4
