@@ -213,6 +213,7 @@ int main(void)
           u32 cpu_pct = 100 - ppu_pct;  /* CPU = emulation minus PPU */
           u32 ms_per_frame = prof_total / (46875 * 60);
           extern u32 prof_arm_insns, prof_thumb_insns;
+          extern u32 prof_thumb_hist[256], prof_arm_hist[256];
           u32 total_insns = prof_arm_insns + prof_thumb_insns;
           u32 total_ms = ms_per_frame * 60;
           u32 kips = total_ms ? (total_insns / total_ms) : 0;
@@ -224,9 +225,99 @@ int main(void)
                  (unsigned long)(total_insns / 1000),
                  (unsigned long)kips,
                  (unsigned long)cyc_per_insn);
+
+          /* ARM / Thumb split */
+          u32 arm_pct = total_insns ? (prof_arm_insns   * 100) / total_insns : 0;
+          u32 thm_pct = total_insns ? (prof_thumb_insns * 100) / total_insns : 0;
+          debugf("PROF:  mix: ARM %lu%% Thumb %lu%% (ARM %luK, Thumb %luK)\n",
+                 (unsigned long)arm_pct, (unsigned long)thm_pct,
+                 (unsigned long)(prof_arm_insns   / 1000),
+                 (unsigned long)(prof_thumb_insns / 1000));
+
+          /* Thumb category breakdown:
+           *   ALU    : 0x00..0x47 (shift/add/sub/logic/test/hi-reg)
+           *   LDST   : 0x48..0x9F (single load/store, PC-rel, reg, imm, SP-rel)
+           *   BLOCK  : 0xA0..0xCF (ADD PC/SP, ADD SP imm, PUSH/POP, STMIA/LDMIA)
+           *   BRANCH : 0xD0..0xFF (Bcc, SWI, B, BL)
+           */
+          u32 cat_alu = 0, cat_ldst = 0, cat_block = 0, cat_br = 0;
+          for (u32 i = 0x00; i <= 0x47; i++) cat_alu   += prof_thumb_hist[i];
+          for (u32 i = 0x48; i <= 0x9F; i++) cat_ldst  += prof_thumb_hist[i];
+          for (u32 i = 0xA0; i <= 0xCF; i++) cat_block += prof_thumb_hist[i];
+          for (u32 i = 0xD0; i <= 0xFF; i++) cat_br    += prof_thumb_hist[i];
+          u32 th = prof_thumb_insns ? prof_thumb_insns : 1;
+          debugf("PROF:  cat: ALU %lu%% LDST %lu%% BLOCK %lu%% BR %lu%%\n",
+                 (unsigned long)((cat_alu   * 100) / th),
+                 (unsigned long)((cat_ldst  * 100) / th),
+                 (unsigned long)((cat_block * 100) / th),
+                 (unsigned long)((cat_br    * 100) / th));
+
+          /* Top-10 Thumb opcode buckets */
+          u32 top_idx[10] = {0};
+          u32 top_cnt[10] = {0};
+          for (u32 i = 0; i < 256; i++) {
+            u32 c = prof_thumb_hist[i];
+            if (c == 0) continue;
+            for (u32 j = 0; j < 10; j++) {
+              if (c > top_cnt[j]) {
+                /* shift down */
+                for (u32 k = 9; k > j; k--) {
+                  top_cnt[k] = top_cnt[k-1];
+                  top_idx[k] = top_idx[k-1];
+                }
+                top_cnt[j] = c;
+                top_idx[j] = i;
+                break;
+              }
+            }
+          }
+          debugf("PROF:  top-thumb:"
+                 " %02lx:%lu%% %02lx:%lu%% %02lx:%lu%% %02lx:%lu%% %02lx:%lu%%"
+                 " %02lx:%lu%% %02lx:%lu%% %02lx:%lu%% %02lx:%lu%% %02lx:%lu%%\n",
+                 (unsigned long)top_idx[0], (unsigned long)((top_cnt[0]*100)/th),
+                 (unsigned long)top_idx[1], (unsigned long)((top_cnt[1]*100)/th),
+                 (unsigned long)top_idx[2], (unsigned long)((top_cnt[2]*100)/th),
+                 (unsigned long)top_idx[3], (unsigned long)((top_cnt[3]*100)/th),
+                 (unsigned long)top_idx[4], (unsigned long)((top_cnt[4]*100)/th),
+                 (unsigned long)top_idx[5], (unsigned long)((top_cnt[5]*100)/th),
+                 (unsigned long)top_idx[6], (unsigned long)((top_cnt[6]*100)/th),
+                 (unsigned long)top_idx[7], (unsigned long)((top_cnt[7]*100)/th),
+                 (unsigned long)top_idx[8], (unsigned long)((top_cnt[8]*100)/th),
+                 (unsigned long)top_idx[9], (unsigned long)((top_cnt[9]*100)/th));
+
+          /* Top-5 ARM opcode buckets (only meaningful if ARM share is non-trivial) */
+          if (prof_arm_insns > 1000) {
+            u32 atop_idx[5] = {0};
+            u32 atop_cnt[5] = {0};
+            for (u32 i = 0; i < 256; i++) {
+              u32 c = prof_arm_hist[i];
+              if (c == 0) continue;
+              for (u32 j = 0; j < 5; j++) {
+                if (c > atop_cnt[j]) {
+                  for (u32 k = 4; k > j; k--) {
+                    atop_cnt[k] = atop_cnt[k-1];
+                    atop_idx[k] = atop_idx[k-1];
+                  }
+                  atop_cnt[j] = c;
+                  atop_idx[j] = i;
+                  break;
+                }
+              }
+            }
+            u32 ar = prof_arm_insns ? prof_arm_insns : 1;
+            debugf("PROF:  top-arm:   %02lx:%lu%% %02lx:%lu%% %02lx:%lu%% %02lx:%lu%% %02lx:%lu%%\n",
+                   (unsigned long)atop_idx[0], (unsigned long)((atop_cnt[0]*100)/ar),
+                   (unsigned long)atop_idx[1], (unsigned long)((atop_cnt[1]*100)/ar),
+                   (unsigned long)atop_idx[2], (unsigned long)((atop_cnt[2]*100)/ar),
+                   (unsigned long)atop_idx[3], (unsigned long)((atop_cnt[3]*100)/ar),
+                   (unsigned long)atop_idx[4], (unsigned long)((atop_cnt[4]*100)/ar));
+          }
+
           prof_emu = prof_blit = prof_total = prof_frames = 0;
           prof_ppu_ticks = 0;
           prof_arm_insns = prof_thumb_insns = 0;
+          memset(prof_thumb_hist, 0, sizeof(prof_thumb_hist));
+          memset(prof_arm_hist,   0, sizeof(prof_arm_hist));
         }
       }
     }

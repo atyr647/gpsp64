@@ -25,6 +25,12 @@ extern "C" {
 #ifdef N64
   u32 prof_arm_insns = 0;
   u32 prof_thumb_insns = 0;
+  /* Opcode histograms: one bucket per top-byte of opcode
+   * Thumb: bits [15:8] directly index (natural 256-way decode)
+   * ARM:   bits [27:20] index (typical decode discriminator)
+   * Zeroed by n64_main.c after each PROF print. */
+  u32 prof_thumb_hist[256] = {0};
+  u32 prof_arm_hist[256] = {0};
   #ifdef USE_N64_ASM_DISPATCH
     extern "C" s32 execute_thumb_inner(s32 cycles, u32 *regptr, void **table);
     extern "C" void *thumb_handler_table[];
@@ -3018,6 +3024,7 @@ skip_instruction:
        /* End of Execute ARM instruction */
        #ifdef N64
        prof_arm_insns++;
+       prof_arm_hist[(opcode >> 20) & 0xFF]++;
        #endif
        cycles_remaining -= ws_cyc_seq[(reg[REG_PC] >> 24) & 0xF][1];
 
@@ -3524,6 +3531,7 @@ thumb_loop:
        /* End of Execute THUMB instruction */
        #ifdef N64
        prof_thumb_insns++;
+       prof_thumb_hist[(opcode >> 8) & 0xFF]++;
        #endif
        cycles_remaining -= ws_cyc_seq[(reg[REG_PC] >> 24) & 0xF][0];
 
