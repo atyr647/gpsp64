@@ -23,25 +23,27 @@ extern "C" {
 }
 
 #ifdef N64
+  /* Always-on lightweight perf counters (one increment each, no array store) */
   u32 prof_arm_insns = 0;
   u32 prof_thumb_insns = 0;
-  /* Opcode histograms: one bucket per top-byte of opcode
-   * Thumb: bits [15:8] directly index (natural 256-way decode)
-   * ARM:   bits [27:20] index (typical decode discriminator)
-   * Zeroed by n64_main.c after each PROF print. */
-  u32 prof_thumb_hist[256] = {0};
-  u32 prof_arm_hist[256] = {0};
-  /* Idle-loop diagnostics: tracks whether the existing PC == idle_loop_target_pc
-   * optimization is ever firing, and snapshots the PCs of the trio that
-   * dominates Pokemon Emerald's busy-wait (LDRH 0x88 / CMP 0x28 / BLS 0xD9). */
   u32 prof_idle_hits   = 0;
-  u32 prof_last_d9_pc  = 0;
-  u32 prof_last_28_pc  = 0;
-  u32 prof_last_88_pc  = 0;
-  /* Runtime idle-loop detector state — see use site in the Thumb loop. */
+  u32 prof_idle_detect_fires = 0;
+  /* Runtime idle-loop detector state — see use site in the Thumb loop.
+   * Hot path; cheap to maintain; not gated. */
   u32 idle_detect_pc        = 0;
   u32 idle_detect_count     = 0;
-  u32 prof_idle_detect_fires = 0;
+
+  /* Heavy opcode-distribution diagnostics — only built when PROFILE_OPCODES
+   * is defined.  These are array stores per executed instruction; useful
+   * for finding new busy-wait loops or guiding native-handler choices,
+   * but cost ~5-10 cyc per Thumb insn => ~1-2 ms/frame at typical mix. */
+  #ifdef PROFILE_OPCODES
+    u32 prof_thumb_hist[256] = {0};
+    u32 prof_arm_hist[256]   = {0};
+    u32 prof_last_d9_pc      = 0;
+    u32 prof_last_28_pc      = 0;
+    u32 prof_last_88_pc      = 0;
+  #endif
   #ifdef USE_N64_ASM_DISPATCH
     extern "C" s32 execute_thumb_inner(s32 cycles, u32 *regptr, void **table);
     extern "C" void *thumb_handler_table[];
@@ -3035,7 +3037,9 @@ skip_instruction:
        /* End of Execute ARM instruction */
        #ifdef N64
        prof_arm_insns++;
+       #ifdef PROFILE_OPCODES
        prof_arm_hist[(opcode >> 20) & 0xFF]++;
+       #endif
        #endif
        cycles_remaining -= ws_cyc_seq[(reg[REG_PC] >> 24) & 0xF][1];
 
@@ -3553,6 +3557,7 @@ thumb_loop:
        /* End of Execute THUMB instruction */
        #ifdef N64
        prof_thumb_insns++;
+       #ifdef PROFILE_OPCODES
        {
          u32 _hi = (opcode >> 8) & 0xFF;
          prof_thumb_hist[_hi]++;
@@ -3564,6 +3569,7 @@ thumb_loop:
          else if (_hi == 0x28) prof_last_28_pc = reg[REG_PC] - 2;
          else if (_hi == 0x88) prof_last_88_pc = reg[REG_PC] - 2;
        }
+       #endif
        /* Runtime idle-loop detector.
         * Catches busy-wait patterns the static idle_loop_target_pc
         * override misses (Pokemon Emerald has many — e.g. 0x0808762a,
