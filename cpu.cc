@@ -3576,23 +3576,24 @@ thumb_loop:
         *
         * Two filters keep us from misclassifying regular game loops:
         *
-        * 1. PC-delta range guard.  A real busy-wait body is tiny
-        *    (LDRH/CMP/BLS = 6 bytes; LDRB/CMP/BNE = 6 bytes).  Game
-        *    loops iterating over arrays/lists are usually >= 16 bytes
-        *    per iteration.  We only count a backward branch toward the
-        *    streak if |delta| <= 16 bytes; longer backward jumps reset.
+        * 1. PC-delta range guard, body <= 10 bytes (5 Thumb insns).
+        *    Real busy-waits are tiny — LDRH/CMP/BLS = 6 bytes,
+        *    LDR/MOV/CMP/BLS = 8 bytes.  A 7-insn game loop iterating
+        *    over an array (observed: 78/d1/42/70/31/34/3b at 11% each
+        *    = 14-byte body) was a major false-positive source at
+        *    body <= 16; tightening to 10 excludes it cleanly while
+        *    keeping any plausible busy-wait.
         *
-        * 2. Threshold of 64 iterations.  Real busy-waits fire
-        *    thousands of times; tight game loops over arrays of
-        *    ~32 enemies fire 32 times and exit.  64 is comfortably
-        *    above typical inner-loop iteration counts.
+        * 2. Threshold of 16 iterations.  Real busy-waits fire
+        *    thousands of times; with the body guard in place the
+        *    aggressive threshold rarely triggers on real loops.
         */
        {
          s32 _pc_delta = (s32)(reg[REG_PC] - _idle_pc_before);
-         if (_pc_delta < 0 && _pc_delta >= -16) {
+         if (_pc_delta < 0 && _pc_delta >= -10) {
            /* Tight backward branch — candidate busy-wait back-edge */
            if (reg[REG_PC] == idle_detect_pc) {
-             if (++idle_detect_count >= 64 && cycles_remaining > 0) {
+             if (++idle_detect_count >= 16 && cycles_remaining > 0) {
                idle_detect_count = 0;
                prof_idle_detect_fires++;
                cycles_remaining = 0;
@@ -3601,7 +3602,7 @@ thumb_loop:
              idle_detect_pc = reg[REG_PC];
              idle_detect_count = 1;
            }
-         } else if (_pc_delta > 4 || _pc_delta < -16) {
+         } else if (_pc_delta > 4 || _pc_delta < -10) {
            /* Forward jump out of body, or long backward jump
             * (= we just left the suspected loop) — reset. */
            idle_detect_pc = 0;
