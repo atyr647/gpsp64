@@ -23,11 +23,15 @@ extern "C" {
 }
 
 #ifdef N64
-  extern "C" s32 execute_thumb_inner(s32 cycles, u32 *regptr, void **table);
-  extern "C" void *thumb_handler_table[];
-  #define N64_THUMB_ENTRY thumb_asm_entry
   u32 prof_arm_insns = 0;
   u32 prof_thumb_insns = 0;
+  #ifdef USE_N64_ASM_DISPATCH
+    extern "C" s32 execute_thumb_inner(s32 cycles, u32 *regptr, void **table);
+    extern "C" void *thumb_handler_table[];
+    #define N64_THUMB_ENTRY thumb_asm_entry
+  #else
+    #define N64_THUMB_ENTRY thumb_loop
+  #endif
 #else
   #define N64_THUMB_ENTRY thumb_loop
 #endif
@@ -1548,13 +1552,8 @@ void execute_arm(u32 cycles)
     cpu_alert = CPU_ALERT_NONE;
     extract_flags();
 
-#ifdef N64
-    if(reg[REG_CPSR] & 0x20)
-      goto thumb_asm_entry;
-#else
     if(reg[REG_CPSR] & 0x20)
       goto N64_THUMB_ENTRY;
-#endif
 
     do
     {
@@ -3036,9 +3035,13 @@ skip_instruction:
     cycles_remaining = cycles_to_run(update_ret);
     continue;
 
-#ifdef N64
+#ifdef USE_N64_ASM_DISPATCH
     thumb_asm_entry:
-    /* Use assembly inner loop for Thumb mode */
+    /* Use assembly inner loop for Thumb mode (currently WIP — most opcodes
+     * fall through to a C fallback that is incomplete, so this path does not
+     * yet boot commercial games.  Kept compilable for future incremental
+     * work: add assembly handlers to thumb_handler_table to remove the
+     * C fallback cost one opcode class at a time.) */
     {
       collapse_flags();
       cycles_remaining = execute_thumb_inner(cycles_remaining, reg,
@@ -3047,8 +3050,14 @@ skip_instruction:
       /* Check if we switched to ARM mode */
       if (!(reg[REG_CPSR] & 0x20))
         goto arm_loop;
+      collapse_flags();
+      update_ret = update_gba(cycles_remaining);
+      if (completed_frame(update_ret))
+         return;
+      cycles_remaining = cycles_to_run(update_ret);
+      continue;
     }
-#else
+#endif
     do
     {
 thumb_loop:
@@ -3524,7 +3533,6 @@ thumb_loop:
           goto alert;
 
     } while(cycles_remaining > 0);
-#endif  /* !N64 — end of C Thumb inner loop */
 
     collapse_flags();
     update_ret = update_gba(cycles_remaining);
@@ -3542,7 +3550,17 @@ thumb_loop:
 #ifdef N64
 /* Execute ONE Thumb instruction. Called by assembly dispatch C fallback.
  * PC and CPSR already saved to reg[]. Modifies reg[] and CPSR.
- * Does NOT call update_gba — caller handles events. */
+ * Does NOT call update_gba — caller handles events.
+ *
+ * NOTE: Currently incomplete — only covers ALU/shift/imm opcodes.
+ * Memory access, branches, BL, PUSH/POP, etc. fall through to a NOP.
+ * This is why USE_N64_ASM_DISPATCH is disabled by default.  To make
+ * the asm path usable, either (a) expand this switch to full coverage
+ * (duplicating the main interpreter's switch), or (b) implement native
+ * MIPS handlers in mips_interp.S so the C fallback is rarely hit.
+ *
+ * Kept defined on all N64 builds so that mips_interp.S (which refers to
+ * this symbol) links even when USE_N64_ASM_DISPATCH is off. */
 extern "C" void thumb_c_execute_one(u32 opcode_param)
 {
   u32 opcode;
