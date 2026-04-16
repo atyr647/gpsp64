@@ -3569,27 +3569,30 @@ thumb_loop:
         * override misses (Pokemon Emerald has many — e.g. 0x0808762a,
         * 0x08006d4c — that aren't in gba_over.h).
         *
-        * Heuristic: when the SAME backward branch target is reached
-        * many times consecutively (the loop body never reroutes
-        * elsewhere), the loop is spinning waiting on hardware state
-        * that only changes on an interrupt/event.  Yield to update_gba
-        * so time can advance.
+        * Heuristic: when the SAME, TIGHT backward branch target is
+        * reached many times consecutively, the loop is spinning
+        * waiting on hardware state that only changes on an interrupt/
+        * event.  Yield to update_gba so time can advance.
         *
-        * Sequential execution (PC just += 2) leaves the detector alone.
-        * A forward jump > 4 bytes resets it (we left the loop).
-        * A backward jump to the SAME target as last time increments
-        * the run length; to a NEW target restarts at 1.
+        * Two filters keep us from misclassifying regular game loops:
         *
-        * Threshold of 16 means we tolerate 16 iterations of any tight
-        * backward branch before yielding. With a 3-instruction body
-        * that's ~48 instructions of busy-wait per yield.
+        * 1. PC-delta range guard.  A real busy-wait body is tiny
+        *    (LDRH/CMP/BLS = 6 bytes; LDRB/CMP/BNE = 6 bytes).  Game
+        *    loops iterating over arrays/lists are usually >= 16 bytes
+        *    per iteration.  We only count a backward branch toward the
+        *    streak if |delta| <= 16 bytes; longer backward jumps reset.
+        *
+        * 2. Threshold of 64 iterations.  Real busy-waits fire
+        *    thousands of times; tight game loops over arrays of
+        *    ~32 enemies fire 32 times and exit.  64 is comfortably
+        *    above typical inner-loop iteration counts.
         */
        {
          s32 _pc_delta = (s32)(reg[REG_PC] - _idle_pc_before);
-         if (_pc_delta < 0) {
-           /* Backward branch */
+         if (_pc_delta < 0 && _pc_delta >= -16) {
+           /* Tight backward branch — candidate busy-wait back-edge */
            if (reg[REG_PC] == idle_detect_pc) {
-             if (++idle_detect_count >= 16 && cycles_remaining > 0) {
+             if (++idle_detect_count >= 64 && cycles_remaining > 0) {
                idle_detect_count = 0;
                prof_idle_detect_fires++;
                cycles_remaining = 0;
@@ -3598,8 +3601,9 @@ thumb_loop:
              idle_detect_pc = reg[REG_PC];
              idle_detect_count = 1;
            }
-         } else if (_pc_delta > 4) {
-           /* Forward jump out of the suspected loop body */
+         } else if (_pc_delta > 4 || _pc_delta < -16) {
+           /* Forward jump out of body, or long backward jump
+            * (= we just left the suspected loop) — reset. */
            idle_detect_pc = 0;
            idle_detect_count = 0;
          }
