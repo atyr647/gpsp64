@@ -639,6 +639,17 @@ const u8 bit_count[256] =
                                                                               \
     if(!pc_address_block)                                                     \
       pc_address_block = load_gamepak_page(pc_region & 0x3FF);                \
+                                                                              \
+    /* Refresh the cached waitstate-cycle values for this memory region.      \
+     * ws_cyc_seq[][] is indexed by bits [27:24] of PC (16 MB regions)        \
+     * and only changes when WAITCNT is written by the game.  Caching         \
+     * saves ~5 cyc per instruction vs the full array lookup.                 \
+     * Note: WAITCNT changes during execute_arm will be seen on the next      \
+     * page crossing (good enough for cycle-accounting purposes).             \
+     */                                                                       \
+    _pc_mem_region = (reg[REG_PC] >> 24) & 0xF;                               \
+    _ws_cyc_thumb_seq = ws_cyc_seq[_pc_mem_region][0];                        \
+    _ws_cyc_arm_seq   = ws_cyc_seq[_pc_mem_region][1];                        \
   }                                                                           \
 
 /* Reload pc_ptr from reg[REG_PC] after a branch or region change */
@@ -1552,6 +1563,17 @@ void execute_arm(u32 cycles)
   u32 update_ret;
   cpu_alert_type cpu_alert;
 
+  /* Cached per-region values — refreshed by check_pc_region() on page cross.
+   * See comment at check_pc_region definition. */
+  u32 _pc_mem_region = (reg[REG_PC] >> 24) & 0xF;
+  u8  _ws_cyc_thumb_seq = ws_cyc_seq[_pc_mem_region][0];
+  u8  _ws_cyc_arm_seq   = ws_cyc_seq[_pc_mem_region][1];
+
+  /* Cached cheat hook PC — global that only changes when a cheat code is
+   * loaded (cheats_add_hook), never during normal game execution.
+   * Caching as a local saves the global reload on every instruction. */
+  const u32 _cheat_hook = cheat_master_hook;
+
   if(!pc_address_block)
     pc_address_block = load_gamepak_page(pc_region & 0x3FF);
   touch_gamepak_page(pc_region);
@@ -1579,7 +1601,7 @@ void execute_arm(u32 cycles)
 arm_loop:
 
        /* Process cheats if we are about to execute the cheat hook */
-       if (reg[REG_PC] == cheat_master_hook)
+       if (reg[REG_PC] == _cheat_hook)
           process_cheats();
 
        /* Execute ARM instruction */
@@ -3041,7 +3063,7 @@ skip_instruction:
        prof_arm_hist[(opcode >> 20) & 0xFF]++;
        #endif
        #endif
-       cycles_remaining -= ws_cyc_seq[(reg[REG_PC] >> 24) & 0xF][1];
+       cycles_remaining -= _ws_cyc_arm_seq;  /* cached: ws_cyc_seq[mem_region][1] */
 
        if (reg[REG_PC] == idle_loop_target_pc && cycles_remaining > 0) {
          #ifdef N64
@@ -3092,7 +3114,7 @@ thumb_loop:
        /* Flags kept lazy — see arm_loop comment */
 
        /* Process cheats if we are about to execute the cheat hook */
-       if (reg[REG_PC] == cheat_master_hook)
+       if (reg[REG_PC] == _cheat_hook)
           process_cheats();
 
        /* Execute THUMB instruction */
@@ -3617,7 +3639,7 @@ thumb_loop:
          /* _pc_delta == 2 (sequential) leaves detector untouched. */
        }
        #endif
-       cycles_remaining -= ws_cyc_seq[(reg[REG_PC] >> 24) & 0xF][0];
+       cycles_remaining -= _ws_cyc_thumb_seq;  /* cached: ws_cyc_seq[mem_region][0] */
 
        if (reg[REG_PC] == idle_loop_target_pc && cycles_remaining > 0) {
          #ifdef N64
