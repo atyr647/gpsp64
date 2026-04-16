@@ -31,6 +31,13 @@ extern "C" {
    * Zeroed by n64_main.c after each PROF print. */
   u32 prof_thumb_hist[256] = {0};
   u32 prof_arm_hist[256] = {0};
+  /* Idle-loop diagnostics: tracks whether the existing PC == idle_loop_target_pc
+   * optimization is ever firing, and snapshots the PCs of the trio that
+   * dominates Pokemon Emerald's busy-wait (LDRH 0x88 / CMP 0x28 / BLS 0xD9). */
+  u32 prof_idle_hits   = 0;
+  u32 prof_last_d9_pc  = 0;
+  u32 prof_last_28_pc  = 0;
+  u32 prof_last_88_pc  = 0;
   #ifdef USE_N64_ASM_DISPATCH
     extern "C" s32 execute_thumb_inner(s32 cycles, u32 *regptr, void **table);
     extern "C" void *thumb_handler_table[];
@@ -3028,7 +3035,12 @@ skip_instruction:
        #endif
        cycles_remaining -= ws_cyc_seq[(reg[REG_PC] >> 24) & 0xF][1];
 
-       if (reg[REG_PC] == idle_loop_target_pc && cycles_remaining > 0) cycles_remaining = 0;
+       if (reg[REG_PC] == idle_loop_target_pc && cycles_remaining > 0) {
+         #ifdef N64
+         prof_idle_hits++;
+         #endif
+         cycles_remaining = 0;
+       }
 
        if (cpu_alert & (CPU_ALERT_HALT | CPU_ALERT_IRQ))
          goto alert;
@@ -3531,11 +3543,26 @@ thumb_loop:
        /* End of Execute THUMB instruction */
        #ifdef N64
        prof_thumb_insns++;
-       prof_thumb_hist[(opcode >> 8) & 0xFF]++;
+       {
+         u32 _hi = (opcode >> 8) & 0xFF;
+         prof_thumb_hist[_hi]++;
+         /* Capture last PC of the suspected busy-wait trio so we can
+          * see whether they live at the same address (i.e. one tight
+          * loop). reg[REG_PC] at this point points to NEXT instruction
+          * since the macros already advanced it; subtract 2. */
+         if (_hi == 0xD9) prof_last_d9_pc = reg[REG_PC] - 2;
+         else if (_hi == 0x28) prof_last_28_pc = reg[REG_PC] - 2;
+         else if (_hi == 0x88) prof_last_88_pc = reg[REG_PC] - 2;
+       }
        #endif
        cycles_remaining -= ws_cyc_seq[(reg[REG_PC] >> 24) & 0xF][0];
 
-       if (reg[REG_PC] == idle_loop_target_pc && cycles_remaining > 0) cycles_remaining = 0;
+       if (reg[REG_PC] == idle_loop_target_pc && cycles_remaining > 0) {
+         #ifdef N64
+         prof_idle_hits++;
+         #endif
+         cycles_remaining = 0;
+       }
 
        if (cpu_alert & (CPU_ALERT_HALT | CPU_ALERT_IRQ))
           goto alert;
