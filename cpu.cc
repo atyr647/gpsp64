@@ -38,6 +38,10 @@ extern "C" {
   u32 prof_last_d9_pc  = 0;
   u32 prof_last_28_pc  = 0;
   u32 prof_last_88_pc  = 0;
+  /* Runtime idle-loop detector state — see use site in the Thumb loop. */
+  u32 idle_detect_pc        = 0;
+  u32 idle_detect_count     = 0;
+  u32 prof_idle_detect_fires = 0;
   #ifdef USE_N64_ASM_DISPATCH
     extern "C" s32 execute_thumb_inner(s32 cycles, u32 *regptr, void **table);
     extern "C" void *thumb_handler_table[];
@@ -3092,6 +3096,12 @@ thumb_loop:
        using_instruction(thumb);
        check_pc_region();
        reg[REG_PC] &= ~0x01;
+       #ifdef N64
+       /* Snapshot PC before instruction executes — used by the
+        * runtime idle-loop detector below.  Must be u32, not s32:
+        * cheap to capture, no overhead beyond a register move. */
+       u32 _idle_pc_before = reg[REG_PC];
+       #endif
        opcode = readaddress16(pc_address_block, (reg[REG_PC] & 0x7FFF));
 
        #ifdef TRACE_INSTRUCTIONS
@@ -3553,6 +3563,47 @@ thumb_loop:
          if (_hi == 0xD9) prof_last_d9_pc = reg[REG_PC] - 2;
          else if (_hi == 0x28) prof_last_28_pc = reg[REG_PC] - 2;
          else if (_hi == 0x88) prof_last_88_pc = reg[REG_PC] - 2;
+       }
+       /* Runtime idle-loop detector.
+        * Catches busy-wait patterns the static idle_loop_target_pc
+        * override misses (Pokemon Emerald has many — e.g. 0x0808762a,
+        * 0x08006d4c — that aren't in gba_over.h).
+        *
+        * Heuristic: when the SAME backward branch target is reached
+        * many times consecutively (the loop body never reroutes
+        * elsewhere), the loop is spinning waiting on hardware state
+        * that only changes on an interrupt/event.  Yield to update_gba
+        * so time can advance.
+        *
+        * Sequential execution (PC just += 2) leaves the detector alone.
+        * A forward jump > 4 bytes resets it (we left the loop).
+        * A backward jump to the SAME target as last time increments
+        * the run length; to a NEW target restarts at 1.
+        *
+        * Threshold of 16 means we tolerate 16 iterations of any tight
+        * backward branch before yielding. With a 3-instruction body
+        * that's ~48 instructions of busy-wait per yield.
+        */
+       {
+         s32 _pc_delta = (s32)(reg[REG_PC] - _idle_pc_before);
+         if (_pc_delta < 0) {
+           /* Backward branch */
+           if (reg[REG_PC] == idle_detect_pc) {
+             if (++idle_detect_count >= 16 && cycles_remaining > 0) {
+               idle_detect_count = 0;
+               prof_idle_detect_fires++;
+               cycles_remaining = 0;
+             }
+           } else {
+             idle_detect_pc = reg[REG_PC];
+             idle_detect_count = 1;
+           }
+         } else if (_pc_delta > 4) {
+           /* Forward jump out of the suspected loop body */
+           idle_detect_pc = 0;
+           idle_detect_count = 0;
+         }
+         /* _pc_delta == 2 (sequential) leaves detector untouched. */
        }
        #endif
        cycles_remaining -= ws_cyc_seq[(reg[REG_PC] >> 24) & 0xF][0];

@@ -227,6 +227,7 @@ int main(void)
           extern u32 prof_arm_insns, prof_thumb_insns;
           extern u32 prof_thumb_hist[256], prof_arm_hist[256];
           extern u32 prof_idle_hits, prof_last_d9_pc, prof_last_28_pc, prof_last_88_pc;
+          extern u32 prof_idle_detect_fires;
           u32 total_insns = prof_arm_insns + prof_thumb_insns;
           u32 total_ms = ms_per_frame * 60;
           u32 kips = total_ms ? (total_insns / total_ms) : 0;
@@ -329,9 +330,12 @@ int main(void)
           /* Idle-loop diagnostic: did the override fire?  Where is the
            * busy-wait actually executing?  (PC of the last 0x88/0x28/0xD9
            * Thumb instruction sampled — if all three are within ~10 bytes
-           * of each other, we found the hot loop.) */
-          debugf("PROF:  idle hits %lu | last 88@0x%08lx 28@0x%08lx d9@0x%08lx\n",
+           * of each other, we found the hot loop.)
+           * "rt-idle" = runtime detector fires (yields from idle loops the
+           * static override doesn't know about). */
+          debugf("PROF:  idle hits %lu rt-idle %lu | last 88@0x%08lx 28@0x%08lx d9@0x%08lx\n",
                  (unsigned long)prof_idle_hits,
+                 (unsigned long)prof_idle_detect_fires,
                  (unsigned long)prof_last_88_pc,
                  (unsigned long)prof_last_28_pc,
                  (unsigned long)prof_last_d9_pc);
@@ -340,6 +344,7 @@ int main(void)
           prof_ppu_ticks = 0;
           prof_arm_insns = prof_thumb_insns = 0;
           prof_idle_hits = 0;
+          prof_idle_detect_fires = 0;
           memset(prof_thumb_hist, 0, sizeof(prof_thumb_hist));
           memset(prof_arm_hist,   0, sizeof(prof_arm_hist));
         }
