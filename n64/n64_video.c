@@ -5,25 +5,56 @@
  * We wrap it in a surface_t and use rdpq_tex_blit for the copy,
  * which offloads the pixel shuffle to the RDP hardware.
  *
+ * Format conversion (XBGR1555 -> RGBA5551) processes two pixels
+ * per iteration via 32-bit loads/stores.  A 65536-entry lookup
+ * table was considered but ruled out: at 128 KB it would thrash
+ * VR4300's 8 KB D-cache, costing more in misses than the inline
+ * math costs in arithmetic.  The 32-bit pair-at-a-time approach
+ * keeps everything in registers and halves the loop overhead.
+ *
  * N64 port Copyright (C) 2026
  */
 
 #include <libdragon.h>
 #include <string.h>
+#include <malloc.h>
 #include "../common.h"
 #include "n64_video.h"
 
 extern u16 *gba_screen_pixels;
 
-/* Pre-converted GBA framebuffer in RGBA5551 format */
+/* Pre-converted GBA framebuffer in RGBA5551 format.
+ * Aligned to 8 bytes so 64-bit accesses (if the compiler chooses
+ * them) don't trap. */
 static u16 *rgba_buf = NULL;
+
+/* Track whether we have already cleared each of the two display
+ * buffers.  Borders (40px L+R, 40px T+B around the GBA area) never
+ * get written by the per-frame blit; one-shot clear is enough.
+ * libdragon's display_init creates 2 buffers; we count down. */
+static int initial_clear_remaining = 2;
 
 void n64_video_init(void)
 {
   display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2,
                GAMMA_NONE, FILTERS_RESAMPLE);
   rdpq_init();
-  rgba_buf = (u16 *)malloc(GBA_SCREEN_WIDTH * GBA_SCREEN_HEIGHT * sizeof(u16));
+  /* memalign for 8-byte alignment so u32/u64 accesses are safe */
+  rgba_buf = (u16 *)memalign(8,
+              GBA_SCREEN_WIDTH * GBA_SCREEN_HEIGHT * sizeof(u16));
+}
+
+/* Per-pair format conversion: handles 2 pixels per 32-bit word.
+ * Input  bits per half-word: B[14:10] G[9:5] R[4:0]
+ * Output bits per half-word: R[15:11] G[10:6] B[5:1] A[0]=1
+ * The masks operate on both halves of the u32 simultaneously,
+ * exploiting MIPS's 32-bit ALU.  Safe under big-endian: each
+ * 16-bit half stays in the same byte position. */
+static inline u32 xbgr_pair_to_rgba_pair(u32 p) {
+  return ((p << 11) & 0xF800F800u)   /* R bits to 11-15 */
+       | ((p << 1)  & 0x07C007C0u)   /* G bits to 6-10  */
+       | ((p >> 9)  & 0x003E003Eu)   /* B bits to 1-5   */
+       | 0x00010001u;                /* A bit = 1       */
 }
 
 void n64_video_render_frame(void)
@@ -34,26 +65,28 @@ void n64_video_render_frame(void)
     return;
   }
 
-  /* Convert XBGR1555 -> RGBA5551 into a staging buffer.
-   * This is still CPU work but the blit to framebuffer is RDP. */
-  u16 *src = gba_screen_pixels;
-  u16 *dst = rgba_buf;
-  for (int i = 0; i < GBA_SCREEN_WIDTH * GBA_SCREEN_HEIGHT; i++) {
-    u16 pixel = src[i];
-    u16 r = (pixel)       & 0x1F;
-    u16 g = (pixel >> 5)  & 0x1F;
-    u16 b = (pixel >> 10) & 0x1F;
-    dst[i] = (r << 11) | (g << 6) | (b << 1) | 1;
-  }
+  /* Convert XBGR1555 -> RGBA5551, two pixels per iteration.
+   * 38400 total pixels = 19200 pairs. */
+  const u32 *src = (const u32 *)gba_screen_pixels;
+  u32       *dst = (u32 *)rgba_buf;
+  const int pairs = (GBA_SCREEN_WIDTH * GBA_SCREEN_HEIGHT) / 2;
+  for (int i = 0; i < pairs; i++)
+    dst[i] = xbgr_pair_to_rgba_pair(src[i]);
 
   /* Wrap the converted buffer as a surface for rdpq */
   surface_t gba_surf = surface_make_linear(rgba_buf,
     FMT_RGBA16, GBA_SCREEN_WIDTH, GBA_SCREEN_HEIGHT);
 
-  /* Use RDP to blit the GBA surface centered on the N64 display */
+  /* Use RDP to blit the GBA surface centered on the N64 display.
+   * Borders are cleared to black ONCE per buffer at init -- the
+   * per-frame fill_rectangle is unnecessary because nothing else
+   * ever writes the border region. */
   rdpq_attach(disp, NULL);
-  rdpq_set_mode_fill(RGBA16(0, 0, 0, 1));
-  rdpq_fill_rectangle(0, 0, N64_SCREEN_WIDTH, N64_SCREEN_HEIGHT);
+  if (initial_clear_remaining > 0) {
+    rdpq_set_mode_fill(RGBA16(0, 0, 0, 1));
+    rdpq_fill_rectangle(0, 0, N64_SCREEN_WIDTH, N64_SCREEN_HEIGHT);
+    initial_clear_remaining--;
+  }
   rdpq_set_mode_copy(false);
   rdpq_tex_blit(&gba_surf, GBA_OFFSET_X, GBA_OFFSET_Y, NULL);
   rdpq_detach_show();

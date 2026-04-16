@@ -232,10 +232,11 @@ int main(void)
           u32 cyc_per_insn = total_insns ? (u32)((u64)prof_total * 2 / total_insns) : 0;
           u32 arm_pct = total_insns ? (prof_arm_insns   * 100) / total_insns : 0;
           u32 thm_pct = total_insns ? (prof_thumb_insns * 100) / total_insns : 0;
-          debugf("PROF: CPU%lu%% PPU%lu%% %lums/f | %luK insns %luKIPS ~%lu cyc/i"
+          debugf("PROF: CPU%lu%% PPU%lu%% Blt%lu%% %lums/f | %luK insns %luKIPS ~%lu cyc/i"
                  " | ARM%lu%%/Thm%lu%% idle %lu rt %lu\n",
                  (unsigned long)cpu_pct,
                  (unsigned long)ppu_pct,
+                 (unsigned long)blit_pct,
                  (unsigned long)ms_per_frame,
                  (unsigned long)(total_insns / 1000),
                  (unsigned long)kips,
