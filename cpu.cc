@@ -3121,7 +3121,22 @@ thumb_loop:
 
        using_instruction(thumb);
        check_pc_region();
-       reg[REG_PC] &= ~0x01;
+       /* Note: reg[REG_PC] &= ~0x01 was historically done here as a
+        * defensive mask for the 2-byte alignment expected by
+        * readaddress16() below.  Audit confirms it is unnecessary on
+        * every PC-modifying Thumb path:
+        *   - sequential PC += 2:                bit 0 preserved (=0)
+        *   - conditional/unconditional B:       offset*2 + 4 -> even
+        *   - BL high (0xF8..0xFF):              old LR (even) + offset*2
+        *   - BX (case 0x47):                    reg[REG_PC] = src - 1
+        *   - hi-reg op with rd=PC (0x44..0x47): reg[REG_PC] = dest & ~0x01
+        *   - POP {pc} / LDMIA pc (exec_thumb_block_mem line 1159):
+        *                                        reg[REG_PC] &= ~0x01
+        *   - ARM->Thumb BX entry (line 2076):   reg[REG_PC] = src - 1
+        *   - SWI/IRQ vectors:                   even constants
+        * So bit 0 is provably 0 by the time we land here.  Removing
+        * the mask saves ~2-3 cyc/insn (load + and + store) in the
+        * Thumb hot path. */
        #ifdef N64
        /* Snapshot PC before instruction executes — used by the
         * runtime idle-loop detector below.  Must be u32, not s32:
