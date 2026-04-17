@@ -23,6 +23,8 @@ extern "C" {
 }
 
 #ifdef N64
+  extern "C" int aot_try_execute(s32 *cycles_remaining_ptr);
+
   /* Always-on lightweight perf counters (one increment each, no array store) */
   u32 prof_arm_insns = 0;
   u32 prof_thumb_insns = 0;
@@ -3170,6 +3172,16 @@ thumb_loop:
        /* Process cheats if we are about to execute the cheat hook */
        if (reg[REG_PC] == _cheat_hook)
           process_cheats();
+
+       /* AOT HLE: if PC matches a known hot function, run the native
+        * C version and skip interpretation entirely.  This is the
+        * mvs64-proven approach: bypass the interpreter for profiled
+        * hot functions.  The native version reads/writes reg[] and
+        * GBA memory directly, then sets PC = LR to return. */
+       #ifdef N64
+       if (aot_try_execute(&cycles_remaining))
+         continue;
+       #endif
 
        /* Execute THUMB instruction */
 
