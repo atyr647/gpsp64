@@ -44,6 +44,53 @@ extern "C" {
     u32 prof_last_28_pc      = 0;
     u32 prof_last_88_pc      = 0;
   #endif
+
+  /* AOT HLE profiling — identifies hot function candidates for
+   * ahead-of-time recompilation (the mvs64 approach).
+   *
+   * Two instruments:
+   * 1) Page histogram: 4KB-granularity execution count over GBA ROM
+   *    space (0x08000000-0x0DFFFFFF).  6144 buckets = 24KB.
+   *    Shows WHERE CPU time concentrates.
+   *
+   * 2) BL call-target hash table: open-addressing table of
+   *    (target_pc -> call_count).  Shows WHICH function entry points
+   *    are called most often.  512 entries, linear probe on collision.
+   *    Sized for the ~50-100 distinct functions a game typically calls
+   *    in any given scene.
+   *
+   * Together they answer: "which ARM/Thumb functions should we
+   * recompile to native C for AOT HLE?"
+   *
+   * Only built when PROFILE_AOT is defined. */
+  #ifdef PROFILE_AOT
+    #define AOT_PAGE_BUCKETS 6144
+    #define AOT_BL_TABLE_SIZE 512
+    #define AOT_BL_TABLE_MASK (AOT_BL_TABLE_SIZE - 1)
+
+    typedef struct { u32 pc; u32 count; } bl_target_t;
+
+    extern "C" {
+      u32 prof_page_hist[AOT_PAGE_BUCKETS] = {0};
+      bl_target_t prof_bl_targets[AOT_BL_TABLE_SIZE] = {{0,0}};
+    }
+
+    static inline void prof_bl_record(u32 target_pc) {
+      u32 h = (target_pc >> 1) & AOT_BL_TABLE_MASK;
+      for (u32 i = 0; i < 32; i++) {
+        u32 idx = (h + i) & AOT_BL_TABLE_MASK;
+        if (prof_bl_targets[idx].pc == target_pc) {
+          prof_bl_targets[idx].count++;
+          return;
+        }
+        if (prof_bl_targets[idx].pc == 0) {
+          prof_bl_targets[idx].pc = target_pc;
+          prof_bl_targets[idx].count = 1;
+          return;
+        }
+      }
+    }
+  #endif
   #ifdef USE_N64_ASM_DISPATCH
     extern "C" s32 execute_thumb_inner(s32 cycles, u32 *regptr, void **table);
     extern "C" void *thumb_handler_table[];
@@ -3032,6 +3079,9 @@ arm_loop:
                 arm_decode_branch();
                 reg[REG_LR] = reg[REG_PC] + 4;
                 reg[REG_PC] += offset + 8;
+                #ifdef PROFILE_AOT
+                prof_bl_record(reg[REG_PC]);
+                #endif
                 cycles_remaining -= ws_cyc_nseq[reg[REG_PC] >> 24][1];
                 break;
              }
@@ -3061,6 +3111,10 @@ skip_instruction:
        prof_arm_insns++;
        #ifdef PROFILE_OPCODES
        prof_arm_hist[(opcode >> 20) & 0xFF]++;
+       #endif
+       #ifdef PROFILE_AOT
+       { u32 _pg = (reg[REG_PC] >> 12) - 0x8000;
+         if (_pg < AOT_PAGE_BUCKETS) prof_page_hist[_pg]++; }
        #endif
        #endif
        cycles_remaining -= _ws_cyc_arm_seq;  /* cached: ws_cyc_seq[mem_region][1] */
@@ -3586,6 +3640,9 @@ thumb_loop:
                 u32 newpc = reg[REG_LR] + (offset * 2);
                 reg[REG_LR] = newlr;
                 reg[REG_PC] = newpc;
+                #ifdef PROFILE_AOT
+                prof_bl_record(newpc);
+                #endif
                 cycles_remaining -= ws_cyc_nseq[newpc >> 24][0];
                 break;
              }
@@ -3598,14 +3655,14 @@ thumb_loop:
        {
          u32 _hi = (opcode >> 8) & 0xFF;
          prof_thumb_hist[_hi]++;
-         /* Capture last PC of the suspected busy-wait trio so we can
-          * see whether they live at the same address (i.e. one tight
-          * loop). reg[REG_PC] at this point points to NEXT instruction
-          * since the macros already advanced it; subtract 2. */
          if (_hi == 0xD9) prof_last_d9_pc = reg[REG_PC] - 2;
          else if (_hi == 0x28) prof_last_28_pc = reg[REG_PC] - 2;
          else if (_hi == 0x88) prof_last_88_pc = reg[REG_PC] - 2;
        }
+       #endif
+       #ifdef PROFILE_AOT
+       { u32 _pg = (reg[REG_PC] >> 12) - 0x8000;
+         if (_pg < AOT_PAGE_BUCKETS) prof_page_hist[_pg]++; }
        #endif
        /* Runtime idle-loop detector.
         * Catches busy-wait patterns the static idle_loop_target_pc

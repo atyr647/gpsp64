@@ -25,6 +25,8 @@ CFLAGS += -DUSE_XBGR1555_FORMAT
 # DIAGNOSTIC flags (off by default; re-enable for profiling passes):
 #   -DPROFILE_OPCODES  per-insn opcode histogram (~5 cyc/insn overhead)
 #   -DPROFILE_PPU      PPU sub-category timers (~few MFC0/scanline)
+#   -DPROFILE_AOT      page histogram + BL target counting for AOT HLE
+CFLAGS += -DPROFILE_AOT
 CFLAGS += -I$(CURDIR) -I$(CURDIR)/n64
 CFLAGS += -w   # gpsp has many warnings incompatible with libdragon's -Werror
 # VR4300 tuning + LTO.  -flto enables cross-TU inlining (critical for

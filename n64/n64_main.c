@@ -336,6 +336,77 @@ int main(void)
           prof_ppu_blank_calls = 0;
 #endif
 
+#ifdef PROFILE_AOT
+          /* AOT HLE candidate profiling.
+           * Top-5 hot 4KB code pages (by execution count) and
+           * top-5 BL call targets (by call count).
+           * These identify the ARM/Thumb functions worth recompiling. */
+          {
+            extern u32 prof_page_hist[];
+            typedef struct { u32 pc; u32 count; } bl_target_t;
+            extern bl_target_t prof_bl_targets[];
+
+            /* Top-5 hot pages */
+            u32 pg_idx[5] = {0};
+            u32 pg_cnt[5] = {0};
+            for (u32 i = 0; i < 6144; i++) {
+              u32 c = prof_page_hist[i];
+              if (c == 0) continue;
+              for (u32 j = 0; j < 5; j++) {
+                if (c > pg_cnt[j]) {
+                  for (u32 k = 4; k > j; k--) {
+                    pg_cnt[k] = pg_cnt[k-1];
+                    pg_idx[k] = pg_idx[k-1];
+                  }
+                  pg_cnt[j] = c;
+                  pg_idx[j] = i;
+                  break;
+                }
+              }
+            }
+            u32 ti = prof_arm_insns + prof_thumb_insns;
+            ti = ti ? ti : 1;
+            debugf("PROF:  aot-pages:"
+                   " 0x%05lx:%lu%% 0x%05lx:%lu%% 0x%05lx:%lu%%"
+                   " 0x%05lx:%lu%% 0x%05lx:%lu%%\n",
+                   (unsigned long)((pg_idx[0]+0x8000)*0x1000), (unsigned long)((pg_cnt[0]*100)/ti),
+                   (unsigned long)((pg_idx[1]+0x8000)*0x1000), (unsigned long)((pg_cnt[1]*100)/ti),
+                   (unsigned long)((pg_idx[2]+0x8000)*0x1000), (unsigned long)((pg_cnt[2]*100)/ti),
+                   (unsigned long)((pg_idx[3]+0x8000)*0x1000), (unsigned long)((pg_cnt[3]*100)/ti),
+                   (unsigned long)((pg_idx[4]+0x8000)*0x1000), (unsigned long)((pg_cnt[4]*100)/ti));
+
+            /* Top-5 BL targets */
+            u32 bl_idx[5] = {0};
+            u32 bl_cnt[5] = {0};
+            for (u32 i = 0; i < 512; i++) {
+              u32 c = prof_bl_targets[i].count;
+              if (c == 0) continue;
+              for (u32 j = 0; j < 5; j++) {
+                if (c > bl_cnt[j]) {
+                  for (u32 k = 4; k > j; k--) {
+                    bl_cnt[k] = bl_cnt[k-1];
+                    bl_idx[k] = bl_idx[k-1];
+                  }
+                  bl_cnt[j] = c;
+                  bl_idx[j] = i;
+                  break;
+                }
+              }
+            }
+            debugf("PROF:  aot-bl:"
+                   " 0x%08lx:%lu 0x%08lx:%lu 0x%08lx:%lu"
+                   " 0x%08lx:%lu 0x%08lx:%lu\n",
+                   (unsigned long)prof_bl_targets[bl_idx[0]].pc, (unsigned long)bl_cnt[0],
+                   (unsigned long)prof_bl_targets[bl_idx[1]].pc, (unsigned long)bl_cnt[1],
+                   (unsigned long)prof_bl_targets[bl_idx[2]].pc, (unsigned long)bl_cnt[2],
+                   (unsigned long)prof_bl_targets[bl_idx[3]].pc, (unsigned long)bl_cnt[3],
+                   (unsigned long)prof_bl_targets[bl_idx[4]].pc, (unsigned long)bl_cnt[4]);
+
+            memset(prof_page_hist, 0, sizeof(u32) * 6144);
+            memset(prof_bl_targets, 0, sizeof(prof_bl_targets[0]) * 512);
+          }
+#endif
+
           prof_emu = prof_blit = prof_total = prof_frames = 0;
           prof_ppu_ticks = 0;
           prof_arm_insns = prof_thumb_insns = 0;
