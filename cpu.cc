@@ -25,6 +25,7 @@ extern "C" {
 #ifdef N64
   extern "C" int aot_try_execute(s32 *cycles_remaining_ptr);
   extern "C" void aot_0806F160_entry(void);
+  extern "C" void aot_08005ED8_entry(void);
 
   /* Always-on lightweight perf counters (one increment each, no array store) */
   u32 prof_arm_insns = 0;
@@ -3183,6 +3184,11 @@ thumb_loop:
        if (__builtin_expect(reg[REG_PC] == 0x0806F160, 0)) {
          aot_0806F160_entry();
          cycles_remaining -= 200;
+         continue;
+       }
+       if (__builtin_expect(reg[REG_PC] == 0x08005ED8, 0)) {
+         aot_08005ED8_entry();
+         cycles_remaining -= 400;
          continue;
        }
        #endif
