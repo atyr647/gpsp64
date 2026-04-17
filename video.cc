@@ -27,6 +27,24 @@ u16* gba_screen_pixels = NULL;
 #define get_screen_pixels()   gba_screen_pixels
 #define get_screen_pitch()    GBA_SCREEN_PITCH
 
+#ifdef N64
+/* PPU sub-category timers (diagnostic, built only when PROFILE_PPU is
+ * defined — off in normal builds so the MFC0 reads don't bloat the
+ * scanline hot path).  Zeroed by n64_main.c after each PROF window. */
+#ifdef PROFILE_PPU
+#define PROF_PPU_TICK() ({ u32 _t; __asm__ volatile("mfc0 %0, $9" : "=r"(_t)); _t; })
+extern "C" {
+  u32 prof_ppu_obj_sort_ticks   = 0;  // order_obj
+  u32 prof_ppu_layer_order_ticks= 0;  // order_layers
+  u32 prof_ppu_render_ticks     = 0;  // render_scanline_window (all BG+OBJ+compose)
+  u32 prof_ppu_blank_ticks      = 0;  // forced-blank memset
+  u32 prof_ppu_affine_ticks     = 0;  // affine reference-update tail
+  u32 prof_ppu_sort_calls       = 0;
+  u32 prof_ppu_blank_calls      = 0;
+}
+#endif
+#endif
+
 typedef struct {
   u16 attr0, attr1, attr2, attr3;
 } t_oam;
@@ -2297,19 +2315,49 @@ void update_scanline(void)
   // reorder and reprofile the OBJ lists.
   if(reg[OAM_UPDATED])
   {
+#if defined(N64) && defined(PROFILE_PPU)
+    u32 _t0 = PROF_PPU_TICK();
+#endif
     order_obj(video_mode);
+#if defined(N64) && defined(PROFILE_PPU)
+    prof_ppu_obj_sort_ticks += PROF_PPU_TICK() - _t0;
+    prof_ppu_sort_calls++;
+#endif
     reg[OAM_UPDATED] = 0;
   }
 
+#if defined(N64) && defined(PROFILE_PPU)
+  u32 _t1 = PROF_PPU_TICK();
+#endif
   order_layers((dispcnt >> 8) & active_layers[video_mode], vcount);
+#if defined(N64) && defined(PROFILE_PPU)
+  prof_ppu_layer_order_ticks += PROF_PPU_TICK() - _t1;
+#endif
 
   // If the screen is in in forced blank draw pure white.
-  if(dispcnt & 0x80)
+  if(dispcnt & 0x80) {
+#if defined(N64) && defined(PROFILE_PPU)
+    u32 _t2 = PROF_PPU_TICK();
+#endif
     memset(screen_offset, 0xff, 240*sizeof(u16));
-  else
+#if defined(N64) && defined(PROFILE_PPU)
+    prof_ppu_blank_ticks += PROF_PPU_TICK() - _t2;
+    prof_ppu_blank_calls++;
+#endif
+  } else {
+#if defined(N64) && defined(PROFILE_PPU)
+    u32 _t2 = PROF_PPU_TICK();
+#endif
     render_scanline_window(screen_offset);
+#if defined(N64) && defined(PROFILE_PPU)
+    prof_ppu_render_ticks += PROF_PPU_TICK() - _t2;
+#endif
+  }
 
   // Mode 0 does not use any affine params at all.
+#if defined(N64) && defined(PROFILE_PPU)
+  u32 _t3 = PROF_PPU_TICK();
+#endif
   if (video_mode) {
     // Account for vertical mosaic effect, by correcting affine references.
     const u32 bgmosv = ((read_ioreg(REG_MOSAIC) >> 4) & 0xF) + 1;
@@ -2334,6 +2382,9 @@ void update_scanline(void)
       affine_reference_y[1] += (s16)read_ioreg(REG_BG3PD);
     }
   }
+#if defined(N64) && defined(PROFILE_PPU)
+  prof_ppu_affine_ticks += PROF_PPU_TICK() - _t3;
+#endif
 }
 
 

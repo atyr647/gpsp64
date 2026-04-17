@@ -22,6 +22,11 @@ CFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH
 CFLAGS += -DTINY_TRANSLATION_CACHE
 CFLAGS += -DROM_BUFFER_SIZE=2
 CFLAGS += -DUSE_XBGR1555_FORMAT
+# DIAGNOSTIC (temporary): opcode histograms + PPU sub-category timers.
+# These add ~5-10 cyc/insn overhead in the Thumb hot loop and a few
+# MFC0 reads per scanline.  Leave on during profiling passes; remove
+# both flags for a clean performance build.
+CFLAGS += -DPROFILE_OPCODES -DPROFILE_PPU
 CFLAGS += -I$(CURDIR) -I$(CURDIR)/n64
 CFLAGS += -w   # gpsp has many warnings incompatible with libdragon's -Werror
 CFLAGS += -mtune=vr4300 -falign-functions=32 -falign-loops=16

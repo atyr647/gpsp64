@@ -305,6 +305,37 @@ int main(void)
           memset(prof_arm_hist,   0, sizeof(prof_arm_hist));
 #endif
 
+#ifdef PROFILE_PPU
+          /* PPU sub-category breakdown within update_scanline, expressed
+           * as % of total PPU ticks (prof_ppu_ticks).  "sort" = OAM sort
+           * when OAM is dirty, "lo" = layer ordering per scanline,
+           * "render" = render_scanline_window (dispatches to BG/OBJ/
+           * compose), "blank" = forced-blank memset, "aff" = affine-
+           * reference tail update. */
+          extern u32 prof_ppu_obj_sort_ticks, prof_ppu_layer_order_ticks;
+          extern u32 prof_ppu_render_ticks, prof_ppu_blank_ticks;
+          extern u32 prof_ppu_affine_ticks;
+          extern u32 prof_ppu_sort_calls, prof_ppu_blank_calls;
+          {
+            u32 ppu = prof_ppu_ticks ? prof_ppu_ticks : 1;
+            debugf("PROF:  ppu: sort%lu%% lo%lu%% render%lu%% blank%lu%% aff%lu%% | sorts=%lu blanks=%lu\n",
+                   (unsigned long)((prof_ppu_obj_sort_ticks    * 100) / ppu),
+                   (unsigned long)((prof_ppu_layer_order_ticks * 100) / ppu),
+                   (unsigned long)((prof_ppu_render_ticks      * 100) / ppu),
+                   (unsigned long)((prof_ppu_blank_ticks       * 100) / ppu),
+                   (unsigned long)((prof_ppu_affine_ticks      * 100) / ppu),
+                   (unsigned long)prof_ppu_sort_calls,
+                   (unsigned long)prof_ppu_blank_calls);
+          }
+          prof_ppu_obj_sort_ticks = 0;
+          prof_ppu_layer_order_ticks = 0;
+          prof_ppu_render_ticks = 0;
+          prof_ppu_blank_ticks = 0;
+          prof_ppu_affine_ticks = 0;
+          prof_ppu_sort_calls = 0;
+          prof_ppu_blank_calls = 0;
+#endif
+
           prof_emu = prof_blit = prof_total = prof_frames = 0;
           prof_ppu_ticks = 0;
           prof_arm_insns = prof_thumb_insns = 0;
