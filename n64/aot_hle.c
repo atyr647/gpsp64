@@ -105,24 +105,10 @@ static void aot_0806F160(void)
     reg[REG_PC] = reg[REG_LR] & ~1u;
 }
 
-/* ===================================================================
- * AOT dispatch — called from the interpreter loop.
- * Returns 1 if PC matched an AOT function (which has already run),
- * 0 if no match (interpreter should handle normally).
- *
- * Cycle cost: fixed estimates per function.  Inaccurate per-insn but
- * correct for event timing — GBA games don't directly measure
- * instruction counts, only VBlank/timer events from update_gba.
- * =================================================================== */
-int aot_try_execute(s32 *cycles_remaining_ptr)
+/* Entry point wrappers — called directly from inline checks in cpu.cc.
+ * Each wraps an AOT function so it can be called without exposing the
+ * static implementation to the caller. */
+void aot_0806F160_entry(void)
 {
-    switch (reg[REG_PC]) {
-    case 0x0806F160:
-        aot_0806F160();
-        *cycles_remaining_ptr -= 200;
-        return 1;
-
-    default:
-        return 0;
-    }
+    aot_0806F160();
 }

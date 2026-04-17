@@ -24,6 +24,7 @@ extern "C" {
 
 #ifdef N64
   extern "C" int aot_try_execute(s32 *cycles_remaining_ptr);
+  extern "C" void aot_0806F160_entry(void);
 
   /* Always-on lightweight perf counters (one increment each, no array store) */
   u32 prof_arm_insns = 0;
@@ -3173,14 +3174,17 @@ thumb_loop:
        if (reg[REG_PC] == _cheat_hook)
           process_cheats();
 
-       /* AOT HLE: if PC matches a known hot function, run the native
-        * C version and skip interpretation entirely.  This is the
-        * mvs64-proven approach: bypass the interpreter for profiled
-        * hot functions.  The native version reads/writes reg[] and
-        * GBA memory directly, then sets PC = LR to return. */
+       /* AOT HLE: check for known hot function entry point.
+        * MUST be inline — a function call per Thumb insn adds ~15 cyc
+        * overhead that dwarfs the AOT savings.  The compare + unlikely
+        * branch costs ~2 cyc on miss.  Add more entry points here as
+        * AOT functions are implemented. */
        #ifdef N64
-       if (aot_try_execute(&cycles_remaining))
+       if (__builtin_expect(reg[REG_PC] == 0x0806F160, 0)) {
+         aot_0806F160_entry();
+         cycles_remaining -= 200;
          continue;
+       }
        #endif
 
        /* Execute THUMB instruction */
