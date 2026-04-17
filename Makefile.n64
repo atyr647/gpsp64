@@ -27,7 +27,12 @@ CFLAGS += -DUSE_XBGR1555_FORMAT
 #   -DPROFILE_PPU      PPU sub-category timers (~few MFC0/scanline)
 CFLAGS += -I$(CURDIR) -I$(CURDIR)/n64
 CFLAGS += -w   # gpsp has many warnings incompatible with libdragon's -Werror
+# VR4300 tuning + LTO.  -flto enables cross-TU inlining (critical for
+# memory access helpers called from interpreter).  -fomit-frame-pointer
+# frees $fp/$s8 for the register allocator.  Both flags proven in
+# picodrive64 and mvs64 N64 emulator projects on this same toolchain.
 CFLAGS += -mtune=vr4300 -falign-functions=32 -falign-loops=16
+CFLAGS += -flto -fomit-frame-pointer
 
 CXXFLAGS += $(filter-out -std=gnu17,$(filter -D% -I% -W%,$(CFLAGS))) -w
 CXXFLAGS += -fno-rtti -fno-exceptions
