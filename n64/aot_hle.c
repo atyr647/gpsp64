@@ -36,20 +36,24 @@ u8 aot_read8(u32 addr) {
     return 0;
 }
 
-void aot_write32(u32 addr, u32 val) {
-    u8 *map = memory_map_read[addr >> 15];
-    if (map) *(u32*)(map + (addr & 0x7FFF)) = eswap32(val);
-}
-
-void aot_write16(u32 addr, u16 val) {
-    u8 *map = memory_map_read[addr >> 15];
-    if (map) *(u16*)(map + (addr & 0x7FFF)) = eswap16(val);
-}
-
-void aot_write8(u32 addr, u8 val) {
-    u8 *map = memory_map_read[addr >> 15];
-    if (map) *(u8*)(map + (addr & 0x7FFF)) = val;
-}
+/* Writes route through gpSP's full write_memory* path so OAM updates
+ * the OAM_UPDATED flag, palette/VRAM go through their format/mirror
+ * helpers, IO regs dispatch to write_io_register*, and ROM/EEPROM/
+ * flash writes hit their backup handlers.  The fast inline-map path
+ * was only correct for EWRAM/IWRAM and silently dropped or
+ * mis-stored writes elsewhere -- which broke OAM-driven scenes (e.g.
+ * sprite-based title screen would never advance because the dirty
+ * flag was never set).
+ *
+ * write_memory* returns cpu_alert_type (DMA/IRQ trigger).  We discard
+ * it -- the interpreter consumes alerts on its own dispatch boundary;
+ * for AOT'd Thumb code the practical impact is that DMA/IRQ that fire
+ * mid-AOT process one instruction later than they would in the
+ * interpreter.  Fine for game logic, would matter only for cycle-
+ * exact demos.  */
+void aot_write32(u32 addr, u32 val) { (void)write_memory32(addr, val); }
+void aot_write16(u32 addr, u16 val) { (void)write_memory16(addr, val); }
+void aot_write8 (u32 addr, u8  val) { (void)write_memory8 (addr, val); }
 
 /* ===================================================================
  * AOT: 0x0806F160 — Animation frame initialization

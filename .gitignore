@@ -22,3 +22,6 @@ filesystem/gba/*.bin
 filesystem/gba/*.agb
 filesystem/gba_bios.bin
 tools/__pycache__/
+
+# AOT pipeline scratch
+n64/.aot_pcs.tmp

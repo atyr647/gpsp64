@@ -11,5 +11,4 @@
 # Format:
 #   <start_pc>  <end_pc>      # comment
 #
-# 0x08006000 — text engine + helpers (28% CPU in stable dialogue)
-0x08006000  0x08007000        # text engine page (GetStringWidth helpers etc.)
+0x08006000  0x08007000        # text engine page (GetStringWidth helpers)

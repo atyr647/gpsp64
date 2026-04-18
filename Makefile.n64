@@ -105,9 +105,9 @@ n64/aot_generated.c: $(AOT_TARGETS) $(AOT_TOOLS) $(AOT_ROM)
 	  printf '#include "../common.h"\nint aot_generated_dispatch(u32 pc){(void)pc;return 0;}\nconst u32 aot_page_bitmap[256]={0};\n' > $@; \
 	else \
 	  echo "    [AOT] scanning $(AOT_ROM)"; \
-	  pcs=$$(python3 tools/scan_targets.py "$(AOT_ROM)" $(AOT_TARGETS)); \
-	  echo "    [AOT] translating $$(echo $$pcs | wc -w) candidate functions"; \
-	  python3 tools/thumb2c.py "$(AOT_ROM)" $(AOT_EXCLUDE) $$pcs -o $@; \
+	  python3 tools/scan_targets.py "$(AOT_ROM)" $(AOT_TARGETS) > n64/.aot_pcs.tmp; \
+	  echo "    [AOT] translating $$(wc -l < n64/.aot_pcs.tmp) candidate functions"; \
+	  python3 tools/thumb2c.py "$(AOT_ROM)" $(AOT_EXCLUDE) --pcs-from n64/.aot_pcs.tmp -o $@; \
 	fi
 
 # Force DFS rebuild whenever filesystem contents change

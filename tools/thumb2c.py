@@ -98,16 +98,24 @@ def make_disasm():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('rom', help='GBA ROM path')
-    ap.add_argument('pcs', nargs='+', help='function entry PCs (hex, e.g. 0x0806F160)')
+    ap.add_argument('pcs', nargs='*', help='function entry PCs (hex)')
+    ap.add_argument('--pcs-from', help='read PCs from file (one hex per line)')
     ap.add_argument('-o', '--output', help='output .c file (default stdout)')
     ap.add_argument('--exclude', action='append', default=[],
                     help='hex PCs to skip (e.g. those covered by hand-written AOT)')
     args = ap.parse_args()
     excluded = {int(x, 0) & ~1 for x in args.exclude}
+    pc_strs = list(args.pcs)
+    if args.pcs_from:
+        with open(args.pcs_from) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    pc_strs.append(line)
 
     rom = load_rom(args.rom)
     md = make_disasm()
-    raw_targets = [int(pc, 0) & ~1 for pc in args.pcs]
+    raw_targets = [int(pc, 0) & ~1 for pc in pc_strs]
     # De-dupe and exclude
     seen = set()
     targets = []
