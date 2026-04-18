@@ -100,23 +100,35 @@ def main():
     ap.add_argument('rom', help='GBA ROM path')
     ap.add_argument('pcs', nargs='+', help='function entry PCs (hex, e.g. 0x0806F160)')
     ap.add_argument('-o', '--output', help='output .c file (default stdout)')
+    ap.add_argument('--exclude', action='append', default=[],
+                    help='hex PCs to skip (e.g. those covered by hand-written AOT)')
     args = ap.parse_args()
+    excluded = {int(x, 0) & ~1 for x in args.exclude}
 
     rom = load_rom(args.rom)
     md = make_disasm()
-    targets = [int(pc, 0) & ~1 for pc in args.pcs]
+    raw_targets = [int(pc, 0) & ~1 for pc in args.pcs]
+    # De-dupe and exclude
+    seen = set()
+    targets = []
+    for pc in raw_targets:
+        if pc in seen or pc in excluded:
+            continue
+        seen.add(pc)
+        targets.append(pc)
     target_set = set(targets)
 
     out = open(args.output, 'w') if args.output else sys.stdout
     emit_header(out, targets)
-    # Map entry_pc -> function_pc so dispatch can route both the head
-    # and BL continuations into the right function.
     entry_to_func = {}
     for pc in targets:
         entries = translate_function(out, rom, md, pc, target_set)
+        if entries is None:
+            continue
         for ep in entries:
             entry_to_func[ep] = pc
     emit_dispatch(out, entry_to_func)
+    emit_page_bitmap(out, entry_to_func.keys())
     if args.output:
         out.close()
 
@@ -193,6 +205,29 @@ def emit_dispatch(out, entry_to_func):
     out.write('    default: return 0;\n')
     out.write('    }\n')
     out.write('}\n')
+
+
+def emit_page_bitmap(out, entries):
+    """Emit a 4KB-page bitmap: 1 bit per page in the GBA address space.
+    cpu.cc uses this for a zero-overhead fast-reject — the bitmap is
+    only ~1KB and fits comfortably in D-cache, so the inline check is
+    just a load + shift + and + branch (predicted not-taken).
+
+    Indexed by `(pc >> 12) & 0x1FFF` — covers full 32MB ROM region
+    without bounds checks. Hash collisions with non-ROM PCs (e.g.
+    EWRAM/IWRAM) are harmless: the dispatch returns 0 on a non-match.
+    """
+    bitmap = [0] * 256  # 256 u32s × 32 bits = 8192 page slots
+    for pc in entries:
+        page_idx = (pc >> 12) & 0x1FFF
+        bitmap[page_idx >> 5] |= 1 << (page_idx & 31)
+    out.write('\n/* Page-presence bitmap (4KB-page granularity) for fast '
+              'reject in cpu.cc. */\n')
+    out.write('const u32 aot_page_bitmap[256] = {\n')
+    for i in range(0, 256, 8):
+        row = ', '.join(f'0x{bitmap[j]:08X}u' for j in range(i, i + 8))
+        out.write(f'    {row},\n')
+    out.write('};\n')
 
 
 MAX_FN_BYTES = 4096   # safety cap; bail if no return seen by then
@@ -919,10 +954,9 @@ def translate_insn(ins, ctx):
 def translate_function(out, rom, md, pc, target_set):
     res, err = disasm_function(rom, md, pc)
     if err:
+        # Skip entirely — don't register in dispatch table.
         out.write(f'/* SKIP 0x{pc:08X}: {err} */\n')
-        out.write(f'static void aot_gen_{pc:08X}(u32 ep) {{ '
-                  f'(void)ep; /* bail */ }}\n\n')
-        return [pc]
+        return None
 
     insns, branch_targets = res
     insn_addrs = {ins.address for ins in insns}

@@ -1,0 +1,15 @@
+# AOT HLE target ranges — one "start_hex end_hex" per line.
+#
+# Each range is scanned for Thumb function prologues (PUSH {..., lr})
+# and every detected function is translated to native C by thumb2c.py.
+# Comment lines start with #.
+#
+# Add hot regions discovered via PROFILE_AOT here.  Keep ranges tight
+# to limit generated-code bloat — scanning the whole ROM produces
+# thousands of false positives and a multi-MB .c file.
+#
+# Format:
+#   <start_pc>  <end_pc>      # comment
+#
+# 0x08006000 — text engine + helpers (28% CPU in stable dialogue)
+0x08006000  0x08007000        # text engine page (GetStringWidth helpers etc.)

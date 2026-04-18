@@ -21,3 +21,4 @@ filesystem/gba/*.gba
 filesystem/gba/*.bin
 filesystem/gba/*.agb
 filesystem/gba_bios.bin
+tools/__pycache__/

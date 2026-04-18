@@ -27,6 +27,7 @@ extern "C" {
   extern "C" void aot_0806F160_entry(void);
   extern "C" void aot_08005ED8_entry(void);
   extern "C" int  aot_generated_dispatch(u32 pc);
+  extern "C" const u32 aot_page_bitmap[256];
 
   /* Always-on lightweight perf counters (one increment each, no array store) */
   u32 prof_arm_insns = 0;
@@ -3176,26 +3177,13 @@ thumb_loop:
        if (reg[REG_PC] == _cheat_hook)
           process_cheats();
 
-       /* AOT HLE: check for known hot function entry point.
-        * MUST be inline — a function call per Thumb insn adds ~15 cyc
-        * overhead that dwarfs the AOT savings.  The compare + unlikely
-        * branch costs ~2 cyc on miss.  Add more entry points here as
-        * AOT functions are implemented. */
+       /* AOT HLE: check for known hot function entry points.
+        * Hand-written PCs (semantic shortcuts ~10x faster than 1:1)
+        * are checked first as inline cmps. Then a page-bitmap
+        * fast-reject gates the auto-generated dispatch — the bitmap
+        * is ~1KB and the inline check is just a load+shift+and+branch
+        * (predicted not-taken on miss). */
        #ifdef N64
-       #ifdef AOT_USE_GENERATED
-       /* A/B test: route the same hot PCs through the auto-generated
-        * thumb2c translation instead of the hand-written shortcuts.
-        * Used to validate translator correctness against ground-truth
-        * interpreter behavior.  Slower but proves the codegen is sound. */
-       u32 _aot_pc = reg[REG_PC];
-       if (__builtin_expect(_aot_pc == 0x0806F160 ||
-                            _aot_pc == 0x08005ED8, 0)) {
-         if (aot_generated_dispatch(_aot_pc)) {
-           cycles_remaining -= 200;
-           continue;
-         }
-       }
-       #else
        if (__builtin_expect(reg[REG_PC] == 0x0806F160, 0)) {
          aot_0806F160_entry();
          cycles_remaining -= 200;
@@ -3206,7 +3194,16 @@ thumb_loop:
          cycles_remaining -= 400;
          continue;
        }
-       #endif
+       {
+         u32 _pidx = (reg[REG_PC] >> 12) & 0x1FFF;
+         if (__builtin_expect(
+             (aot_page_bitmap[_pidx >> 5] >> (_pidx & 31)) & 1u, 0)) {
+           if (aot_generated_dispatch(reg[REG_PC])) {
+             cycles_remaining -= 100;
+             continue;
+           }
+         }
+       }
        #endif
 
        /* Execute THUMB instruction */

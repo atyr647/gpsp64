@@ -53,233 +53,8 @@ extern void aot_write8 (u32, u8);
     return; \
 } while(0)
 
-/* function 0x0806F160: 76 insns, 4 branch targets, 0 BL continuations */
-static void aot_gen_0806F160(u32 ep) {
-    u32 r0 = reg[0];
-    u32 r1 = reg[1];
-    u32 r2 = reg[2];
-    u32 r3 = reg[3];
-    u32 r4 = reg[4];
-    u32 r5 = reg[5];
-    u32 r6 = reg[6];
-    u32 r7 = reg[7];
-    u32 r8 = reg[8];
-    u32 r9 = reg[9];
-    u32 r10 = reg[10];
-    u32 r11 = reg[11];
-    u32 r12 = reg[12];
-    u32 sp = reg[13];
-    u32 lr = reg[14];
-    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
-    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
-    (void)cf; (void)nf; (void)zf; (void)vf;
-    /* 0806F160: push {r4, r5, r6, r7, lr} */
-    sp -= 20u;
-    aot_write32(sp + 0u, r4);
-    aot_write32(sp + 4u, r5);
-    aot_write32(sp + 8u, r6);
-    aot_write32(sp + 12u, r7);
-    aot_write32(sp + 16u, lr);
-    /* 0806F162: mov r7, sl */
-    r7 = r10;
-    /* 0806F164: mov r6, sb */
-    r6 = r9;
-    /* 0806F166: mov r5, r8 */
-    r5 = r8;
-    /* 0806F168: push {r5, r6, r7} */
-    sp -= 12u;
-    aot_write32(sp + 0u, r5);
-    aot_write32(sp + 4u, r6);
-    aot_write32(sp + 8u, r7);
-    /* 0806F16A: adds r6, r0, #0 */
-    { u32 _a=r0, _b=0x0u; r6=_a+_b; ADD_FLAGS(r6,_a,_b); }
-    /* 0806F16C: ldrb r0, [r6] */
-    r0 = aot_read8(r6);
-    /* 0806F16E: lsls r0, r0, #0x1c */
-    r0 = (r0 << 28);
-    LSL_FLAGS(r0, r0, 28);
-    /* 0806F170: movs r4, #0 */
-    r4 = 0x0u;
-    SET_NZ(r4);
-    /* 0806F172: cmp r0, #0 */
-    { u32 _a=r0, _b=0x0u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
-    /* 0806F174: beq #0x806f1ea */
-    if (zf) goto L0806F1EA;
-L0806F176:
-    /* 0806F176: ldr r0, [r6, #0xc] */
-    r0 = aot_read32((r6 + 12u));
-    /* 0806F178: lsls r2, r4, #1 */
-    r2 = (r4 << 1);
-    LSL_FLAGS(r2, r4, 1);
-    /* 0806F17A: adds r1, r2, r4 */
-    { u32 _a=r2, _b=r4; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
-    /* 0806F17C: lsls r1, r1, #3 */
-    r1 = (r1 << 3);
-    LSL_FLAGS(r1, r1, 3);
-    /* 0806F17E: adds r0, r1, r0 */
-    { u32 _a=r1, _b=r0; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
-    /* 0806F180: ldr r3, [pc, #0x74] */
-    r3 = aot_read32(0x806F1F8u);
-    /* 0806F182: adds r1, r1, r3 */
-    { u32 _a=r1, _b=r3; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
-    /* 0806F184: ldm r1!, {r3, r5, r7} */
-    r3 = aot_read32(r1 + 0u);
-    r5 = aot_read32(r1 + 4u);
-    r7 = aot_read32(r1 + 8u);
-    r1 += 12u;
-    /* 0806F186: stm r0!, {r3, r5, r7} */
-    aot_write32(r0 + 0u, r3);
-    aot_write32(r0 + 4u, r5);
-    aot_write32(r0 + 8u, r7);
-    r0 += 12u;
-    /* 0806F188: ldm r1!, {r3, r5, r7} */
-    r3 = aot_read32(r1 + 0u);
-    r5 = aot_read32(r1 + 4u);
-    r7 = aot_read32(r1 + 8u);
-    r1 += 12u;
-    /* 0806F18A: stm r0!, {r3, r5, r7} */
-    aot_write32(r0 + 0u, r3);
-    aot_write32(r0 + 4u, r5);
-    aot_write32(r0 + 8u, r7);
-    r0 += 12u;
-    /* 0806F18C: movs r5, #0 */
-    r5 = 0x0u;
-    SET_NZ(r5);
-    /* 0806F18E: ldrb r3, [r6, #1] */
-    r3 = aot_read8((r6 + 1u));
-    /* 0806F190: ldr r7, [r6, #0xc] */
-    r7 = aot_read32((r6 + 12u));
-    /* 0806F192: mov sb, r7 */
-    r9 = r7;
-    /* 0806F194: mov r8, r2 */
-    r8 = r2;
-    /* 0806F196: ldr r0, [r6, #0x10] */
-    r0 = aot_read32((r6 + 16u));
-    /* 0806F198: mov ip, r0 */
-    r12 = r0;
-    /* 0806F19A: adds r1, r4, #1 */
-    { u32 _a=r4, _b=0x1u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
-    /* 0806F19C: mov sl, r1 */
-    r10 = r1;
-    /* 0806F19E: cmp r5, r3 */
-    { u32 _a=r5, _b=r3, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
-    /* 0806F1A0: bhs #0x806f1c8 */
-    if (cf) goto L0806F1C8;
-    /* 0806F1A2: mov r7, ip */
-    r7 = r12;
-    /* 0806F1A4: ldr r1, [r6, #8] */
-    r1 = aot_read32((r6 + 8u));
-    /* 0806F1A6: lsls r0, r4, #2 */
-    r0 = (r4 << 2);
-    LSL_FLAGS(r0, r4, 2);
-    /* 0806F1A8: adds r0, r0, r1 */
-    { u32 _a=r0, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
-    /* 0806F1AA: ldr r2, [r0] */
-    r2 = aot_read32(r0);
-L0806F1AC:
-    /* 0806F1AC: adds r0, r4, #0 */
-    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
-    /* 0806F1AE: muls r0, r3, r0 */
-    r0 = r3 * r0;
-    SET_NZ(r0);
-    /* 0806F1B0: adds r0, r0, r5 */
-    { u32 _a=r0, _b=r5; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
-    /* 0806F1B2: lsls r0, r0, #3 */
-    r0 = (r0 << 3);
-    LSL_FLAGS(r0, r0, 3);
-    /* 0806F1B4: adds r0, r0, r7 */
-    { u32 _a=r0, _b=r7; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
-    /* 0806F1B6: lsls r1, r5, #0xb */
-    r1 = (r5 << 11);
-    LSL_FLAGS(r1, r5, 11);
-    /* 0806F1B8: adds r1, r2, r1 */
-    { u32 _a=r2, _b=r1; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
-    /* 0806F1BA: str r1, [r0] */
-    aot_write32(r0, r1);
-    /* 0806F1BC: adds r0, r5, #1 */
-    { u32 _a=r5, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
-    /* 0806F1BE: lsls r0, r0, #0x10 */
-    r0 = (r0 << 16);
-    LSL_FLAGS(r0, r0, 16);
-    /* 0806F1C0: lsrs r5, r0, #0x10 */
-    r5 = (r0 >> 16);
-    LSR_FLAGS(r5, r0, 16);
-    /* 0806F1C2: ldrb r3, [r6, #1] */
-    r3 = aot_read8((r6 + 1u));
-    /* 0806F1C4: cmp r5, r3 */
-    { u32 _a=r5, _b=r3, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
-    /* 0806F1C6: blo #0x806f1ac */
-    if (!cf) goto L0806F1AC;
-L0806F1C8:
-    /* 0806F1C8: mov r3, r8 */
-    r3 = r8;
-    /* 0806F1CA: adds r1, r3, r4 */
-    { u32 _a=r3, _b=r4; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
-    /* 0806F1CC: lsls r1, r1, #3 */
-    r1 = (r1 << 3);
-    LSL_FLAGS(r1, r1, 3);
-    /* 0806F1CE: add r1, sb */
-    r1 = r1 + r9;
-    /* 0806F1D0: ldrb r0, [r6, #1] */
-    r0 = aot_read8((r6 + 1u));
-    /* 0806F1D2: muls r0, r4, r0 */
-    r0 = r4 * r0;
-    SET_NZ(r0);
-    /* 0806F1D4: lsls r0, r0, #3 */
-    r0 = (r0 << 3);
-    LSL_FLAGS(r0, r0, 3);
-    /* 0806F1D6: add r0, ip */
-    r0 = r0 + r12;
-    /* 0806F1D8: str r0, [r1, #0xc] */
-    aot_write32((r1 + 12u), r0);
-    /* 0806F1DA: mov r5, sl */
-    r5 = r10;
-    /* 0806F1DC: lsls r0, r5, #0x10 */
-    r0 = (r5 << 16);
-    LSL_FLAGS(r0, r5, 16);
-    /* 0806F1DE: lsrs r4, r0, #0x10 */
-    r4 = (r0 >> 16);
-    LSR_FLAGS(r4, r0, 16);
-    /* 0806F1E0: ldrb r0, [r6] */
-    r0 = aot_read8(r6);
-    /* 0806F1E2: lsls r0, r0, #0x1c */
-    r0 = (r0 << 28);
-    LSL_FLAGS(r0, r0, 28);
-    /* 0806F1E4: lsrs r0, r0, #0x1c */
-    r0 = (r0 >> 28);
-    LSR_FLAGS(r0, r0, 28);
-    /* 0806F1E6: cmp r4, r0 */
-    { u32 _a=r4, _b=r0, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
-    /* 0806F1E8: blt #0x806f176 */
-    if ((nf != vf)) goto L0806F176;
-L0806F1EA:
-    /* 0806F1EA: pop {r3, r4, r5} */
-    r3 = aot_read32(sp + 0u);
-    r4 = aot_read32(sp + 4u);
-    r5 = aot_read32(sp + 8u);
-    sp += 12u;
-    /* 0806F1EC: mov r8, r3 */
-    r8 = r3;
-    /* 0806F1EE: mov sb, r4 */
-    r9 = r4;
-    /* 0806F1F0: mov sl, r5 */
-    r10 = r5;
-    /* 0806F1F2: pop {r4, r5, r6, r7} */
-    r4 = aot_read32(sp + 0u);
-    r5 = aot_read32(sp + 4u);
-    r6 = aot_read32(sp + 8u);
-    r7 = aot_read32(sp + 12u);
-    sp += 16u;
-    /* 0806F1F4: pop {r0} */
-    r0 = aot_read32(sp + 0u);
-    sp += 4u;
-    /* 0806F1F6: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
-    AOT_RETURN();
-}
-
-/* function 0x08005ED8: 53 insns, 4 branch targets, 2 BL continuations */
-static void aot_gen_08005ED8(u32 ep) {
+/* function 0x08006140: 43 insns, 0 branch targets, 2 BL continuations */
+static void aot_gen_08006140(u32 ep) {
     u32 r0 = reg[0];
     u32 r1 = reg[1];
     u32 r2 = reg[2];
@@ -299,161 +74,3652 @@ static void aot_gen_08005ED8(u32 ep) {
     u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
     (void)cf; (void)nf; (void)zf; (void)vf;
     switch (ep) {
-    case 0x08005EFCu: goto E_08005EFC;
-    case 0x08005F1Cu: goto E_08005F1C;
+    case 0x08006168u: goto E_08006168;
+    case 0x0800617Eu: goto E_0800617E;
     default: break;  /* fall through to function head */
     }
-    /* 08005ED8: push {r4, r5, r6, r7, lr} */
+    /* 08006140: push {r4, r5, r6, r7, lr} */
     sp -= 20u;
     aot_write32(sp + 0u, r4);
     aot_write32(sp + 4u, r5);
     aot_write32(sp + 8u, r6);
     aot_write32(sp + 12u, r7);
     aot_write32(sp + 16u, lr);
-    /* 08005EDA: mov r7, sl */
+    /* 08006142: mov r7, sl */
     r7 = r10;
-    /* 08005EDC: mov r6, sb */
+    /* 08006144: mov r6, sb */
     r6 = r9;
-    /* 08005EDE: mov r5, r8 */
+    /* 08006146: mov r5, r8 */
     r5 = r8;
-    /* 08005EE0: push {r5, r6, r7} */
+    /* 08006148: push {r5, r6, r7} */
     sp -= 12u;
     aot_write32(sp + 0u, r5);
     aot_write32(sp + 4u, r6);
     aot_write32(sp + 8u, r7);
-    /* 08005EE2: sub sp, #8 */
-    sp = sp - 0x8u;
-    /* 08005EE4: adds r4, r1, #0 */
-    { u32 _a=r1, _b=0x0u; r4=_a+_b; ADD_FLAGS(r4,_a,_b); }
-    /* 08005EE6: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
-    /* 08005EE8: lsrs r0, r0, #0x18 */
-    r0 = (r0 >> 24);
-    LSR_FLAGS(r0, r0, 24);
-    /* 08005EEA: adds r6, r0, #0 */
-    { u32 _a=r0, _b=0x0u; r6=_a+_b; ADD_FLAGS(r6,_a,_b); }
-    /* 08005EEC: lsls r2, r2, #0x10 */
-    r2 = (r2 << 16);
-    LSL_FLAGS(r2, r2, 16);
-    /* 08005EEE: lsrs r5, r2, #0x10 */
-    r5 = (r2 >> 16);
-    LSR_FLAGS(r5, r2, 16);
-    /* 08005EF0: movs r0, #0 */
-    r0 = 0x0u;
-    SET_NZ(r0);
-    /* 08005EF2: mov sb, r0 */
+    /* 0800614A: sub sp, #0x10 */
+    sp = sp - 0x10u;
+    /* 0800614C: mov sb, r0 */
     r9 = r0;
-    /* 08005EF4: movs r7, #0 */
-    r7 = 0x0u;
-    SET_NZ(r7);
-    /* 08005EF6: adds r0, r6, #0 */
-    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
-    /* 08005EF8: bl #0x8005ea8 */
-    lr = 0x8005EFDu;
-    BAIL(0x08005EA8u);
-E_08005EFC:
-    /* 08005EFC: mov r8, r0 */
-    r8 = r0;
-    /* 08005EFE: cmp r0, #0 */
-    { u32 _a=r0, _b=0x0u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
-    /* 08005F00: bne #0x8005f06 */
-    if (!zf) goto L08005F06;
-    /* 08005F02: movs r0, #0 */
+    /* 0800614E: adds r6, r2, #0 */
+    { u32 _a=r2, _b=0x0u; r6=_a+_b; ADD_FLAGS(r6,_a,_b); }
+    /* 08006150: lsls r1, r1, #0x18 */
+    r1 = (r1 << 24);
+    LSL_FLAGS(r1, r1, 24);
+    /* 08006152: lsrs r1, r1, #0x18 */
+    r1 = (r1 >> 24);
+    LSR_FLAGS(r1, r1, 24);
+    /* 08006154: str r1, [sp, #4] */
+    aot_write32((sp + 4u), r1);
+    /* 08006156: mov r4, sp */
+    r4 = sp;
+    /* 08006158: adds r4, #1 */
+    { u32 _a=r4, _b=0x1u; r4=_a+_b; ADD_FLAGS(r4,_a,_b); }
+    /* 0800615A: mov r5, sp */
+    r5 = sp;
+    /* 0800615C: adds r5, #2 */
+    { u32 _a=r5, _b=0x2u; r5=_a+_b; ADD_FLAGS(r5,_a,_b); }
+    /* 0800615E: mov r0, sp */
+    r0 = sp;
+    /* 08006160: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006162: adds r2, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r2=_a+_b; ADD_FLAGS(r2,_a,_b); }
+    /* 08006164: bl #0x8004be0 */
+    lr = 0x8006169u;
+    BAIL(0x08004BE0u);
+E_08006168:
+    /* 08006168: movs r0, #1 */
+    r0 = 0x1u;
+    SET_NZ(r0);
+    /* 0800616A: str r0, [sp, #8] */
+    aot_write32((sp + 8u), r0);
+    /* 0800616C: movs r0, #0 */
     r0 = 0x0u;
     SET_NZ(r0);
-    /* 08005F04: b #0x800612e */
-    BAIL(0x0800612Eu);
-L08005F06:
-    /* 08005F06: lsls r0, r5, #0x10 */
-    r0 = (r5 << 16);
-    LSL_FLAGS(r0, r5, 16);
-    /* 08005F08: asrs r2, r0, #0x10 */
-    r2 = (u32)((s32)r0 >> 16);
-    ASR_FLAGS(r2, r0, 16);
-    /* 08005F0A: movs r1, #1 */
-    r1 = 0x1u;
-    SET_NZ(r1);
-    /* 08005F0C: rsbs r1, r1, #0 */
-    { u32 _a=0u, _b=r1; r1=_a-_b; SUB_FLAGS(r1,_a,_b); }
-    /* 08005F0E: str r0, [sp, #4] */
-    aot_write32((sp + 4u), r0);
-    /* 08005F10: cmp r2, r1 */
-    { u32 _a=r2, _b=r1, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
-    /* 08005F12: bne #0x8005f24 */
-    if (!zf) goto L08005F24;
-    /* 08005F14: adds r0, r6, #0 */
-    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
-    /* 08005F16: movs r1, #2 */
-    r1 = 0x2u;
-    SET_NZ(r1);
-    /* 08005F18: bl #0x8006378 */
-    lr = 0x8005F1Du;
-    BAIL(0x08006378u);
-E_08005F1C:
-    /* 08005F1C: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
-    /* 08005F1E: lsrs r0, r0, #0x18 */
-    r0 = (r0 >> 24);
-    LSR_FLAGS(r0, r0, 24);
-    /* 08005F20: mov sl, r0 */
+    /* 0800616E: str r0, [sp, #0xc] */
+    aot_write32((sp + 12u), r0);
+    /* 08006170: movs r0, #3 */
+    r0 = 0x3u;
+    SET_NZ(r0);
+    /* 08006172: mov sl, r0 */
     r10 = r0;
-    /* 08005F22: b #0x8005f26 */
-    goto L08005F26;
-L08005F24:
-    /* 08005F24: mov sl, r2 */
-    r10 = r2;
-L08005F26:
-    /* 08005F26: movs r2, #0 */
-    r2 = 0x0u;
+    /* 08006174: movs r0, #1 */
+    r0 = 0x1u;
+    SET_NZ(r0);
+    /* 08006176: movs r1, #0 */
+    r1 = 0x0u;
+    SET_NZ(r1);
+    /* 08006178: movs r2, #3 */
+    r2 = 0x3u;
     SET_NZ(r2);
-    /* 08005F28: str r2, [sp] */
-    aot_write32(sp, r2);
-    /* 08005F2A: movs r5, #0 */
-    r5 = 0x0u;
-    SET_NZ(r5);
-    /* 08005F2C: movs r6, #0 */
+    /* 0800617A: bl #0x8004844 */
+    lr = 0x800617Fu;
+    BAIL(0x08004844u);
+E_0800617E:
+    /* 0800617E: adds r7, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r7=_a+_b; ADD_FLAGS(r7,_a,_b); }
+    /* 08006180: movs r6, #0 */
     r6 = 0x0u;
     SET_NZ(r6);
-    /* 08005F2E: b #0x800611e */
-    BAIL(0x0800611Eu);
-    /* 08005F30: ldrb r1, [r4] */
-    r1 = aot_read8(r4);
-    /* 08005F32: adds r0, r1, #0 */
-    { u32 _a=r1, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
-    /* 08005F34: subs r0, #0xf7 */
+    /* 08006182: adds r0, r7, r6 */
+    { u32 _a=r7, _b=r6; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006184: ldrb r0, [r0] */
+    r0 = aot_read8(r0);
+    /* 08006186: mov r8, r0 */
+    r8 = r0;
+    /* 08006188: adds r6, #1 */
+    { u32 _a=r6, _b=0x1u; r6=_a+_b; ADD_FLAGS(r6,_a,_b); }
+    /* 0800618A: subs r0, #0xf7 */
     { u32 _a=r0, _b=0xF7u; r0=_a-_b; SUB_FLAGS(r0,_a,_b); }
-    /* 08005F36: cmp r0, #7 */
-    { u32 _a=r0, _b=0x7u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
-    /* 08005F38: bls #0x8005f3c */
-    if ((!cf || zf)) goto L08005F3C;
-    /* 08005F3A: b #0x80060f8 */
-    BAIL(0x080060F8u);
-L08005F3C:
-    /* 08005F3C: lsls r0, r0, #2 */
+    /* 0800618C: cmp r0, #8 */
+    { u32 _a=r0, _b=0x8u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 0800618E: bhi #0x800627e */
+    if ((cf && !zf)) BAIL(0x0800627Eu);
+    /* 08006190: lsls r0, r0, #2 */
     r0 = (r0 << 2);
     LSL_FLAGS(r0, r0, 2);
-    /* 08005F3E: ldr r1, [pc, #8] */
-    r1 = aot_read32(0x8005F48u);
-    /* 08005F40: adds r0, r0, r1 */
+    /* 08006192: ldr r1, [pc, #8] */
+    r1 = aot_read32(0x800619Cu);
+    /* 08006194: adds r0, r0, r1 */
     { u32 _a=r0, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
-    /* 08005F42: ldr r0, [r0] */
+    /* 08006196: ldr r0, [r0] */
     r0 = aot_read32(r0);
-    /* 08005F44: mov pc, r0 */
+    /* 08006198: mov pc, r0 */
     reg[REG_PC] = r0;
     BAIL(reg[REG_PC]);
     AOT_RETURN();
 }
 
+/* function 0x080062E8: 34 insns, 0 branch targets, 1 BL continuations */
+static void aot_gen_080062E8(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x08006324u: goto E_08006324;
+    default: break;  /* fall through to function head */
+    }
+    /* 080062E8: push {r4, r5, lr} */
+    sp -= 12u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, lr);
+    /* 080062EA: sub sp, #0x18 */
+    sp = sp - 0x18u;
+    /* 080062EC: lsls r0, r0, #0x18 */
+    r0 = (r0 << 24);
+    LSL_FLAGS(r0, r0, 24);
+    /* 080062EE: lsrs r0, r0, #0x18 */
+    r0 = (r0 >> 24);
+    LSR_FLAGS(r0, r0, 24);
+    /* 080062F0: lsls r1, r1, #0x18 */
+    r1 = (r1 << 24);
+    LSL_FLAGS(r1, r1, 24);
+    /* 080062F2: lsls r2, r2, #0x10 */
+    r2 = (r2 << 16);
+    LSL_FLAGS(r2, r2, 16);
+    /* 080062F4: lsrs r2, r2, #0x10 */
+    r2 = (r2 >> 16);
+    LSR_FLAGS(r2, r2, 16);
+    /* 080062F6: lsls r3, r3, #0x10 */
+    r3 = (r3 << 16);
+    LSL_FLAGS(r3, r3, 16);
+    /* 080062F8: lsrs r3, r3, #0x10 */
+    r3 = (r3 >> 16);
+    LSR_FLAGS(r3, r3, 16);
+    /* 080062FA: ldr r4, [pc, #0x34] */
+    r4 = aot_read32(0x8006330u);
+    /* 080062FC: lsrs r1, r1, #0x16 */
+    r1 = (r1 >> 22);
+    LSR_FLAGS(r1, r1, 22);
+    /* 080062FE: adds r1, r1, r4 */
+    { u32 _a=r1, _b=r4; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006300: ldrh r5, [r1] */
+    r5 = aot_read16(r1);
+    /* 08006302: lsls r5, r5, #5 */
+    r5 = (r5 << 5);
+    LSL_FLAGS(r5, r5, 5);
+    /* 08006304: ldr r4, [pc, #0x2c] */
+    r4 = aot_read32(0x8006334u);
+    /* 08006306: adds r5, r5, r4 */
+    { u32 _a=r5, _b=r4; r5=_a+_b; ADD_FLAGS(r5,_a,_b); }
+    /* 08006308: movs r4, #0x80 */
+    r4 = 0x80u;
+    SET_NZ(r4);
+    /* 0800630A: str r4, [sp] */
+    aot_write32(sp, r4);
+    /* 0800630C: str r4, [sp, #4] */
+    aot_write32((sp + 4u), r4);
+    /* 0800630E: str r2, [sp, #8] */
+    aot_write32((sp + 8u), r2);
+    /* 08006310: str r3, [sp, #0xc] */
+    aot_write32((sp + 12u), r3);
+    /* 08006312: ldrb r4, [r1, #2] */
+    r4 = aot_read8((r1 + 2u));
+    /* 08006314: str r4, [sp, #0x10] */
+    aot_write32((sp + 16u), r4);
+    /* 08006316: ldrb r1, [r1, #3] */
+    r1 = aot_read8((r1 + 3u));
+    /* 08006318: str r1, [sp, #0x14] */
+    aot_write32((sp + 20u), r1);
+    /* 0800631A: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800631C: movs r2, #0 */
+    r2 = 0x0u;
+    SET_NZ(r2);
+    /* 0800631E: movs r3, #0 */
+    r3 = 0x0u;
+    SET_NZ(r3);
+    /* 08006320: bl #0x80039dc */
+    lr = 0x8006325u;
+    BAIL(0x080039DCu);
+E_08006324:
+    /* 08006324: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006326: add sp, #0x18 */
+    sp = sp + 0x18u;
+    /* 08006328: pop {r4, r5} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    sp += 8u;
+    /* 0800632A: pop {r1} */
+    r1 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 0800632C: bx r1 */
+    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006368: 5 insns, 0 branch targets, 1 BL continuations */
+static void aot_gen_08006368(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x08006370u: goto E_08006370;
+    default: break;  /* fall through to function head */
+    }
+    /* 08006368: push {lr} */
+    sp -= 4u;
+    aot_write32(sp + 0u, lr);
+    /* 0800636A: ldr r0, [pc, #8] */
+    r0 = aot_read32(0x8006374u);
+    /* 0800636C: bl #0x80045a4 */
+    lr = 0x8006371u;
+    BAIL(0x080045A4u);
+E_08006370:
+    /* 08006370: pop {r0} */
+    r0 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006372: bx r0 */
+    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006378: 13 insns, 0 branch targets, 0 BL continuations */
+static void aot_gen_08006378(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    /* 08006378: push {lr} */
+    sp -= 4u;
+    aot_write32(sp + 0u, lr);
+    /* 0800637A: lsls r0, r0, #0x18 */
+    r0 = (r0 << 24);
+    LSL_FLAGS(r0, r0, 24);
+    /* 0800637C: lsrs r2, r0, #0x18 */
+    r2 = (r0 >> 24);
+    LSR_FLAGS(r2, r0, 24);
+    /* 0800637E: lsls r1, r1, #0x18 */
+    r1 = (r1 << 24);
+    LSL_FLAGS(r1, r1, 24);
+    /* 08006380: lsrs r1, r1, #0x18 */
+    r1 = (r1 >> 24);
+    LSR_FLAGS(r1, r1, 24);
+    /* 08006382: movs r0, #0 */
+    r0 = 0x0u;
+    SET_NZ(r0);
+    /* 08006384: cmp r1, #7 */
+    { u32 _a=r1, _b=0x7u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006386: bhi #0x8006456 */
+    if ((cf && !zf)) BAIL(0x08006456u);
+    /* 08006388: lsls r0, r1, #2 */
+    r0 = (r1 << 2);
+    LSL_FLAGS(r0, r1, 2);
+    /* 0800638A: ldr r1, [pc, #8] */
+    r1 = aot_read32(0x8006394u);
+    /* 0800638C: adds r0, r0, r1 */
+    { u32 _a=r0, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800638E: ldr r0, [r0] */
+    r0 = aot_read32(r0);
+    /* 08006390: mov pc, r0 */
+    reg[REG_PC] = r0;
+    BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006478: 89 insns, 4 branch targets, 8 BL continuations */
+static void aot_gen_08006478(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x0800649Cu: goto E_0800649C;
+    case 0x080064AAu: goto E_080064AA;
+    case 0x080064E4u: goto E_080064E4;
+    case 0x080064F0u: goto E_080064F0;
+    case 0x08006508u: goto E_08006508;
+    case 0x08006514u: goto E_08006514;
+    case 0x08006520u: goto E_08006520;
+    case 0x0800652Cu: goto E_0800652C;
+    default: break;  /* fall through to function head */
+    }
+    /* 08006478: push {r4, r5, lr} */
+    sp -= 12u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, lr);
+    /* 0800647A: lsls r0, r0, #0x10 */
+    r0 = (r0 << 16);
+    LSL_FLAGS(r0, r0, 16);
+    /* 0800647C: lsrs r3, r0, #0x10 */
+    r3 = (r0 >> 16);
+    LSR_FLAGS(r3, r0, 16);
+    /* 0800647E: cmp r1, #1 */
+    { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006480: bne #0x80064c4 */
+    if (!zf) goto L080064C4;
+    /* 08006482: lsrs r2, r0, #0x14 */
+    r2 = (r0 >> 20);
+    LSR_FLAGS(r2, r0, 20);
+    /* 08006484: lsls r2, r2, #9 */
+    r2 = (r2 << 9);
+    LSL_FLAGS(r2, r2, 9);
+    /* 08006486: movs r0, #0xf */
+    r0 = 0xFu;
+    SET_NZ(r0);
+    /* 08006488: ands r0, r3 */
+    r0 = (r0 & r3);
+    SET_NZ(r0);
+    /* 0800648A: lsls r0, r0, #4 */
+    r0 = (r0 << 4);
+    LSL_FLAGS(r0, r0, 4);
+    /* 0800648C: ldr r1, [pc, #0x2c] */
+    r1 = aot_read32(0x80064BCu);
+    /* 0800648E: adds r0, r0, r1 */
+    { u32 _a=r0, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006490: adds r5, r2, r0 */
+    { u32 _a=r2, _b=r0; r5=_a+_b; ADD_FLAGS(r5,_a,_b); }
+    /* 08006492: ldr r4, [pc, #0x2c] */
+    r4 = aot_read32(0x80064C0u);
+    /* 08006494: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006496: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006498: bl #0x8004c10 */
+    lr = 0x800649Du;
+    BAIL(0x08004C10u);
+E_0800649C:
+    /* 0800649C: movs r1, #0x80 */
+    r1 = 0x80u;
+    SET_NZ(r1);
+    /* 0800649E: lsls r1, r1, #1 */
+    r1 = (r1 << 1);
+    LSL_FLAGS(r1, r1, 1);
+    /* 080064A0: adds r0, r5, r1 */
+    { u32 _a=r5, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080064A2: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080064A4: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080064A6: bl #0x8004c10 */
+    lr = 0x80064ABu;
+    BAIL(0x08004C10u);
+E_080064AA:
+    /* 080064AA: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080064AC: adds r1, #0x80 */
+    { u32 _a=r1, _b=0x80u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080064AE: movs r0, #8 */
+    r0 = 0x8u;
+    SET_NZ(r0);
+    /* 080064B0: strb r0, [r1] */
+    aot_write8(r1, r0);
+    /* 080064B2: adds r4, #0x81 */
+    { u32 _a=r4, _b=0x81u; r4=_a+_b; ADD_FLAGS(r4,_a,_b); }
+    /* 080064B4: movs r0, #0xc */
+    r0 = 0xCu;
+    SET_NZ(r0);
+    /* 080064B6: strb r0, [r4] */
+    aot_write8(r4, r0);
+    /* 080064B8: b #0x8006534 */
+    goto L08006534;
+    /* 080064BA: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 080064BC: add ip, ip */
+    r12 = r12 + r12;
+    /* 080064BE: lsrs r5, r4, #1 */
+    r5 = (r4 >> 1);
+    LSR_FLAGS(r5, r4, 1);
+    /* 080064C0: cmp r7, #0x90 */
+    { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080064C2: lsls r0, r0, #0xc */
+    r0 = (r0 << 12);
+    LSL_FLAGS(r0, r0, 12);
+L080064C4:
+    /* 080064C4: lsls r1, r3, #6 */
+    r1 = (r3 << 6);
+    LSL_FLAGS(r1, r3, 6);
+    /* 080064C6: ldr r0, [pc, #0x2c] */
+    r0 = aot_read32(0x80064F4u);
+    /* 080064C8: adds r5, r1, r0 */
+    { u32 _a=r1, _b=r0; r5=_a+_b; ADD_FLAGS(r5,_a,_b); }
+    /* 080064CA: ldr r4, [pc, #0x2c] */
+    r4 = aot_read32(0x80064F8u);
+    /* 080064CC: ldr r0, [pc, #0x2c] */
+    r0 = aot_read32(0x80064FCu);
+    /* 080064CE: adds r0, r3, r0 */
+    { u32 _a=r3, _b=r0; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080064D0: ldrb r1, [r0] */
+    r1 = aot_read8(r0);
+    /* 080064D2: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080064D4: adds r0, #0x80 */
+    { u32 _a=r0, _b=0x80u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080064D6: strb r1, [r0] */
+    aot_write8(r0, r1);
+    /* 080064D8: cmp r1, #8 */
+    { u32 _a=r1, _b=0x8u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080064DA: bhi #0x8006500 */
+    if ((cf && !zf)) goto L08006500;
+    /* 080064DC: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080064DE: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080064E0: bl #0x8004c10 */
+    lr = 0x80064E5u;
+    BAIL(0x08004C10u);
+E_080064E4:
+    /* 080064E4: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080064E6: adds r0, #0x20 */
+    { u32 _a=r0, _b=0x20u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080064E8: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080064EA: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080064EC: bl #0x8004c10 */
+    lr = 0x80064F1u;
+    BAIL(0x08004C10u);
+E_080064F0:
+    /* 080064F0: b #0x800652c */
+    goto L0800652C;
+    /* 080064F2: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 080064F4: subs r4, #0xe4 */
+    { u32 _a=r4, _b=0xE4u; r4=_a-_b; SUB_FLAGS(r4,_a,_b); }
+    /* 080064F6: lsrs r3, r4, #1 */
+    r3 = (r4 >> 1);
+    LSR_FLAGS(r3, r4, 1);
+    /* 080064F8: cmp r7, #0x90 */
+    { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080064FA: lsls r0, r0, #0xc */
+    r0 = (r0 << 12);
+    LSL_FLAGS(r0, r0, 12);
+    /* 080064FC: pop {r2, r5, r6, r7} */
+    r2 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    r6 = aot_read32(sp + 8u);
+    r7 = aot_read32(sp + 12u);
+    sp += 16u;
+    /* 080064FE: lsrs r3, r4, #1 */
+    r3 = (r4 >> 1);
+    LSR_FLAGS(r3, r4, 1);
+L08006500:
+    /* 08006500: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006502: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006504: bl #0x8004c10 */
+    lr = 0x8006509u;
+    BAIL(0x08004C10u);
+E_08006508:
+    /* 08006508: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800650A: adds r0, #0x10 */
+    { u32 _a=r0, _b=0x10u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800650C: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800650E: adds r1, #0x20 */
+    { u32 _a=r1, _b=0x20u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006510: bl #0x8004c10 */
+    lr = 0x8006515u;
+    BAIL(0x08004C10u);
+E_08006514:
+    /* 08006514: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006516: adds r0, #0x20 */
+    { u32 _a=r0, _b=0x20u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006518: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800651A: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800651C: bl #0x8004c10 */
+    lr = 0x8006521u;
+    BAIL(0x08004C10u);
+E_08006520:
+    /* 08006520: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006522: adds r0, #0x30 */
+    { u32 _a=r0, _b=0x30u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006524: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006526: adds r1, #0x60 */
+    { u32 _a=r1, _b=0x60u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006528: bl #0x8004c10 */
+    lr = 0x800652Du;
+    BAIL(0x08004C10u);
+L0800652C:
+E_0800652C:
+    /* 0800652C: ldr r0, [pc, #0xc] */
+    r0 = aot_read32(0x800653Cu);
+    /* 0800652E: adds r0, #0x81 */
+    { u32 _a=r0, _b=0x81u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006530: movs r1, #0xd */
+    r1 = 0xDu;
+    SET_NZ(r1);
+    /* 08006532: strb r1, [r0] */
+    aot_write8(r0, r1);
+L08006534:
+    /* 08006534: pop {r4, r5} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    sp += 8u;
+    /* 08006536: pop {r0} */
+    r0 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006538: bx r0 */
+    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006540: 15 insns, 2 branch targets, 0 BL continuations */
+static void aot_gen_08006540(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    /* 08006540: push {lr} */
+    sp -= 4u;
+    aot_write32(sp + 0u, lr);
+    /* 08006542: lsls r0, r0, #0x10 */
+    r0 = (r0 << 16);
+    LSL_FLAGS(r0, r0, 16);
+    /* 08006544: lsrs r2, r0, #0x10 */
+    r2 = (r0 >> 16);
+    LSR_FLAGS(r2, r0, 16);
+    /* 08006546: cmp r1, #1 */
+    { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006548: beq #0x8006558 */
+    if (zf) goto L08006558;
+    /* 0800654A: ldr r0, [pc, #8] */
+    r0 = aot_read32(0x8006554u);
+    /* 0800654C: adds r0, r2, r0 */
+    { u32 _a=r2, _b=r0; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800654E: ldrb r0, [r0] */
+    r0 = aot_read8(r0);
+    /* 08006550: b #0x800655a */
+    goto L0800655A;
+    /* 08006552: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 08006554: pop {r2, r5, r6, r7} */
+    r2 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    r6 = aot_read32(sp + 8u);
+    r7 = aot_read32(sp + 12u);
+    sp += 16u;
+    /* 08006556: lsrs r3, r4, #1 */
+    r3 = (r4 >> 1);
+    LSR_FLAGS(r3, r4, 1);
+L08006558:
+    /* 08006558: movs r0, #8 */
+    r0 = 0x8u;
+    SET_NZ(r0);
+L0800655A:
+    /* 0800655A: pop {r1} */
+    r1 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 0800655C: bx r1 */
+    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006560: 89 insns, 4 branch targets, 8 BL continuations */
+static void aot_gen_08006560(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x08006586u: goto E_08006586;
+    case 0x08006594u: goto E_08006594;
+    case 0x080065CCu: goto E_080065CC;
+    case 0x080065D8u: goto E_080065D8;
+    case 0x080065F0u: goto E_080065F0;
+    case 0x080065FCu: goto E_080065FC;
+    case 0x08006608u: goto E_08006608;
+    case 0x08006614u: goto E_08006614;
+    default: break;  /* fall through to function head */
+    }
+    /* 08006560: push {r4, r5, r6, lr} */
+    sp -= 16u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, r6);
+    aot_write32(sp + 12u, lr);
+    /* 08006562: lsls r0, r0, #0x10 */
+    r0 = (r0 << 16);
+    LSL_FLAGS(r0, r0, 16);
+    /* 08006564: lsrs r3, r0, #0x10 */
+    r3 = (r0 >> 16);
+    LSR_FLAGS(r3, r0, 16);
+    /* 08006566: cmp r1, #1 */
+    { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006568: bne #0x80065ac */
+    if (!zf) goto L080065AC;
+    /* 0800656A: lsrs r2, r0, #0x14 */
+    r2 = (r0 >> 20);
+    LSR_FLAGS(r2, r0, 20);
+    /* 0800656C: lsls r2, r2, #9 */
+    r2 = (r2 << 9);
+    LSL_FLAGS(r2, r2, 9);
+    /* 0800656E: movs r5, #0xf */
+    r5 = 0xFu;
+    SET_NZ(r5);
+    /* 08006570: adds r0, r3, #0 */
+    { u32 _a=r3, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006572: ands r0, r5 */
+    r0 = (r0 & r5);
+    SET_NZ(r0);
+    /* 08006574: lsls r0, r0, #4 */
+    r0 = (r0 << 4);
+    LSL_FLAGS(r0, r0, 4);
+    /* 08006576: ldr r1, [pc, #0x2c] */
+    r1 = aot_read32(0x80065A4u);
+    /* 08006578: adds r0, r0, r1 */
+    { u32 _a=r0, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800657A: adds r6, r2, r0 */
+    { u32 _a=r2, _b=r0; r6=_a+_b; ADD_FLAGS(r6,_a,_b); }
+    /* 0800657C: ldr r4, [pc, #0x28] */
+    r4 = aot_read32(0x80065A8u);
+    /* 0800657E: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006580: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006582: bl #0x8004c10 */
+    lr = 0x8006587u;
+    BAIL(0x08004C10u);
+E_08006586:
+    /* 08006586: movs r1, #0x80 */
+    r1 = 0x80u;
+    SET_NZ(r1);
+    /* 08006588: lsls r1, r1, #1 */
+    r1 = (r1 << 1);
+    LSL_FLAGS(r1, r1, 1);
+    /* 0800658A: adds r0, r6, r1 */
+    { u32 _a=r6, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800658C: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800658E: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006590: bl #0x8004c10 */
+    lr = 0x8006595u;
+    BAIL(0x08004C10u);
+E_08006594:
+    /* 08006594: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006596: adds r1, #0x80 */
+    { u32 _a=r1, _b=0x80u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006598: movs r0, #8 */
+    r0 = 0x8u;
+    SET_NZ(r0);
+    /* 0800659A: strb r0, [r1] */
+    aot_write8(r1, r0);
+    /* 0800659C: adds r4, #0x81 */
+    { u32 _a=r4, _b=0x81u; r4=_a+_b; ADD_FLAGS(r4,_a,_b); }
+    /* 0800659E: strb r5, [r4] */
+    aot_write8(r4, r5);
+    /* 080065A0: b #0x800661c */
+    goto L0800661C;
+    /* 080065A2: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 080065A4: strh r4, [r4, #0x26] */
+    aot_write16((r4 + 38u), r4);
+    /* 080065A6: lsrs r5, r4, #1 */
+    r5 = (r4 >> 1);
+    LSR_FLAGS(r5, r4, 1);
+    /* 080065A8: cmp r7, #0x90 */
+    { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080065AA: lsls r0, r0, #0xc */
+    r0 = (r0 << 12);
+    LSL_FLAGS(r0, r0, 12);
+L080065AC:
+    /* 080065AC: lsls r1, r3, #6 */
+    r1 = (r3 << 6);
+    LSL_FLAGS(r1, r3, 6);
+    /* 080065AE: ldr r0, [pc, #0x2c] */
+    r0 = aot_read32(0x80065DCu);
+    /* 080065B0: adds r6, r1, r0 */
+    { u32 _a=r1, _b=r0; r6=_a+_b; ADD_FLAGS(r6,_a,_b); }
+    /* 080065B2: ldr r4, [pc, #0x2c] */
+    r4 = aot_read32(0x80065E0u);
+    /* 080065B4: ldr r0, [pc, #0x2c] */
+    r0 = aot_read32(0x80065E4u);
+    /* 080065B6: adds r0, r3, r0 */
+    { u32 _a=r3, _b=r0; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080065B8: ldrb r1, [r0] */
+    r1 = aot_read8(r0);
+    /* 080065BA: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080065BC: adds r0, #0x80 */
+    { u32 _a=r0, _b=0x80u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080065BE: strb r1, [r0] */
+    aot_write8(r0, r1);
+    /* 080065C0: cmp r1, #8 */
+    { u32 _a=r1, _b=0x8u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080065C2: bhi #0x80065e8 */
+    if ((cf && !zf)) goto L080065E8;
+    /* 080065C4: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080065C6: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080065C8: bl #0x8004c10 */
+    lr = 0x80065CDu;
+    BAIL(0x08004C10u);
+E_080065CC:
+    /* 080065CC: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080065CE: adds r0, #0x20 */
+    { u32 _a=r0, _b=0x20u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080065D0: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080065D2: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080065D4: bl #0x8004c10 */
+    lr = 0x80065D9u;
+    BAIL(0x08004C10u);
+E_080065D8:
+    /* 080065D8: b #0x8006614 */
+    goto L08006614;
+    /* 080065DA: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 080065DC: bkpt #0xe4 */
+    BAIL(0x080065DCu); /* unsupported: bkpt #0xe4 */
+    /* 080065DE: lsrs r3, r4, #1 */
+    r3 = (r4 >> 1);
+    LSR_FLAGS(r3, r4, 1);
+    /* 080065E0: cmp r7, #0x90 */
+    { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080065E2: lsls r0, r0, #0xc */
+    r0 = (r0 << 12);
+    LSL_FLAGS(r0, r0, 12);
+    /* 080065E4: subs r6, #0xe4 */
+    { u32 _a=r6, _b=0xE4u; r6=_a-_b; SUB_FLAGS(r6,_a,_b); }
+    /* 080065E6: lsrs r4, r4, #1 */
+    r4 = (r4 >> 1);
+    LSR_FLAGS(r4, r4, 1);
+L080065E8:
+    /* 080065E8: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080065EA: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080065EC: bl #0x8004c10 */
+    lr = 0x80065F1u;
+    BAIL(0x08004C10u);
+E_080065F0:
+    /* 080065F0: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080065F2: adds r0, #0x10 */
+    { u32 _a=r0, _b=0x10u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080065F4: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080065F6: adds r1, #0x20 */
+    { u32 _a=r1, _b=0x20u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080065F8: bl #0x8004c10 */
+    lr = 0x80065FDu;
+    BAIL(0x08004C10u);
+E_080065FC:
+    /* 080065FC: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080065FE: adds r0, #0x20 */
+    { u32 _a=r0, _b=0x20u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006600: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006602: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006604: bl #0x8004c10 */
+    lr = 0x8006609u;
+    BAIL(0x08004C10u);
+E_08006608:
+    /* 08006608: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800660A: adds r0, #0x30 */
+    { u32 _a=r0, _b=0x30u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800660C: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800660E: adds r1, #0x60 */
+    { u32 _a=r1, _b=0x60u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006610: bl #0x8004c10 */
+    lr = 0x8006615u;
+    BAIL(0x08004C10u);
+L08006614:
+E_08006614:
+    /* 08006614: ldr r0, [pc, #0xc] */
+    r0 = aot_read32(0x8006624u);
+    /* 08006616: adds r0, #0x81 */
+    { u32 _a=r0, _b=0x81u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006618: movs r1, #0xf */
+    r1 = 0xFu;
+    SET_NZ(r1);
+    /* 0800661A: strb r1, [r0] */
+    aot_write8(r0, r1);
+L0800661C:
+    /* 0800661C: pop {r4, r5, r6} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    r6 = aot_read32(sp + 8u);
+    sp += 12u;
+    /* 0800661E: pop {r0} */
+    r0 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006620: bx r0 */
+    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* 0x08006560 BAILs (1): bkpt@080065DC */
+
+/* function 0x08006628: 15 insns, 2 branch targets, 0 BL continuations */
+static void aot_gen_08006628(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    /* 08006628: push {lr} */
+    sp -= 4u;
+    aot_write32(sp + 0u, lr);
+    /* 0800662A: lsls r0, r0, #0x10 */
+    r0 = (r0 << 16);
+    LSL_FLAGS(r0, r0, 16);
+    /* 0800662C: lsrs r2, r0, #0x10 */
+    r2 = (r0 >> 16);
+    LSR_FLAGS(r2, r0, 16);
+    /* 0800662E: cmp r1, #1 */
+    { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006630: beq #0x8006640 */
+    if (zf) goto L08006640;
+    /* 08006632: ldr r0, [pc, #8] */
+    r0 = aot_read32(0x800663Cu);
+    /* 08006634: adds r0, r2, r0 */
+    { u32 _a=r2, _b=r0; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006636: ldrb r0, [r0] */
+    r0 = aot_read8(r0);
+    /* 08006638: b #0x8006642 */
+    goto L08006642;
+    /* 0800663A: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 0800663C: subs r6, #0xe4 */
+    { u32 _a=r6, _b=0xE4u; r6=_a-_b; SUB_FLAGS(r6,_a,_b); }
+    /* 0800663E: lsrs r4, r4, #1 */
+    r4 = (r4 >> 1);
+    LSR_FLAGS(r4, r4, 1);
+L08006640:
+    /* 08006640: movs r0, #8 */
+    r0 = 0x8u;
+    SET_NZ(r0);
+L08006642:
+    /* 08006642: pop {r1} */
+    r1 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006644: bx r1 */
+    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006648: 89 insns, 4 branch targets, 8 BL continuations */
+static void aot_gen_08006648(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x0800666Cu: goto E_0800666C;
+    case 0x0800667Au: goto E_0800667A;
+    case 0x080066B4u: goto E_080066B4;
+    case 0x080066C0u: goto E_080066C0;
+    case 0x080066D8u: goto E_080066D8;
+    case 0x080066E4u: goto E_080066E4;
+    case 0x080066F0u: goto E_080066F0;
+    case 0x080066FCu: goto E_080066FC;
+    default: break;  /* fall through to function head */
+    }
+    /* 08006648: push {r4, r5, lr} */
+    sp -= 12u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, lr);
+    /* 0800664A: lsls r0, r0, #0x10 */
+    r0 = (r0 << 16);
+    LSL_FLAGS(r0, r0, 16);
+    /* 0800664C: lsrs r3, r0, #0x10 */
+    r3 = (r0 >> 16);
+    LSR_FLAGS(r3, r0, 16);
+    /* 0800664E: cmp r1, #1 */
+    { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006650: bne #0x8006694 */
+    if (!zf) goto L08006694;
+    /* 08006652: lsrs r2, r0, #0x14 */
+    r2 = (r0 >> 20);
+    LSR_FLAGS(r2, r0, 20);
+    /* 08006654: lsls r2, r2, #9 */
+    r2 = (r2 << 9);
+    LSL_FLAGS(r2, r2, 9);
+    /* 08006656: movs r0, #0xf */
+    r0 = 0xFu;
+    SET_NZ(r0);
+    /* 08006658: ands r0, r3 */
+    r0 = (r0 & r3);
+    SET_NZ(r0);
+    /* 0800665A: lsls r0, r0, #4 */
+    r0 = (r0 << 4);
+    LSL_FLAGS(r0, r0, 4);
+    /* 0800665C: ldr r1, [pc, #0x2c] */
+    r1 = aot_read32(0x800668Cu);
+    /* 0800665E: adds r0, r0, r1 */
+    { u32 _a=r0, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006660: adds r5, r2, r0 */
+    { u32 _a=r2, _b=r0; r5=_a+_b; ADD_FLAGS(r5,_a,_b); }
+    /* 08006662: ldr r4, [pc, #0x2c] */
+    r4 = aot_read32(0x8006690u);
+    /* 08006664: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006666: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006668: bl #0x8004c10 */
+    lr = 0x800666Du;
+    BAIL(0x08004C10u);
+E_0800666C:
+    /* 0800666C: movs r1, #0x80 */
+    r1 = 0x80u;
+    SET_NZ(r1);
+    /* 0800666E: lsls r1, r1, #1 */
+    r1 = (r1 << 1);
+    LSL_FLAGS(r1, r1, 1);
+    /* 08006670: adds r0, r5, r1 */
+    { u32 _a=r5, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006672: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006674: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006676: bl #0x8004c10 */
+    lr = 0x800667Bu;
+    BAIL(0x08004C10u);
+E_0800667A:
+    /* 0800667A: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800667C: adds r1, #0x80 */
+    { u32 _a=r1, _b=0x80u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800667E: movs r0, #8 */
+    r0 = 0x8u;
+    SET_NZ(r0);
+    /* 08006680: strb r0, [r1] */
+    aot_write8(r1, r0);
+    /* 08006682: adds r4, #0x81 */
+    { u32 _a=r4, _b=0x81u; r4=_a+_b; ADD_FLAGS(r4,_a,_b); }
+    /* 08006684: movs r0, #0xc */
+    r0 = 0xCu;
+    SET_NZ(r0);
+    /* 08006686: strb r0, [r4] */
+    aot_write8(r4, r0);
+    /* 08006688: b #0x8006704 */
+    goto L08006704;
+    /* 0800668A: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 0800668C: add ip, ip */
+    r12 = r12 + r12;
+    /* 0800668E: lsrs r5, r4, #1 */
+    r5 = (r4 >> 1);
+    LSR_FLAGS(r5, r4, 1);
+    /* 08006690: cmp r7, #0x90 */
+    { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006692: lsls r0, r0, #0xc */
+    r0 = (r0 << 12);
+    LSL_FLAGS(r0, r0, 12);
+L08006694:
+    /* 08006694: lsls r1, r3, #6 */
+    r1 = (r3 << 6);
+    LSL_FLAGS(r1, r3, 6);
+    /* 08006696: ldr r0, [pc, #0x2c] */
+    r0 = aot_read32(0x80066C4u);
+    /* 08006698: adds r5, r1, r0 */
+    { u32 _a=r1, _b=r0; r5=_a+_b; ADD_FLAGS(r5,_a,_b); }
+    /* 0800669A: ldr r4, [pc, #0x2c] */
+    r4 = aot_read32(0x80066C8u);
+    /* 0800669C: ldr r0, [pc, #0x2c] */
+    r0 = aot_read32(0x80066CCu);
+    /* 0800669E: adds r0, r3, r0 */
+    { u32 _a=r3, _b=r0; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080066A0: ldrb r1, [r0] */
+    r1 = aot_read8(r0);
+    /* 080066A2: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080066A4: adds r0, #0x80 */
+    { u32 _a=r0, _b=0x80u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080066A6: strb r1, [r0] */
+    aot_write8(r0, r1);
+    /* 080066A8: cmp r1, #8 */
+    { u32 _a=r1, _b=0x8u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080066AA: bhi #0x80066d0 */
+    if ((cf && !zf)) goto L080066D0;
+    /* 080066AC: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080066AE: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080066B0: bl #0x8004c10 */
+    lr = 0x80066B5u;
+    BAIL(0x08004C10u);
+E_080066B4:
+    /* 080066B4: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080066B6: adds r0, #0x20 */
+    { u32 _a=r0, _b=0x20u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080066B8: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080066BA: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080066BC: bl #0x8004c10 */
+    lr = 0x80066C1u;
+    BAIL(0x08004C10u);
+E_080066C0:
+    /* 080066C0: b #0x80066fc */
+    goto L080066FC;
+    /* 080066C2: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 080066C4: revsh r4, r4 */
+    BAIL(0x080066C4u); /* unsupported: revsh r4, r4 */
+    /* 080066C6: lsrs r2, r4, #1 */
+    r2 = (r4 >> 1);
+    LSR_FLAGS(r2, r4, 1);
+    /* 080066C8: cmp r7, #0x90 */
+    { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080066CA: lsls r0, r0, #0xc */
+    r0 = (r0 << 12);
+    LSL_FLAGS(r0, r0, 12);
+    /* 080066CC: subs r2, #0xe4 */
+    { u32 _a=r2, _b=0xE4u; r2=_a-_b; SUB_FLAGS(r2,_a,_b); }
+    /* 080066CE: lsrs r3, r4, #1 */
+    r3 = (r4 >> 1);
+    LSR_FLAGS(r3, r4, 1);
+L080066D0:
+    /* 080066D0: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080066D2: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080066D4: bl #0x8004c10 */
+    lr = 0x80066D9u;
+    BAIL(0x08004C10u);
+E_080066D8:
+    /* 080066D8: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080066DA: adds r0, #0x10 */
+    { u32 _a=r0, _b=0x10u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080066DC: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080066DE: adds r1, #0x20 */
+    { u32 _a=r1, _b=0x20u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080066E0: bl #0x8004c10 */
+    lr = 0x80066E5u;
+    BAIL(0x08004C10u);
+E_080066E4:
+    /* 080066E4: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080066E6: adds r0, #0x20 */
+    { u32 _a=r0, _b=0x20u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080066E8: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080066EA: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080066EC: bl #0x8004c10 */
+    lr = 0x80066F1u;
+    BAIL(0x08004C10u);
+E_080066F0:
+    /* 080066F0: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080066F2: adds r0, #0x30 */
+    { u32 _a=r0, _b=0x30u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080066F4: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080066F6: adds r1, #0x60 */
+    { u32 _a=r1, _b=0x60u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080066F8: bl #0x8004c10 */
+    lr = 0x80066FDu;
+    BAIL(0x08004C10u);
+L080066FC:
+E_080066FC:
+    /* 080066FC: ldr r0, [pc, #0xc] */
+    r0 = aot_read32(0x800670Cu);
+    /* 080066FE: adds r0, #0x81 */
+    { u32 _a=r0, _b=0x81u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006700: movs r1, #0xc */
+    r1 = 0xCu;
+    SET_NZ(r1);
+    /* 08006702: strb r1, [r0] */
+    aot_write8(r0, r1);
+L08006704:
+    /* 08006704: pop {r4, r5} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    sp += 8u;
+    /* 08006706: pop {r0} */
+    r0 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006708: bx r0 */
+    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* 0x08006648 BAILs (1): revsh@080066C4 */
+
+/* function 0x08006710: 15 insns, 2 branch targets, 0 BL continuations */
+static void aot_gen_08006710(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    /* 08006710: push {lr} */
+    sp -= 4u;
+    aot_write32(sp + 0u, lr);
+    /* 08006712: lsls r0, r0, #0x10 */
+    r0 = (r0 << 16);
+    LSL_FLAGS(r0, r0, 16);
+    /* 08006714: lsrs r2, r0, #0x10 */
+    r2 = (r0 >> 16);
+    LSR_FLAGS(r2, r0, 16);
+    /* 08006716: cmp r1, #1 */
+    { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006718: beq #0x8006728 */
+    if (zf) goto L08006728;
+    /* 0800671A: ldr r0, [pc, #8] */
+    r0 = aot_read32(0x8006724u);
+    /* 0800671C: adds r0, r2, r0 */
+    { u32 _a=r2, _b=r0; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800671E: ldrb r0, [r0] */
+    r0 = aot_read8(r0);
+    /* 08006720: b #0x800672a */
+    goto L0800672A;
+    /* 08006722: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 08006724: subs r2, #0xe4 */
+    { u32 _a=r2, _b=0xE4u; r2=_a-_b; SUB_FLAGS(r2,_a,_b); }
+    /* 08006726: lsrs r3, r4, #1 */
+    r3 = (r4 >> 1);
+    LSR_FLAGS(r3, r4, 1);
+L08006728:
+    /* 08006728: movs r0, #8 */
+    r0 = 0x8u;
+    SET_NZ(r0);
+L0800672A:
+    /* 0800672A: pop {r1} */
+    r1 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 0800672C: bx r1 */
+    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006730: 105 insns, 4 branch targets, 10 BL continuations */
+static void aot_gen_08006730(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x08006754u: goto E_08006754;
+    case 0x08006760u: goto E_08006760;
+    case 0x0800676Eu: goto E_0800676E;
+    case 0x0800677Cu: goto E_0800677C;
+    case 0x080067C0u: goto E_080067C0;
+    case 0x080067CCu: goto E_080067CC;
+    case 0x080067E4u: goto E_080067E4;
+    case 0x080067F0u: goto E_080067F0;
+    case 0x080067FCu: goto E_080067FC;
+    case 0x08006808u: goto E_08006808;
+    default: break;  /* fall through to function head */
+    }
+    /* 08006730: push {r4, r5, r6, lr} */
+    sp -= 16u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, r6);
+    aot_write32(sp + 12u, lr);
+    /* 08006732: lsls r0, r0, #0x10 */
+    r0 = (r0 << 16);
+    LSL_FLAGS(r0, r0, 16);
+    /* 08006734: lsrs r6, r0, #0x10 */
+    r6 = (r0 >> 16);
+    LSR_FLAGS(r6, r0, 16);
+    /* 08006736: cmp r1, #1 */
+    { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006738: bne #0x80067a0 */
+    if (!zf) goto L080067A0;
+    /* 0800673A: lsrs r2, r0, #0x13 */
+    r2 = (r0 >> 19);
+    LSR_FLAGS(r2, r0, 19);
+    /* 0800673C: lsls r2, r2, #9 */
+    r2 = (r2 << 9);
+    LSL_FLAGS(r2, r2, 9);
+    /* 0800673E: movs r0, #7 */
+    r0 = 0x7u;
+    SET_NZ(r0);
+    /* 08006740: ands r0, r6 */
+    r0 = (r0 & r6);
+    SET_NZ(r0);
+    /* 08006742: lsls r0, r0, #5 */
+    r0 = (r0 << 5);
+    LSL_FLAGS(r0, r0, 5);
+    /* 08006744: ldr r1, [pc, #0x4c] */
+    r1 = aot_read32(0x8006794u);
+    /* 08006746: adds r0, r0, r1 */
+    { u32 _a=r0, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006748: adds r4, r2, r0 */
+    { u32 _a=r2, _b=r0; r4=_a+_b; ADD_FLAGS(r4,_a,_b); }
+    /* 0800674A: ldr r5, [pc, #0x4c] */
+    r5 = aot_read32(0x8006798u);
+    /* 0800674C: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800674E: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006750: bl #0x8004c10 */
+    lr = 0x8006755u;
+    BAIL(0x08004C10u);
+E_08006754:
+    /* 08006754: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006756: adds r0, #0x10 */
+    { u32 _a=r0, _b=0x10u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006758: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800675A: adds r1, #0x20 */
+    { u32 _a=r1, _b=0x20u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800675C: bl #0x8004c10 */
+    lr = 0x8006761u;
+    BAIL(0x08004C10u);
+E_08006760:
+    /* 08006760: movs r1, #0x80 */
+    r1 = 0x80u;
+    SET_NZ(r1);
+    /* 08006762: lsls r1, r1, #1 */
+    r1 = (r1 << 1);
+    LSL_FLAGS(r1, r1, 1);
+    /* 08006764: adds r0, r4, r1 */
+    { u32 _a=r4, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006766: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006768: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800676A: bl #0x8004c10 */
+    lr = 0x800676Fu;
+    BAIL(0x08004C10u);
+E_0800676E:
+    /* 0800676E: movs r1, #0x88 */
+    r1 = 0x88u;
+    SET_NZ(r1);
+    /* 08006770: lsls r1, r1, #1 */
+    r1 = (r1 << 1);
+    LSL_FLAGS(r1, r1, 1);
+    /* 08006772: adds r0, r4, r1 */
+    { u32 _a=r4, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006774: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006776: adds r1, #0x60 */
+    { u32 _a=r1, _b=0x60u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006778: bl #0x8004c10 */
+    lr = 0x800677Du;
+    BAIL(0x08004C10u);
+E_0800677C:
+    /* 0800677C: ldr r0, [pc, #0x1c] */
+    r0 = aot_read32(0x800679Cu);
+    /* 0800677E: adds r0, r6, r0 */
+    { u32 _a=r6, _b=r0; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006780: ldrb r1, [r0] */
+    r1 = aot_read8(r0);
+    /* 08006782: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006784: adds r0, #0x80 */
+    { u32 _a=r0, _b=0x80u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006786: strb r1, [r0] */
+    aot_write8(r0, r1);
+    /* 08006788: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800678A: adds r1, #0x81 */
+    { u32 _a=r1, _b=0x81u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800678C: movs r0, #0xe */
+    r0 = 0xEu;
+    SET_NZ(r0);
+    /* 0800678E: strb r0, [r1] */
+    aot_write8(r1, r0);
+    /* 08006790: b #0x8006810 */
+    goto L08006810;
+    /* 08006792: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 08006794: ldm r0!, {r2, r5, r6, r7} */
+    r2 = aot_read32(r0 + 0u);
+    r5 = aot_read32(r0 + 4u);
+    r6 = aot_read32(r0 + 8u);
+    r7 = aot_read32(r0 + 12u);
+    r0 += 16u;
+    /* 08006796: lsrs r6, r4, #1 */
+    r6 = (r4 >> 1);
+    LSR_FLAGS(r6, r4, 1);
+    /* 08006798: cmp r7, #0x90 */
+    { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 0800679A: lsls r0, r0, #0xc */
+    r0 = (r0 << 12);
+    LSL_FLAGS(r0, r0, 12);
+    /* 0800679C: ldr r0, [pc, #0x390] */
+    r0 = aot_read32(0x8006B30u);
+    /* 0800679E: lsrs r7, r4, #1 */
+    r7 = (r4 >> 1);
+    LSR_FLAGS(r7, r4, 1);
+L080067A0:
+    /* 080067A0: lsls r1, r6, #6 */
+    r1 = (r6 << 6);
+    LSL_FLAGS(r1, r6, 6);
+    /* 080067A2: ldr r0, [pc, #0x2c] */
+    r0 = aot_read32(0x80067D0u);
+    /* 080067A4: adds r4, r1, r0 */
+    { u32 _a=r1, _b=r0; r4=_a+_b; ADD_FLAGS(r4,_a,_b); }
+    /* 080067A6: ldr r5, [pc, #0x2c] */
+    r5 = aot_read32(0x80067D4u);
+    /* 080067A8: ldr r0, [pc, #0x2c] */
+    r0 = aot_read32(0x80067D8u);
+    /* 080067AA: adds r0, r6, r0 */
+    { u32 _a=r6, _b=r0; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080067AC: ldrb r1, [r0] */
+    r1 = aot_read8(r0);
+    /* 080067AE: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080067B0: adds r0, #0x80 */
+    { u32 _a=r0, _b=0x80u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080067B2: strb r1, [r0] */
+    aot_write8(r0, r1);
+    /* 080067B4: cmp r1, #8 */
+    { u32 _a=r1, _b=0x8u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080067B6: bhi #0x80067dc */
+    if ((cf && !zf)) goto L080067DC;
+    /* 080067B8: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080067BA: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080067BC: bl #0x8004c10 */
+    lr = 0x80067C1u;
+    BAIL(0x08004C10u);
+E_080067C0:
+    /* 080067C0: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080067C2: adds r0, #0x20 */
+    { u32 _a=r0, _b=0x20u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080067C4: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080067C6: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080067C8: bl #0x8004c10 */
+    lr = 0x80067CDu;
+    BAIL(0x08004C10u);
+E_080067CC:
+    /* 080067CC: b #0x8006808 */
+    goto L08006808;
+    /* 080067CE: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 080067D0: lsrs r4, r4 */
+    r4 = ((r4 & 0xFFu) >= 32 ? 0u : (r4 >> (r4 & 0xFFu)));
+    SET_NZ(r4);
+    /* 080067D2: lsrs r4, r4, #1 */
+    r4 = (r4 >> 1);
+    LSR_FLAGS(r4, r4, 1);
+    /* 080067D4: cmp r7, #0x90 */
+    { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080067D6: lsls r0, r0, #0xc */
+    r0 = (r0 << 12);
+    LSL_FLAGS(r0, r0, 12);
+    /* 080067D8: stm r0!, {r2, r5, r6, r7} */
+    aot_write32(r0 + 0u, r2);
+    aot_write32(r0 + 4u, r5);
+    aot_write32(r0 + 8u, r6);
+    aot_write32(r0 + 12u, r7);
+    r0 += 16u;
+    /* 080067DA: lsrs r4, r4, #1 */
+    r4 = (r4 >> 1);
+    LSR_FLAGS(r4, r4, 1);
+L080067DC:
+    /* 080067DC: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080067DE: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080067E0: bl #0x8004c10 */
+    lr = 0x80067E5u;
+    BAIL(0x08004C10u);
+E_080067E4:
+    /* 080067E4: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080067E6: adds r0, #0x10 */
+    { u32 _a=r0, _b=0x10u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080067E8: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080067EA: adds r1, #0x20 */
+    { u32 _a=r1, _b=0x20u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080067EC: bl #0x8004c10 */
+    lr = 0x80067F1u;
+    BAIL(0x08004C10u);
+E_080067F0:
+    /* 080067F0: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080067F2: adds r0, #0x20 */
+    { u32 _a=r0, _b=0x20u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080067F4: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080067F6: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080067F8: bl #0x8004c10 */
+    lr = 0x80067FDu;
+    BAIL(0x08004C10u);
+E_080067FC:
+    /* 080067FC: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080067FE: adds r0, #0x30 */
+    { u32 _a=r0, _b=0x30u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006800: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006802: adds r1, #0x60 */
+    { u32 _a=r1, _b=0x60u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006804: bl #0x8004c10 */
+    lr = 0x8006809u;
+    BAIL(0x08004C10u);
+L08006808:
+E_08006808:
+    /* 08006808: ldr r0, [pc, #0xc] */
+    r0 = aot_read32(0x8006818u);
+    /* 0800680A: adds r0, #0x81 */
+    { u32 _a=r0, _b=0x81u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800680C: movs r1, #0xe */
+    r1 = 0xEu;
+    SET_NZ(r1);
+    /* 0800680E: strb r1, [r0] */
+    aot_write8(r0, r1);
+L08006810:
+    /* 08006810: pop {r4, r5, r6} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    r6 = aot_read32(sp + 8u);
+    sp += 12u;
+    /* 08006812: pop {r0} */
+    r0 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006814: bx r0 */
+    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x0800681C: 15 insns, 2 branch targets, 0 BL continuations */
+static void aot_gen_0800681C(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    /* 0800681C: push {lr} */
+    sp -= 4u;
+    aot_write32(sp + 0u, lr);
+    /* 0800681E: lsls r0, r0, #0x10 */
+    r0 = (r0 << 16);
+    LSL_FLAGS(r0, r0, 16);
+    /* 08006820: lsrs r2, r0, #0x10 */
+    r2 = (r0 >> 16);
+    LSR_FLAGS(r2, r0, 16);
+    /* 08006822: cmp r1, #1 */
+    { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006824: beq #0x8006830 */
+    if (zf) goto L08006830;
+    /* 08006826: ldr r0, [pc, #4] */
+    r0 = aot_read32(0x800682Cu);
+    /* 08006828: b #0x8006832 */
+    goto L08006832;
+    /* 0800682A: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 0800682C: stm r0!, {r2, r5, r6, r7} */
+    aot_write32(r0 + 0u, r2);
+    aot_write32(r0 + 4u, r5);
+    aot_write32(r0 + 8u, r6);
+    aot_write32(r0 + 12u, r7);
+    r0 += 16u;
+    /* 0800682E: lsrs r4, r4, #1 */
+    r4 = (r4 >> 1);
+    LSR_FLAGS(r4, r4, 1);
+L08006830:
+    /* 08006830: ldr r0, [pc, #8] */
+    r0 = aot_read32(0x800683Cu);
+L08006832:
+    /* 08006832: adds r0, r2, r0 */
+    { u32 _a=r2, _b=r0; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006834: ldrb r0, [r0] */
+    r0 = aot_read8(r0);
+    /* 08006836: pop {r1} */
+    r1 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006838: bx r1 */
+    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006840: 89 insns, 4 branch targets, 8 BL continuations */
+static void aot_gen_08006840(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x08006866u: goto E_08006866;
+    case 0x08006874u: goto E_08006874;
+    case 0x080068ACu: goto E_080068AC;
+    case 0x080068B8u: goto E_080068B8;
+    case 0x080068D0u: goto E_080068D0;
+    case 0x080068DCu: goto E_080068DC;
+    case 0x080068E8u: goto E_080068E8;
+    case 0x080068F4u: goto E_080068F4;
+    default: break;  /* fall through to function head */
+    }
+    /* 08006840: push {r4, r5, r6, lr} */
+    sp -= 16u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, r6);
+    aot_write32(sp + 12u, lr);
+    /* 08006842: lsls r0, r0, #0x10 */
+    r0 = (r0 << 16);
+    LSL_FLAGS(r0, r0, 16);
+    /* 08006844: lsrs r3, r0, #0x10 */
+    r3 = (r0 >> 16);
+    LSR_FLAGS(r3, r0, 16);
+    /* 08006846: cmp r1, #1 */
+    { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006848: bne #0x800688c */
+    if (!zf) goto L0800688C;
+    /* 0800684A: lsrs r2, r0, #0x14 */
+    r2 = (r0 >> 20);
+    LSR_FLAGS(r2, r0, 20);
+    /* 0800684C: lsls r2, r2, #9 */
+    r2 = (r2 << 9);
+    LSL_FLAGS(r2, r2, 9);
+    /* 0800684E: movs r5, #0xf */
+    r5 = 0xFu;
+    SET_NZ(r5);
+    /* 08006850: adds r0, r3, #0 */
+    { u32 _a=r3, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006852: ands r0, r5 */
+    r0 = (r0 & r5);
+    SET_NZ(r0);
+    /* 08006854: lsls r0, r0, #4 */
+    r0 = (r0 << 4);
+    LSL_FLAGS(r0, r0, 4);
+    /* 08006856: ldr r1, [pc, #0x2c] */
+    r1 = aot_read32(0x8006884u);
+    /* 08006858: adds r0, r0, r1 */
+    { u32 _a=r0, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800685A: adds r6, r2, r0 */
+    { u32 _a=r2, _b=r0; r6=_a+_b; ADD_FLAGS(r6,_a,_b); }
+    /* 0800685C: ldr r4, [pc, #0x28] */
+    r4 = aot_read32(0x8006888u);
+    /* 0800685E: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006860: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006862: bl #0x8004c10 */
+    lr = 0x8006867u;
+    BAIL(0x08004C10u);
+E_08006866:
+    /* 08006866: movs r1, #0x80 */
+    r1 = 0x80u;
+    SET_NZ(r1);
+    /* 08006868: lsls r1, r1, #1 */
+    r1 = (r1 << 1);
+    LSL_FLAGS(r1, r1, 1);
+    /* 0800686A: adds r0, r6, r1 */
+    { u32 _a=r6, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800686C: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800686E: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006870: bl #0x8004c10 */
+    lr = 0x8006875u;
+    BAIL(0x08004C10u);
+E_08006874:
+    /* 08006874: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006876: adds r1, #0x80 */
+    { u32 _a=r1, _b=0x80u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006878: movs r0, #8 */
+    r0 = 0x8u;
+    SET_NZ(r0);
+    /* 0800687A: strb r0, [r1] */
+    aot_write8(r1, r0);
+    /* 0800687C: adds r4, #0x81 */
+    { u32 _a=r4, _b=0x81u; r4=_a+_b; ADD_FLAGS(r4,_a,_b); }
+    /* 0800687E: strb r5, [r4] */
+    aot_write8(r4, r5);
+    /* 08006880: b #0x80068fc */
+    goto L080068FC;
+    /* 08006882: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 08006884: strh r4, [r4, #0x26] */
+    aot_write16((r4 + 38u), r4);
+    /* 08006886: lsrs r5, r4, #1 */
+    r5 = (r4 >> 1);
+    LSR_FLAGS(r5, r4, 1);
+    /* 08006888: cmp r7, #0x90 */
+    { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 0800688A: lsls r0, r0, #0xc */
+    r0 = (r0 << 12);
+    LSL_FLAGS(r0, r0, 12);
+L0800688C:
+    /* 0800688C: lsls r1, r3, #6 */
+    r1 = (r3 << 6);
+    LSL_FLAGS(r1, r3, 6);
+    /* 0800688E: ldr r0, [pc, #0x2c] */
+    r0 = aot_read32(0x80068BCu);
+    /* 08006890: adds r6, r1, r0 */
+    { u32 _a=r1, _b=r0; r6=_a+_b; ADD_FLAGS(r6,_a,_b); }
+    /* 08006892: ldr r4, [pc, #0x2c] */
+    r4 = aot_read32(0x80068C0u);
+    /* 08006894: ldr r0, [pc, #0x2c] */
+    r0 = aot_read32(0x80068C4u);
+    /* 08006896: adds r0, r3, r0 */
+    { u32 _a=r3, _b=r0; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006898: ldrb r1, [r0] */
+    r1 = aot_read8(r0);
+    /* 0800689A: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800689C: adds r0, #0x80 */
+    { u32 _a=r0, _b=0x80u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 0800689E: strb r1, [r0] */
+    aot_write8(r0, r1);
+    /* 080068A0: cmp r1, #8 */
+    { u32 _a=r1, _b=0x8u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080068A2: bhi #0x80068c8 */
+    if ((cf && !zf)) goto L080068C8;
+    /* 080068A4: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080068A6: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080068A8: bl #0x8004c10 */
+    lr = 0x80068ADu;
+    BAIL(0x08004C10u);
+E_080068AC:
+    /* 080068AC: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080068AE: adds r0, #0x20 */
+    { u32 _a=r0, _b=0x20u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080068B0: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080068B2: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080068B4: bl #0x8004c10 */
+    lr = 0x80068B9u;
+    BAIL(0x08004C10u);
+E_080068B8:
+    /* 080068B8: b #0x80068f4 */
+    goto L080068F4;
+    /* 080068BA: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 080068BC: stm r2!, {r2, r5, r6, r7} */
+    aot_write32(r2 + 0u, r2);
+    aot_write32(r2 + 4u, r5);
+    aot_write32(r2 + 8u, r6);
+    aot_write32(r2 + 12u, r7);
+    r2 += 16u;
+    /* 080068BE: lsrs r4, r4, #1 */
+    r4 = (r4 >> 1);
+    LSR_FLAGS(r4, r4, 1);
+    /* 080068C0: cmp r7, #0x90 */
+    { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080068C2: lsls r0, r0, #0xc */
+    r0 = (r0 << 12);
+    LSL_FLAGS(r0, r0, 12);
+    /* 080068C4: cmn r4, r4 */
+    { u32 _a=r4, _b=r4, _d=_a+_b; ADD_FLAGS(_d,_a,_b); }
+    /* 080068C6: lsrs r5, r4, #1 */
+    r5 = (r4 >> 1);
+    LSR_FLAGS(r5, r4, 1);
+L080068C8:
+    /* 080068C8: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080068CA: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080068CC: bl #0x8004c10 */
+    lr = 0x80068D1u;
+    BAIL(0x08004C10u);
+E_080068D0:
+    /* 080068D0: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080068D2: adds r0, #0x10 */
+    { u32 _a=r0, _b=0x10u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080068D4: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080068D6: adds r1, #0x20 */
+    { u32 _a=r1, _b=0x20u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080068D8: bl #0x8004c10 */
+    lr = 0x80068DDu;
+    BAIL(0x08004C10u);
+E_080068DC:
+    /* 080068DC: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080068DE: adds r0, #0x20 */
+    { u32 _a=r0, _b=0x20u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080068E0: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080068E2: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080068E4: bl #0x8004c10 */
+    lr = 0x80068E9u;
+    BAIL(0x08004C10u);
+E_080068E8:
+    /* 080068E8: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080068EA: adds r0, #0x30 */
+    { u32 _a=r0, _b=0x30u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080068EC: adds r1, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080068EE: adds r1, #0x60 */
+    { u32 _a=r1, _b=0x60u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 080068F0: bl #0x8004c10 */
+    lr = 0x80068F5u;
+    BAIL(0x08004C10u);
+L080068F4:
+E_080068F4:
+    /* 080068F4: ldr r0, [pc, #0xc] */
+    r0 = aot_read32(0x8006904u);
+    /* 080068F6: adds r0, #0x81 */
+    { u32 _a=r0, _b=0x81u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080068F8: movs r1, #0xf */
+    r1 = 0xFu;
+    SET_NZ(r1);
+    /* 080068FA: strb r1, [r0] */
+    aot_write8(r0, r1);
+L080068FC:
+    /* 080068FC: pop {r4, r5, r6} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    r6 = aot_read32(sp + 8u);
+    sp += 12u;
+    /* 080068FE: pop {r0} */
+    r0 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006900: bx r0 */
+    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006908: 15 insns, 2 branch targets, 0 BL continuations */
+static void aot_gen_08006908(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    /* 08006908: push {lr} */
+    sp -= 4u;
+    aot_write32(sp + 0u, lr);
+    /* 0800690A: lsls r0, r0, #0x10 */
+    r0 = (r0 << 16);
+    LSL_FLAGS(r0, r0, 16);
+    /* 0800690C: lsrs r2, r0, #0x10 */
+    r2 = (r0 >> 16);
+    LSR_FLAGS(r2, r0, 16);
+    /* 0800690E: cmp r1, #1 */
+    { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006910: beq #0x8006920 */
+    if (zf) goto L08006920;
+    /* 08006912: ldr r0, [pc, #8] */
+    r0 = aot_read32(0x800691Cu);
+    /* 08006914: adds r0, r2, r0 */
+    { u32 _a=r2, _b=r0; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006916: ldrb r0, [r0] */
+    r0 = aot_read8(r0);
+    /* 08006918: b #0x8006922 */
+    goto L08006922;
+    /* 0800691A: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 0800691C: cmn r4, r4 */
+    { u32 _a=r4, _b=r4, _d=_a+_b; ADD_FLAGS(_d,_a,_b); }
+    /* 0800691E: lsrs r5, r4, #1 */
+    r5 = (r4 >> 1);
+    LSR_FLAGS(r5, r4, 1);
+L08006920:
+    /* 08006920: movs r0, #8 */
+    r0 = 0x8u;
+    SET_NZ(r0);
+L08006922:
+    /* 08006922: pop {r1} */
+    r1 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006924: bx r1 */
+    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006928: 32 insns, 0 branch targets, 2 BL continuations */
+static void aot_gen_08006928(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x08006948u: goto E_08006948;
+    case 0x08006958u: goto E_08006958;
+    default: break;  /* fall through to function head */
+    }
+    /* 08006928: push {r4, r5, lr} */
+    sp -= 12u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, lr);
+    /* 0800692A: lsls r0, r0, #0x10 */
+    r0 = (r0 << 16);
+    LSL_FLAGS(r0, r0, 16);
+    /* 0800692C: lsrs r4, r0, #0x14 */
+    r4 = (r0 >> 20);
+    LSR_FLAGS(r4, r0, 20);
+    /* 0800692E: lsls r4, r4, #9 */
+    r4 = (r4 << 9);
+    LSL_FLAGS(r4, r4, 9);
+    /* 08006930: movs r1, #0xf0 */
+    r1 = 0xF0u;
+    SET_NZ(r1);
+    /* 08006932: lsls r1, r1, #0xc */
+    r1 = (r1 << 12);
+    LSL_FLAGS(r1, r1, 12);
+    /* 08006934: ands r1, r0 */
+    r1 = (r1 & r0);
+    SET_NZ(r1);
+    /* 08006936: lsrs r1, r1, #0xc */
+    r1 = (r1 >> 12);
+    LSR_FLAGS(r1, r1, 12);
+    /* 08006938: ldr r0, [pc, #0x30] */
+    r0 = aot_read32(0x800696Cu);
+    /* 0800693A: adds r1, r1, r0 */
+    { u32 _a=r1, _b=r0; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800693C: adds r4, r4, r1 */
+    { u32 _a=r4, _b=r1; r4=_a+_b; ADD_FLAGS(r4,_a,_b); }
+    /* 0800693E: ldr r5, [pc, #0x30] */
+    r5 = aot_read32(0x8006970u);
+    /* 08006940: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006942: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006944: bl #0x8004c10 */
+    lr = 0x8006949u;
+    BAIL(0x08004C10u);
+E_08006948:
+    /* 08006948: movs r0, #0x80 */
+    r0 = 0x80u;
+    SET_NZ(r0);
+    /* 0800694A: lsls r0, r0, #1 */
+    r0 = (r0 << 1);
+    LSL_FLAGS(r0, r0, 1);
+    /* 0800694C: adds r4, r4, r0 */
+    { u32 _a=r4, _b=r0; r4=_a+_b; ADD_FLAGS(r4,_a,_b); }
+    /* 0800694E: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006950: adds r1, #0x40 */
+    { u32 _a=r1, _b=0x40u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006952: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006954: bl #0x8004c10 */
+    lr = 0x8006959u;
+    BAIL(0x08004C10u);
+E_08006958:
+    /* 08006958: adds r1, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800695A: adds r1, #0x80 */
+    { u32 _a=r1, _b=0x80u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 0800695C: movs r0, #8 */
+    r0 = 0x8u;
+    SET_NZ(r0);
+    /* 0800695E: strb r0, [r1] */
+    aot_write8(r1, r0);
+    /* 08006960: adds r5, #0x81 */
+    { u32 _a=r5, _b=0x81u; r5=_a+_b; ADD_FLAGS(r5,_a,_b); }
+    /* 08006962: movs r0, #0xc */
+    r0 = 0xCu;
+    SET_NZ(r0);
+    /* 08006964: strb r0, [r5] */
+    aot_write8(r5, r0);
+    /* 08006966: pop {r4, r5} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    sp += 8u;
+    /* 08006968: pop {r0} */
+    r0 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 0800696A: bx r0 */
+    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006974: 23 insns, 0 branch targets, 6 BL continuations */
+static void aot_gen_08006974(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x0800697Eu: goto E_0800697E;
+    case 0x08006982u: goto E_08006982;
+    case 0x08006986u: goto E_08006986;
+    case 0x0800698Au: goto E_0800698A;
+    case 0x0800698Eu: goto E_0800698E;
+    case 0x080069A0u: goto E_080069A0;
+    default: break;  /* fall through to function head */
+    }
+    /* 08006974: push {r4, lr} */
+    sp -= 8u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, lr);
+    /* 08006976: movs r0, #0 */
+    r0 = 0x0u;
+    SET_NZ(r0);
+    /* 08006978: movs r1, #0x80 */
+    r1 = 0x80u;
+    SET_NZ(r1);
+    /* 0800697A: bl #0x8007150 */
+    lr = 0x800697Fu;
+    BAIL(0x08007150u);
+E_0800697E:
+    /* 0800697E: bl #0x800758c */
+    lr = 0x8006983u;
+    BAIL(0x0800758Cu);
+E_08006982:
+    /* 08006982: bl #0x80071b8 */
+    lr = 0x8006987u;
+    BAIL(0x080071B8u);
+E_08006986:
+    /* 08006986: bl #0x800837c */
+    lr = 0x800698Bu;
+    BAIL(0x0800837Cu);
+E_0800698A:
+    /* 0800698A: bl #0x80085e0 */
+    lr = 0x800698Fu;
+    BAIL(0x080085E0u);
+E_0800698E:
+    /* 0800698E: ldr r1, [pc, #0x20] */
+    r1 = aot_read32(0x80069B0u);
+    /* 08006990: movs r0, #0x40 */
+    r0 = 0x40u;
+    SET_NZ(r0);
+    /* 08006992: strb r0, [r1] */
+    aot_write8(r1, r0);
+    /* 08006994: ldr r0, [pc, #0x1c] */
+    r0 = aot_read32(0x80069B4u);
+    /* 08006996: movs r4, #0 */
+    r4 = 0x0u;
+    SET_NZ(r4);
+    /* 08006998: strh r4, [r0] */
+    aot_write16(r0, r4);
+    /* 0800699A: movs r0, #0 */
+    r0 = 0x0u;
+    SET_NZ(r0);
+    /* 0800699C: bl #0x800729c */
+    lr = 0x80069A1u;
+    BAIL(0x0800729Cu);
+E_080069A0:
+    /* 080069A0: ldr r0, [pc, #0x14] */
+    r0 = aot_read32(0x80069B8u);
+    /* 080069A2: strh r4, [r0] */
+    aot_write16(r0, r4);
+    /* 080069A4: ldr r0, [pc, #0x14] */
+    r0 = aot_read32(0x80069BCu);
+    /* 080069A6: strh r4, [r0] */
+    aot_write16(r0, r4);
+    /* 080069A8: pop {r4} */
+    r4 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 080069AA: pop {r0} */
+    r0 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 080069AC: bx r0 */
+    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x080069C0: 33 insns, 2 branch targets, 2 BL continuations */
+static void aot_gen_080069C0(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x080069E6u: goto E_080069E6;
+    case 0x080069F6u: goto E_080069F6;
+    default: break;  /* fall through to function head */
+    }
+    /* 080069C0: push {r4, r5, r6, r7, lr} */
+    sp -= 20u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, r6);
+    aot_write32(sp + 12u, r7);
+    aot_write32(sp + 16u, lr);
+    /* 080069C2: movs r6, #0 */
+    r6 = 0x0u;
+    SET_NZ(r6);
+    /* 080069C4: movs r7, #1 */
+    r7 = 0x1u;
+    SET_NZ(r7);
+L080069C6:
+    /* 080069C6: lsls r0, r6, #4 */
+    r0 = (r6 << 4);
+    LSL_FLAGS(r0, r6, 4);
+    /* 080069C8: adds r0, r0, r6 */
+    { u32 _a=r0, _b=r6; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080069CA: lsls r0, r0, #2 */
+    r0 = (r0 << 2);
+    LSL_FLAGS(r0, r0, 2);
+    /* 080069CC: ldr r1, [pc, #0x38] */
+    r1 = aot_read32(0x8006A08u);
+    /* 080069CE: adds r4, r0, r1 */
+    { u32 _a=r0, _b=r1; r4=_a+_b; ADD_FLAGS(r4,_a,_b); }
+    /* 080069D0: adds r5, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r5=_a+_b; ADD_FLAGS(r5,_a,_b); }
+    /* 080069D2: adds r5, #0x3e */
+    { u32 _a=r5, _b=0x3Eu; r5=_a+_b; ADD_FLAGS(r5,_a,_b); }
+    /* 080069D4: ldrb r1, [r5] */
+    r1 = aot_read8(r5);
+    /* 080069D6: adds r0, r7, #0 */
+    { u32 _a=r7, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080069D8: ands r0, r1 */
+    r0 = (r0 & r1);
+    SET_NZ(r0);
+    /* 080069DA: cmp r0, #0 */
+    { u32 _a=r0, _b=0x0u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080069DC: beq #0x80069f6 */
+    if (zf) goto L080069F6;
+    /* 080069DE: ldr r1, [r4, #0x1c] */
+    r1 = aot_read32((r4 + 28u));
+    /* 080069E0: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080069E2: bl #0x82e70d4 */
+    lr = 0x80069E7u;
+    BAIL(0x082E70D4u);
+E_080069E6:
+    /* 080069E6: ldrb r1, [r5] */
+    r1 = aot_read8(r5);
+    /* 080069E8: adds r0, r7, #0 */
+    { u32 _a=r7, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080069EA: ands r0, r1 */
+    r0 = (r0 & r1);
+    SET_NZ(r0);
+    /* 080069EC: cmp r0, #0 */
+    { u32 _a=r0, _b=0x0u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080069EE: beq #0x80069f6 */
+    if (zf) goto L080069F6;
+    /* 080069F0: adds r0, r4, #0 */
+    { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080069F2: bl #0x8007640 */
+    lr = 0x80069F7u;
+    BAIL(0x08007640u);
+L080069F6:
+E_080069F6:
+    /* 080069F6: adds r0, r6, #1 */
+    { u32 _a=r6, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 080069F8: lsls r0, r0, #0x18 */
+    r0 = (r0 << 24);
+    LSL_FLAGS(r0, r0, 24);
+    /* 080069FA: lsrs r6, r0, #0x18 */
+    r6 = (r0 >> 24);
+    LSR_FLAGS(r6, r0, 24);
+    /* 080069FC: cmp r6, #0x3f */
+    { u32 _a=r6, _b=0x3Fu, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 080069FE: bls #0x80069c6 */
+    if ((!cf || zf)) goto L080069C6;
+    /* 08006A00: pop {r4, r5, r6, r7} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    r6 = aot_read32(sp + 8u);
+    r7 = aot_read32(sp + 12u);
+    sp += 16u;
+    /* 08006A02: pop {r0} */
+    r0 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006A04: bx r0 */
+    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006A0C: 27 insns, 0 branch targets, 5 BL continuations */
+static void aot_gen_08006A0C(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x08006A12u: goto E_08006A12;
+    case 0x08006A16u: goto E_08006A16;
+    case 0x08006A1Au: goto E_08006A1A;
+    case 0x08006A30u: goto E_08006A30;
+    case 0x08006A34u: goto E_08006A34;
+    default: break;  /* fall through to function head */
+    }
+    /* 08006A0C: push {r4, r5, lr} */
+    sp -= 12u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, lr);
+    /* 08006A0E: bl #0x8006a58 */
+    lr = 0x8006A13u;
+    BAIL(0x08006A58u);
+E_08006A12:
+    /* 08006A12: bl #0x8006b1c */
+    lr = 0x8006A17u;
+    BAIL(0x08006B1Cu);
+E_08006A16:
+    /* 08006A16: bl #0x8006b5c */
+    lr = 0x8006A1Bu;
+    BAIL(0x08006B5Cu);
+E_08006A1A:
+    /* 08006A1A: ldr r5, [pc, #0x30] */
+    r5 = aot_read32(0x8006A4Cu);
+    /* 08006A1C: ldr r0, [pc, #0x30] */
+    r0 = aot_read32(0x8006A50u);
+    /* 08006A1E: adds r5, r5, r0 */
+    { u32 _a=r5, _b=r0; r5=_a+_b; ADD_FLAGS(r5,_a,_b); }
+    /* 08006A20: ldrb r0, [r5] */
+    r0 = aot_read8(r5);
+    /* 08006A22: lsls r4, r0, #0x1f */
+    r4 = (r0 << 31);
+    LSL_FLAGS(r4, r0, 31);
+    /* 08006A24: lsrs r4, r4, #0x1f */
+    r4 = (r4 >> 31);
+    LSR_FLAGS(r4, r4, 31);
+    /* 08006A26: movs r1, #1 */
+    r1 = 0x1u;
+    SET_NZ(r1);
+    /* 08006A28: orrs r0, r1 */
+    r0 = (r0 | r1);
+    SET_NZ(r0);
+    /* 08006A2A: strb r0, [r5] */
+    aot_write8(r5, r0);
+    /* 08006A2C: bl #0x8006d68 */
+    lr = 0x8006A31u;
+    BAIL(0x08006D68u);
+E_08006A30:
+    /* 08006A30: bl #0x8006d1c */
+    lr = 0x8006A35u;
+    BAIL(0x08006D1Cu);
+E_08006A34:
+    /* 08006A34: movs r2, #1 */
+    r2 = 0x1u;
+    SET_NZ(r2);
+    /* 08006A36: ldrb r1, [r5] */
+    r1 = aot_read8(r5);
+    /* 08006A38: movs r0, #2 */
+    r0 = 0x2u;
+    SET_NZ(r0);
+    /* 08006A3A: rsbs r0, r0, #0 */
+    { u32 _a=0u, _b=r0; r0=_a-_b; SUB_FLAGS(r0,_a,_b); }
+    /* 08006A3C: ands r0, r1 */
+    r0 = (r0 & r1);
+    SET_NZ(r0);
+    /* 08006A3E: orrs r4, r0 */
+    r4 = (r4 | r0);
+    SET_NZ(r4);
+    /* 08006A40: strb r4, [r5] */
+    aot_write8(r5, r4);
+    /* 08006A42: ldr r0, [pc, #0x10] */
+    r0 = aot_read32(0x8006A54u);
+    /* 08006A44: strb r2, [r0] */
+    aot_write8(r0, r2);
+    /* 08006A46: pop {r4, r5} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    sp += 8u;
+    /* 08006A48: pop {r0} */
+    r0 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006A4A: bx r0 */
+    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006A58: 96 insns, 4 branch targets, 0 BL continuations */
+static void aot_gen_08006A58(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    /* 08006A58: push {r4, r5, r6, r7, lr} */
+    sp -= 20u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, r6);
+    aot_write32(sp + 12u, r7);
+    aot_write32(sp + 16u, lr);
+    /* 08006A5A: movs r4, #0 */
+    r4 = 0x0u;
+    SET_NZ(r4);
+    /* 08006A5C: ldr r7, [pc, #0x64] */
+    r7 = aot_read32(0x8006AC4u);
+    /* 08006A5E: ldr r0, [pc, #0x68] */
+    r0 = aot_read32(0x8006AC8u);
+    /* 08006A60: adds r5, r0, #0 */
+    { u32 _a=r0, _b=0x0u; r5=_a+_b; ADD_FLAGS(r5,_a,_b); }
+    /* 08006A62: ldr r6, [pc, #0x68] */
+    r6 = aot_read32(0x8006ACCu);
+L08006A64:
+    /* 08006A64: lsls r0, r4, #4 */
+    r0 = (r4 << 4);
+    LSL_FLAGS(r0, r4, 4);
+    /* 08006A66: adds r0, r0, r4 */
+    { u32 _a=r0, _b=r4; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006A68: lsls r0, r0, #2 */
+    r0 = (r0 << 2);
+    LSL_FLAGS(r0, r0, 2);
+    /* 08006A6A: adds r3, r0, r7 */
+    { u32 _a=r0, _b=r7; r3=_a+_b; ADD_FLAGS(r3,_a,_b); }
+    /* 08006A6C: adds r0, r3, #0 */
+    { u32 _a=r3, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006A6E: adds r0, #0x3e */
+    { u32 _a=r0, _b=0x3Eu; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006A70: ldrb r1, [r0] */
+    r1 = aot_read8(r0);
+    /* 08006A72: movs r0, #5 */
+    r0 = 0x5u;
+    SET_NZ(r0);
+    /* 08006A74: ands r0, r1 */
+    r0 = (r0 & r1);
+    SET_NZ(r0);
+    /* 08006A76: cmp r0, #1 */
+    { u32 _a=r0, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006A78: bne #0x8006b0a */
+    if (!zf) goto L08006B0A;
+    /* 08006A7A: movs r0, #2 */
+    r0 = 0x2u;
+    SET_NZ(r0);
+    /* 08006A7C: ands r0, r1 */
+    r0 = (r0 & r1);
+    SET_NZ(r0);
+    /* 08006A7E: cmp r0, #0 */
+    { u32 _a=r0, _b=0x0u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006A80: beq #0x8006ad8 */
+    if (zf) goto L08006AD8;
+    /* 08006A82: movs r2, #0x20 */
+    r2 = 0x20u;
+    SET_NZ(r2);
+    /* 08006A84: ldrsh r1, [r3, r2] */
+    r1 = (u32)(s32)(s16)aot_read16((r3 + r2));
+    /* 08006A86: movs r2, #0x24 */
+    r2 = 0x24u;
+    SET_NZ(r2);
+    /* 08006A88: ldrsh r0, [r3, r2] */
+    r0 = (u32)(s32)(s16)aot_read16((r3 + r2));
+    /* 08006A8A: adds r1, r1, r0 */
+    { u32 _a=r1, _b=r0; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006A8C: adds r0, r3, #0 */
+    { u32 _a=r3, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006A8E: adds r0, #0x28 */
+    { u32 _a=r0, _b=0x28u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006A90: ldrb r0, [r0] */
+    r0 = aot_read8(r0);
+    /* 08006A92: lsls r0, r0, #0x18 */
+    r0 = (r0 << 24);
+    LSL_FLAGS(r0, r0, 24);
+    /* 08006A94: asrs r0, r0, #0x18 */
+    r0 = (u32)((s32)r0 >> 24);
+    ASR_FLAGS(r0, r0, 24);
+    /* 08006A96: adds r1, r1, r0 */
+    { u32 _a=r1, _b=r0; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006A98: ldr r0, [pc, #0x34] */
+    r0 = aot_read32(0x8006AD0u);
+    /* 08006A9A: movs r2, #0 */
+    r2 = 0x0u;
+    SET_NZ(r2);
+    /* 08006A9C: ldrsh r0, [r0, r2] */
+    r0 = (u32)(s32)(s16)aot_read16((r0 + r2));
+    /* 08006A9E: adds r1, r1, r0 */
+    { u32 _a=r1, _b=r0; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006AA0: ands r1, r5 */
+    r1 = (r1 & r5);
+    SET_NZ(r1);
+    /* 08006AA2: ldrh r2, [r3, #2] */
+    r2 = aot_read16((r3 + 2u));
+    /* 08006AA4: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006AA6: ands r0, r2 */
+    r0 = (r0 & r2);
+    SET_NZ(r0);
+    /* 08006AA8: orrs r0, r1 */
+    r0 = (r0 | r1);
+    SET_NZ(r0);
+    /* 08006AAA: strh r0, [r3, #2] */
+    aot_write16((r3 + 2u), r0);
+    /* 08006AAC: ldrh r1, [r3, #0x26] */
+    r1 = aot_read16((r3 + 38u));
+    /* 08006AAE: ldrh r0, [r3, #0x22] */
+    r0 = aot_read16((r3 + 34u));
+    /* 08006AB0: adds r1, r1, r0 */
+    { u32 _a=r1, _b=r0; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006AB2: adds r0, r3, #0 */
+    { u32 _a=r3, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006AB4: adds r0, #0x29 */
+    { u32 _a=r0, _b=0x29u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006AB6: ldrb r0, [r0] */
+    r0 = aot_read8(r0);
+    /* 08006AB8: ldr r2, [pc, #0x18] */
+    r2 = aot_read32(0x8006AD4u);
+    /* 08006ABA: adds r0, r0, r1 */
+    { u32 _a=r0, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006ABC: ldrb r2, [r2] */
+    r2 = aot_read8(r2);
+    /* 08006ABE: adds r0, r0, r2 */
+    { u32 _a=r0, _b=r2; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006AC0: b #0x8006b08 */
+    goto L08006B08;
+    /* 08006AC2: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 08006AC4: lsls r0, r6, #0x18 */
+    r0 = (r6 << 24);
+    LSL_FLAGS(r0, r6, 24);
+    /* 08006AC6: lsls r2, r0, #8 */
+    r2 = (r0 << 8);
+    LSL_FLAGS(r2, r0, 8);
+    /* 08006AC8: lsls r7, r7, #7 */
+    r7 = (r7 << 7);
+    LSL_FLAGS(r7, r7, 7);
+    /* 08006ACA: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 08006ACC: mcr2 p15, #0, pc, c0, c15, #7 */
+    BAIL(0x08006ACCu); /* unsupported: mcr2 p15, #0, pc, c0, c15, #7 */
+    /* 08006AD0: subs r4, r7, r6 */
+    { u32 _a=r7, _b=r6; r4=_a-_b; SUB_FLAGS(r4,_a,_b); }
+    /* 08006AD2: lsls r2, r0, #8 */
+    r2 = (r0 << 8);
+    LSL_FLAGS(r2, r0, 8);
+    /* 08006AD4: subs r6, r7, r6 */
+    { u32 _a=r7, _b=r6; r6=_a-_b; SUB_FLAGS(r6,_a,_b); }
+    /* 08006AD6: lsls r2, r0, #8 */
+    r2 = (r0 << 8);
+    LSL_FLAGS(r2, r0, 8);
+L08006AD8:
+    /* 08006AD8: movs r2, #0x20 */
+    r2 = 0x20u;
+    SET_NZ(r2);
+    /* 08006ADA: ldrsh r1, [r3, r2] */
+    r1 = (u32)(s32)(s16)aot_read16((r3 + r2));
+    /* 08006ADC: movs r2, #0x24 */
+    r2 = 0x24u;
+    SET_NZ(r2);
+    /* 08006ADE: ldrsh r0, [r3, r2] */
+    r0 = (u32)(s32)(s16)aot_read16((r3 + r2));
+    /* 08006AE0: adds r1, r1, r0 */
+    { u32 _a=r1, _b=r0; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006AE2: adds r0, r3, #0 */
+    { u32 _a=r3, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006AE4: adds r0, #0x28 */
+    { u32 _a=r0, _b=0x28u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006AE6: ldrb r0, [r0] */
+    r0 = aot_read8(r0);
+    /* 08006AE8: lsls r0, r0, #0x18 */
+    r0 = (r0 << 24);
+    LSL_FLAGS(r0, r0, 24);
+    /* 08006AEA: asrs r0, r0, #0x18 */
+    r0 = (u32)((s32)r0 >> 24);
+    ASR_FLAGS(r0, r0, 24);
+    /* 08006AEC: adds r1, r1, r0 */
+    { u32 _a=r1, _b=r0; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006AEE: ands r1, r5 */
+    r1 = (r1 & r5);
+    SET_NZ(r1);
+    /* 08006AF0: ldrh r2, [r3, #2] */
+    r2 = aot_read16((r3 + 2u));
+    /* 08006AF2: adds r0, r6, #0 */
+    { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006AF4: ands r0, r2 */
+    r0 = (r0 & r2);
+    SET_NZ(r0);
+    /* 08006AF6: orrs r0, r1 */
+    r0 = (r0 | r1);
+    SET_NZ(r0);
+    /* 08006AF8: strh r0, [r3, #2] */
+    aot_write16((r3 + 2u), r0);
+    /* 08006AFA: ldrh r1, [r3, #0x26] */
+    r1 = aot_read16((r3 + 38u));
+    /* 08006AFC: ldrh r0, [r3, #0x22] */
+    r0 = aot_read16((r3 + 34u));
+    /* 08006AFE: adds r1, r1, r0 */
+    { u32 _a=r1, _b=r0; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006B00: adds r0, r3, #0 */
+    { u32 _a=r3, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006B02: adds r0, #0x29 */
+    { u32 _a=r0, _b=0x29u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006B04: ldrb r0, [r0] */
+    r0 = aot_read8(r0);
+    /* 08006B06: adds r0, r0, r1 */
+    { u32 _a=r0, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+L08006B08:
+    /* 08006B08: strb r0, [r3] */
+    aot_write8(r3, r0);
+L08006B0A:
+    /* 08006B0A: adds r0, r4, #1 */
+    { u32 _a=r4, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006B0C: lsls r0, r0, #0x18 */
+    r0 = (r0 << 24);
+    LSL_FLAGS(r0, r0, 24);
+    /* 08006B0E: lsrs r4, r0, #0x18 */
+    r4 = (r0 >> 24);
+    LSR_FLAGS(r4, r0, 24);
+    /* 08006B10: cmp r4, #0x3f */
+    { u32 _a=r4, _b=0x3Fu, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006B12: bls #0x8006a64 */
+    if ((!cf || zf)) goto L08006A64;
+    /* 08006B14: pop {r4, r5, r6, r7} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    r6 = aot_read32(sp + 8u);
+    r7 = aot_read32(sp + 12u);
+    sp += 16u;
+    /* 08006B16: pop {r0} */
+    r0 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006B18: bx r0 */
+    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* 0x08006A58 BAILs (1): mcr2@08006ACC */
+
+/* function 0x08006B1C: 27 insns, 1 branch targets, 0 BL continuations */
+static void aot_gen_08006B1C(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    /* 08006B1C: push {r4, lr} */
+    sp -= 8u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, lr);
+    /* 08006B1E: movs r2, #0 */
+    r2 = 0x0u;
+    SET_NZ(r2);
+    /* 08006B20: ldr r4, [pc, #0x30] */
+    r4 = aot_read32(0x8006B54u);
+    /* 08006B22: ldr r3, [pc, #0x34] */
+    r3 = aot_read32(0x8006B58u);
+L08006B24:
+    /* 08006B24: lsls r0, r2, #4 */
+    r0 = (r2 << 4);
+    LSL_FLAGS(r0, r2, 4);
+    /* 08006B26: adds r0, r0, r2 */
+    { u32 _a=r0, _b=r2; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006B28: lsls r0, r0, #2 */
+    r0 = (r0 << 2);
+    LSL_FLAGS(r0, r0, 2);
+    /* 08006B2A: adds r0, r0, r4 */
+    { u32 _a=r0, _b=r4; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006B2C: adds r1, r0, #0 */
+    { u32 _a=r0, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006B2E: adds r1, #0x43 */
+    { u32 _a=r1, _b=0x43u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006B30: ldrb r1, [r1] */
+    r1 = aot_read8(r1);
+    /* 08006B32: ldrb r0, [r0, #5] */
+    r0 = aot_read8((r0 + 5u));
+    /* 08006B34: lsls r0, r0, #0x1c */
+    r0 = (r0 << 28);
+    LSL_FLAGS(r0, r0, 28);
+    /* 08006B36: lsrs r0, r0, #0x1e */
+    r0 = (r0 >> 30);
+    LSR_FLAGS(r0, r0, 30);
+    /* 08006B38: lsls r0, r0, #8 */
+    r0 = (r0 << 8);
+    LSL_FLAGS(r0, r0, 8);
+    /* 08006B3A: orrs r1, r0 */
+    r1 = (r1 | r0);
+    SET_NZ(r1);
+    /* 08006B3C: lsls r0, r2, #1 */
+    r0 = (r2 << 1);
+    LSL_FLAGS(r0, r2, 1);
+    /* 08006B3E: adds r0, r0, r3 */
+    { u32 _a=r0, _b=r3; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006B40: strh r1, [r0] */
+    aot_write16(r0, r1);
+    /* 08006B42: adds r0, r2, #1 */
+    { u32 _a=r2, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006B44: lsls r0, r0, #0x10 */
+    r0 = (r0 << 16);
+    LSL_FLAGS(r0, r0, 16);
+    /* 08006B46: lsrs r2, r0, #0x10 */
+    r2 = (r0 >> 16);
+    LSR_FLAGS(r2, r0, 16);
+    /* 08006B48: cmp r2, #0x3f */
+    { u32 _a=r2, _b=0x3Fu, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006B4A: bls #0x8006b24 */
+    if ((!cf || zf)) goto L08006B24;
+    /* 08006B4C: pop {r4} */
+    r4 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006B4E: pop {r0} */
+    r0 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006B50: bx r0 */
+    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* SKIP 0x08006B5C: undecodable at 0x08006C28 */
+/* function 0x08006D1C: 34 insns, 1 branch targets, 0 BL continuations */
+static void aot_gen_08006D1C(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    /* 08006D1C: push {r4, r5, r6, lr} */
+    sp -= 16u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, r6);
+    aot_write32(sp + 12u, lr);
+    /* 08006D1E: movs r4, #0 */
+    r4 = 0x0u;
+    SET_NZ(r4);
+    /* 08006D20: ldr r5, [pc, #0x3c] */
+    r5 = aot_read32(0x8006D60u);
+    /* 08006D22: ldr r6, [pc, #0x40] */
+    r6 = aot_read32(0x8006D64u);
+L08006D24:
+    /* 08006D24: lsls r2, r4, #2 */
+    r2 = (r4 << 2);
+    LSL_FLAGS(r2, r4, 2);
+    /* 08006D26: lsls r1, r4, #5 */
+    r1 = (r4 << 5);
+    LSL_FLAGS(r1, r4, 5);
+    /* 08006D28: adds r1, r1, r5 */
+    { u32 _a=r1, _b=r5; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006D2A: lsls r3, r4, #3 */
+    r3 = (r4 << 3);
+    LSL_FLAGS(r3, r4, 3);
+    /* 08006D2C: adds r3, r3, r6 */
+    { u32 _a=r3, _b=r6; r3=_a+_b; ADD_FLAGS(r3,_a,_b); }
+    /* 08006D2E: ldrh r0, [r3] */
+    r0 = aot_read16(r3);
+    /* 08006D30: strh r0, [r1, #0x3e] */
+    aot_write16((r1 + 62u), r0);
+    /* 08006D32: adds r0, r2, #1 */
+    { u32 _a=r2, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006D34: lsls r0, r0, #3 */
+    r0 = (r0 << 3);
+    LSL_FLAGS(r0, r0, 3);
+    /* 08006D36: adds r0, r0, r5 */
+    { u32 _a=r0, _b=r5; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006D38: ldrh r1, [r3, #2] */
+    r1 = aot_read16((r3 + 2u));
+    /* 08006D3A: strh r1, [r0, #0x3e] */
+    aot_write16((r0 + 62u), r1);
+    /* 08006D3C: adds r0, r2, #2 */
+    { u32 _a=r2, _b=0x2u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006D3E: lsls r0, r0, #3 */
+    r0 = (r0 << 3);
+    LSL_FLAGS(r0, r0, 3);
+    /* 08006D40: adds r0, r0, r5 */
+    { u32 _a=r0, _b=r5; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006D42: ldrh r1, [r3, #4] */
+    r1 = aot_read16((r3 + 4u));
+    /* 08006D44: strh r1, [r0, #0x3e] */
+    aot_write16((r0 + 62u), r1);
+    /* 08006D46: adds r2, #3 */
+    { u32 _a=r2, _b=0x3u; r2=_a+_b; ADD_FLAGS(r2,_a,_b); }
+    /* 08006D48: lsls r2, r2, #3 */
+    r2 = (r2 << 3);
+    LSL_FLAGS(r2, r2, 3);
+    /* 08006D4A: adds r2, r2, r5 */
+    { u32 _a=r2, _b=r5; r2=_a+_b; ADD_FLAGS(r2,_a,_b); }
+    /* 08006D4C: ldrh r0, [r3, #6] */
+    r0 = aot_read16((r3 + 6u));
+    /* 08006D4E: strh r0, [r2, #0x3e] */
+    aot_write16((r2 + 62u), r0);
+    /* 08006D50: adds r0, r4, #1 */
+    { u32 _a=r4, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006D52: lsls r0, r0, #0x18 */
+    r0 = (r0 << 24);
+    LSL_FLAGS(r0, r0, 24);
+    /* 08006D54: lsrs r4, r0, #0x18 */
+    r4 = (r0 >> 24);
+    LSR_FLAGS(r4, r0, 24);
+    /* 08006D56: cmp r4, #0x1f */
+    { u32 _a=r4, _b=0x1Fu, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006D58: bls #0x8006d24 */
+    if ((!cf || zf)) goto L08006D24;
+    /* 08006D5A: pop {r4, r5, r6} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    r6 = aot_read32(sp + 8u);
+    sp += 12u;
+    /* 08006D5C: pop {r0} */
+    r0 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006D5E: bx r0 */
+    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006D68: 59 insns, 4 branch targets, 1 BL continuations */
+static void aot_gen_08006D68(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x08006D98u: goto E_08006D98;
+    default: break;  /* fall through to function head */
+    }
+    /* 08006D68: push {r4, r5, r6, lr} */
+    sp -= 16u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, r6);
+    aot_write32(sp + 12u, lr);
+    /* 08006D6A: sub sp, #4 */
+    sp = sp - 0x4u;
+    /* 08006D6C: movs r4, #0 */
+    r4 = 0x0u;
+    SET_NZ(r4);
+    /* 08006D6E: mov r0, sp */
+    r0 = sp;
+    /* 08006D70: strb r4, [r0] */
+    aot_write8(r0, r4);
+L08006D72:
+    /* 08006D72: ldr r0, [pc, #0x6c] */
+    r0 = aot_read32(0x8006DE0u);
+    /* 08006D74: adds r0, r4, r0 */
+    { u32 _a=r4, _b=r0; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006D76: ldrb r1, [r0] */
+    r1 = aot_read8(r0);
+    /* 08006D78: lsls r0, r1, #4 */
+    r0 = (r1 << 4);
+    LSL_FLAGS(r0, r1, 4);
+    /* 08006D7A: adds r0, r0, r1 */
+    { u32 _a=r0, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006D7C: lsls r0, r0, #2 */
+    r0 = (r0 << 2);
+    LSL_FLAGS(r0, r0, 2);
+    /* 08006D7E: ldr r1, [pc, #0x64] */
+    r1 = aot_read32(0x8006DE4u);
+    /* 08006D80: adds r2, r0, r1 */
+    { u32 _a=r0, _b=r1; r2=_a+_b; ADD_FLAGS(r2,_a,_b); }
+    /* 08006D82: adds r0, r2, #0 */
+    { u32 _a=r2, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006D84: adds r0, #0x3e */
+    { u32 _a=r0, _b=0x3Eu; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006D86: ldrb r1, [r0] */
+    r1 = aot_read8(r0);
+    /* 08006D88: movs r0, #5 */
+    r0 = 0x5u;
+    SET_NZ(r0);
+    /* 08006D8A: ands r0, r1 */
+    r0 = (r0 & r1);
+    SET_NZ(r0);
+    /* 08006D8C: cmp r0, #1 */
+    { u32 _a=r0, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006D8E: bne #0x8006d9e */
+    if (!zf) goto L08006D9E;
+    /* 08006D90: adds r0, r2, #0 */
+    { u32 _a=r2, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006D92: mov r1, sp */
+    r1 = sp;
+    /* 08006D94: bl #0x8008880 */
+    lr = 0x8006D99u;
+    BAIL(0x08008880u);
+E_08006D98:
+    /* 08006D98: lsls r0, r0, #0x18 */
+    r0 = (r0 << 24);
+    LSL_FLAGS(r0, r0, 24);
+    /* 08006D9A: cmp r0, #0 */
+    { u32 _a=r0, _b=0x0u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006D9C: bne #0x8006dd8 */
+    if (!zf) goto L08006DD8;
+L08006D9E:
+    /* 08006D9E: adds r0, r4, #1 */
+    { u32 _a=r4, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006DA0: lsls r0, r0, #0x18 */
+    r0 = (r0 << 24);
+    LSL_FLAGS(r0, r0, 24);
+    /* 08006DA2: lsrs r4, r0, #0x18 */
+    r4 = (r0 >> 24);
+    LSR_FLAGS(r4, r0, 24);
+    /* 08006DA4: cmp r4, #0x3f */
+    { u32 _a=r4, _b=0x3Fu, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006DA6: bls #0x8006d72 */
+    if ((!cf || zf)) goto L08006D72;
+    /* 08006DA8: mov r0, sp */
+    r0 = sp;
+    /* 08006DAA: ldr r4, [pc, #0x3c] */
+    r4 = aot_read32(0x8006DE8u);
+    /* 08006DAC: ldrb r0, [r0] */
+    r0 = aot_read8(r0);
+    /* 08006DAE: ldrb r1, [r4] */
+    r1 = aot_read8(r4);
+    /* 08006DB0: cmp r0, r1 */
+    { u32 _a=r0, _b=r1, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006DB2: bhs #0x8006dd8 */
+    if (cf) goto L08006DD8;
+    /* 08006DB4: mov r1, sp */
+    r1 = sp;
+    /* 08006DB6: ldr r5, [pc, #0x34] */
+    r5 = aot_read32(0x8006DECu);
+    /* 08006DB8: ldr r0, [pc, #0x34] */
+    r0 = aot_read32(0x8006DF0u);
+    /* 08006DBA: ldr r2, [r0] */
+    r2 = aot_read32(r0);
+    /* 08006DBC: ldr r3, [r0, #4] */
+    r3 = aot_read32((r0 + 4u));
+L08006DBE:
+    /* 08006DBE: ldrb r0, [r1] */
+    r0 = aot_read8(r1);
+    /* 08006DC0: lsls r0, r0, #3 */
+    r0 = (r0 << 3);
+    LSL_FLAGS(r0, r0, 3);
+    /* 08006DC2: adds r0, r0, r5 */
+    { u32 _a=r0, _b=r5; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006DC4: str r2, [r0] */
+    aot_write32(r0, r2);
+    /* 08006DC6: str r3, [r0, #4] */
+    aot_write32((r0 + 4u), r3);
+    /* 08006DC8: ldrb r0, [r1] */
+    r0 = aot_read8(r1);
+    /* 08006DCA: adds r0, #1 */
+    { u32 _a=r0, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006DCC: strb r0, [r1] */
+    aot_write8(r1, r0);
+    /* 08006DCE: lsls r0, r0, #0x18 */
+    r0 = (r0 << 24);
+    LSL_FLAGS(r0, r0, 24);
+    /* 08006DD0: lsrs r0, r0, #0x18 */
+    r0 = (r0 >> 24);
+    LSR_FLAGS(r0, r0, 24);
+    /* 08006DD2: ldrb r6, [r4] */
+    r6 = aot_read8(r4);
+    /* 08006DD4: cmp r0, r6 */
+    { u32 _a=r0, _b=r6, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006DD6: blo #0x8006dbe */
+    if (!cf) goto L08006DBE;
+L08006DD8:
+    /* 08006DD8: add sp, #4 */
+    sp = sp + 0x4u;
+    /* 08006DDA: pop {r4, r5, r6} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    r6 = aot_read32(sp + 8u);
+    sp += 12u;
+    /* 08006DDC: pop {r0} */
+    r0 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006DDE: bx r0 */
+    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006DF4: 41 insns, 3 branch targets, 1 BL continuations */
+static void aot_gen_08006DF4(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x08006E28u: goto E_08006E28;
+    default: break;  /* fall through to function head */
+    }
+    /* 08006DF4: push {r4, r5, r6, r7, lr} */
+    sp -= 20u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, r6);
+    aot_write32(sp + 12u, r7);
+    aot_write32(sp + 16u, lr);
+    /* 08006DF6: sub sp, #4 */
+    sp = sp - 0x4u;
+    /* 08006DF8: adds r7, r0, #0 */
+    { u32 _a=r0, _b=0x0u; r7=_a+_b; ADD_FLAGS(r7,_a,_b); }
+    /* 08006DFA: lsls r3, r3, #0x18 */
+    r3 = (r3 << 24);
+    LSL_FLAGS(r3, r3, 24);
+    /* 08006DFC: lsrs r4, r3, #0x18 */
+    r4 = (r3 >> 24);
+    LSR_FLAGS(r4, r3, 24);
+    /* 08006DFE: movs r3, #0 */
+    r3 = 0x0u;
+    SET_NZ(r3);
+    /* 08006E00: ldr r0, [pc, #0x2c] */
+    r0 = aot_read32(0x8006E30u);
+    /* 08006E02: mov ip, r0 */
+    r12 = r0;
+    /* 08006E04: lsls r5, r1, #0x10 */
+    r5 = (r1 << 16);
+    LSL_FLAGS(r5, r1, 16);
+    /* 08006E06: lsls r6, r2, #0x10 */
+    r6 = (r2 << 16);
+    LSL_FLAGS(r6, r2, 16);
+L08006E08:
+    /* 08006E08: lsls r0, r3, #4 */
+    r0 = (r3 << 4);
+    LSL_FLAGS(r0, r3, 4);
+    /* 08006E0A: adds r0, r0, r3 */
+    { u32 _a=r0, _b=r3; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006E0C: lsls r0, r0, #2 */
+    r0 = (r0 << 2);
+    LSL_FLAGS(r0, r0, 2);
+    /* 08006E0E: add r0, ip */
+    r0 = r0 + r12;
+    /* 08006E10: adds r0, #0x3e */
+    { u32 _a=r0, _b=0x3Eu; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006E12: ldrb r0, [r0] */
+    r0 = aot_read8(r0);
+    /* 08006E14: lsls r0, r0, #0x1f */
+    r0 = (r0 << 31);
+    LSL_FLAGS(r0, r0, 31);
+    /* 08006E16: cmp r0, #0 */
+    { u32 _a=r0, _b=0x0u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006E18: bne #0x8006e34 */
+    if (!zf) goto L08006E34;
+    /* 08006E1A: str r4, [sp] */
+    aot_write32(sp, r4);
+    /* 08006E1C: adds r0, r3, #0 */
+    { u32 _a=r3, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006E1E: adds r1, r7, #0 */
+    { u32 _a=r7, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006E20: asrs r2, r5, #0x10 */
+    r2 = (u32)((s32)r5 >> 16);
+    ASR_FLAGS(r2, r5, 16);
+    /* 08006E22: asrs r3, r6, #0x10 */
+    r3 = (u32)((s32)r6 >> 16);
+    ASR_FLAGS(r3, r6, 16);
+    /* 08006E24: bl #0x8006efc */
+    lr = 0x8006E29u;
+    BAIL(0x08006EFCu);
+E_08006E28:
+    /* 08006E28: lsls r0, r0, #0x18 */
+    r0 = (r0 << 24);
+    LSL_FLAGS(r0, r0, 24);
+    /* 08006E2A: lsrs r0, r0, #0x18 */
+    r0 = (r0 >> 24);
+    LSR_FLAGS(r0, r0, 24);
+    /* 08006E2C: b #0x8006e40 */
+    goto L08006E40;
+    /* 08006E2E: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 08006E30: lsls r0, r6, #0x18 */
+    r0 = (r6 << 24);
+    LSL_FLAGS(r0, r6, 24);
+    /* 08006E32: lsls r2, r0, #8 */
+    r2 = (r0 << 8);
+    LSL_FLAGS(r2, r0, 8);
+L08006E34:
+    /* 08006E34: adds r0, r3, #1 */
+    { u32 _a=r3, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006E36: lsls r0, r0, #0x18 */
+    r0 = (r0 << 24);
+    LSL_FLAGS(r0, r0, 24);
+    /* 08006E38: lsrs r3, r0, #0x18 */
+    r3 = (r0 >> 24);
+    LSR_FLAGS(r3, r0, 24);
+    /* 08006E3A: cmp r3, #0x3f */
+    { u32 _a=r3, _b=0x3Fu, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006E3C: bls #0x8006e08 */
+    if ((!cf || zf)) goto L08006E08;
+    /* 08006E3E: movs r0, #0x40 */
+    r0 = 0x40u;
+    SET_NZ(r0);
+L08006E40:
+    /* 08006E40: add sp, #4 */
+    sp = sp + 0x4u;
+    /* 08006E42: pop {r4, r5, r6, r7} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    r6 = aot_read32(sp + 8u);
+    r7 = aot_read32(sp + 12u);
+    sp += 16u;
+    /* 08006E44: pop {r1} */
+    r1 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006E46: bx r1 */
+    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006E48: 52 insns, 3 branch targets, 1 BL continuations */
+static void aot_gen_08006E48(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x08006E8Cu: goto E_08006E8C;
+    default: break;  /* fall through to function head */
+    }
+    /* 08006E48: push {r4, r5, r6, r7, lr} */
+    sp -= 20u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, r6);
+    aot_write32(sp + 12u, r7);
+    aot_write32(sp + 16u, lr);
+    /* 08006E4A: mov r7, r8 */
+    r7 = r8;
+    /* 08006E4C: push {r7} */
+    sp -= 4u;
+    aot_write32(sp + 0u, r7);
+    /* 08006E4E: sub sp, #4 */
+    sp = sp - 0x4u;
+    /* 08006E50: adds r7, r0, #0 */
+    { u32 _a=r0, _b=0x0u; r7=_a+_b; ADD_FLAGS(r7,_a,_b); }
+    /* 08006E52: lsls r3, r3, #0x18 */
+    r3 = (r3 << 24);
+    LSL_FLAGS(r3, r3, 24);
+    /* 08006E54: lsrs r6, r3, #0x18 */
+    r6 = (r3 >> 24);
+    LSR_FLAGS(r6, r3, 24);
+    /* 08006E56: movs r3, #0x3f */
+    r3 = 0x3Fu;
+    SET_NZ(r3);
+    /* 08006E58: ldr r0, [pc, #0x38] */
+    r0 = aot_read32(0x8006E94u);
+    /* 08006E5A: mov r8, r0 */
+    r8 = r0;
+    /* 08006E5C: movs r0, #1 */
+    r0 = 0x1u;
+    SET_NZ(r0);
+    /* 08006E5E: rsbs r0, r0, #0 */
+    { u32 _a=0u, _b=r0; r0=_a-_b; SUB_FLAGS(r0,_a,_b); }
+    /* 08006E60: mov ip, r0 */
+    r12 = r0;
+    /* 08006E62: lsls r4, r1, #0x10 */
+    r4 = (r1 << 16);
+    LSL_FLAGS(r4, r1, 16);
+    /* 08006E64: lsls r5, r2, #0x10 */
+    r5 = (r2 << 16);
+    LSL_FLAGS(r5, r2, 16);
+L08006E66:
+    /* 08006E66: lsls r0, r3, #0x10 */
+    r0 = (r3 << 16);
+    LSL_FLAGS(r0, r3, 16);
+    /* 08006E68: asrs r1, r0, #0x10 */
+    r1 = (u32)((s32)r0 >> 16);
+    ASR_FLAGS(r1, r0, 16);
+    /* 08006E6A: lsls r0, r1, #4 */
+    r0 = (r1 << 4);
+    LSL_FLAGS(r0, r1, 4);
+    /* 08006E6C: adds r0, r0, r1 */
+    { u32 _a=r0, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006E6E: lsls r0, r0, #2 */
+    r0 = (r0 << 2);
+    LSL_FLAGS(r0, r0, 2);
+    /* 08006E70: add r0, r8 */
+    r0 = r0 + r8;
+    /* 08006E72: adds r0, #0x3e */
+    { u32 _a=r0, _b=0x3Eu; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006E74: ldrb r0, [r0] */
+    r0 = aot_read8(r0);
+    /* 08006E76: lsls r0, r0, #0x1f */
+    r0 = (r0 << 31);
+    LSL_FLAGS(r0, r0, 31);
+    /* 08006E78: cmp r0, #0 */
+    { u32 _a=r0, _b=0x0u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006E7A: bne #0x8006e98 */
+    if (!zf) goto L08006E98;
+    /* 08006E7C: lsls r0, r3, #0x18 */
+    r0 = (r3 << 24);
+    LSL_FLAGS(r0, r3, 24);
+    /* 08006E7E: lsrs r0, r0, #0x18 */
+    r0 = (r0 >> 24);
+    LSR_FLAGS(r0, r0, 24);
+    /* 08006E80: str r6, [sp] */
+    aot_write32(sp, r6);
+    /* 08006E82: adds r1, r7, #0 */
+    { u32 _a=r7, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006E84: asrs r2, r4, #0x10 */
+    r2 = (u32)((s32)r4 >> 16);
+    ASR_FLAGS(r2, r4, 16);
+    /* 08006E86: asrs r3, r5, #0x10 */
+    r3 = (u32)((s32)r5 >> 16);
+    ASR_FLAGS(r3, r5, 16);
+    /* 08006E88: bl #0x8006efc */
+    lr = 0x8006E8Du;
+    BAIL(0x08006EFCu);
+E_08006E8C:
+    /* 08006E8C: lsls r0, r0, #0x18 */
+    r0 = (r0 << 24);
+    LSL_FLAGS(r0, r0, 24);
+    /* 08006E8E: lsrs r0, r0, #0x18 */
+    r0 = (r0 >> 24);
+    LSR_FLAGS(r0, r0, 24);
+    /* 08006E90: b #0x8006ea6 */
+    goto L08006EA6;
+    /* 08006E92: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 08006E94: lsls r0, r6, #0x18 */
+    r0 = (r6 << 24);
+    LSL_FLAGS(r0, r6, 24);
+    /* 08006E96: lsls r2, r0, #8 */
+    r2 = (r0 << 8);
+    LSL_FLAGS(r2, r0, 8);
+L08006E98:
+    /* 08006E98: subs r0, r1, #1 */
+    { u32 _a=r1, _b=0x1u; r0=_a-_b; SUB_FLAGS(r0,_a,_b); }
+    /* 08006E9A: lsls r0, r0, #0x10 */
+    r0 = (r0 << 16);
+    LSL_FLAGS(r0, r0, 16);
+    /* 08006E9C: lsrs r3, r0, #0x10 */
+    r3 = (r0 >> 16);
+    LSR_FLAGS(r3, r0, 16);
+    /* 08006E9E: asrs r0, r0, #0x10 */
+    r0 = (u32)((s32)r0 >> 16);
+    ASR_FLAGS(r0, r0, 16);
+    /* 08006EA0: cmp r0, ip */
+    { u32 _a=r0, _b=r12, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006EA2: bgt #0x8006e66 */
+    if ((!zf && nf == vf)) goto L08006E66;
+    /* 08006EA4: movs r0, #0x40 */
+    r0 = 0x40u;
+    SET_NZ(r0);
+L08006EA6:
+    /* 08006EA6: add sp, #4 */
+    sp = sp + 0x4u;
+    /* 08006EA8: pop {r3} */
+    r3 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006EAA: mov r8, r3 */
+    r8 = r3;
+    /* 08006EAC: pop {r4, r5, r6, r7} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    r6 = aot_read32(sp + 8u);
+    r7 = aot_read32(sp + 12u);
+    sp += 16u;
+    /* 08006EAE: pop {r1} */
+    r1 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006EB0: bx r1 */
+    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* function 0x08006EB4: 35 insns, 2 branch targets, 1 BL continuations */
+static void aot_gen_08006EB4(u32 ep) {
+    u32 r0 = reg[0];
+    u32 r1 = reg[1];
+    u32 r2 = reg[2];
+    u32 r3 = reg[3];
+    u32 r4 = reg[4];
+    u32 r5 = reg[5];
+    u32 r6 = reg[6];
+    u32 r7 = reg[7];
+    u32 r8 = reg[8];
+    u32 r9 = reg[9];
+    u32 r10 = reg[10];
+    u32 r11 = reg[11];
+    u32 r12 = reg[12];
+    u32 sp = reg[13];
+    u32 lr = reg[14];
+    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];
+    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];
+    (void)cf; (void)nf; (void)zf; (void)vf;
+    switch (ep) {
+    case 0x08006EC4u: goto E_08006EC4;
+    default: break;  /* fall through to function head */
+    }
+    /* 08006EB4: push {r4, r5, r6, lr} */
+    sp -= 16u;
+    aot_write32(sp + 0u, r4);
+    aot_write32(sp + 4u, r5);
+    aot_write32(sp + 8u, r6);
+    aot_write32(sp + 12u, lr);
+    /* 08006EB6: adds r6, r0, #0 */
+    { u32 _a=r0, _b=0x0u; r6=_a+_b; ADD_FLAGS(r6,_a,_b); }
+    /* 08006EB8: ldr r0, [pc, #0x30] */
+    r0 = aot_read32(0x8006EECu);
+    /* 08006EBA: movs r1, #0 */
+    r1 = 0x0u;
+    SET_NZ(r1);
+    /* 08006EBC: movs r2, #0 */
+    r2 = 0x0u;
+    SET_NZ(r2);
+    /* 08006EBE: movs r3, #0x1f */
+    r3 = 0x1Fu;
+    SET_NZ(r3);
+    /* 08006EC0: bl #0x8006df4 */
+    lr = 0x8006EC5u;
+    BAIL(0x08006DF4u);
+E_08006EC4:
+    /* 08006EC4: lsls r0, r0, #0x18 */
+    r0 = (r0 << 24);
+    LSL_FLAGS(r0, r0, 24);
+    /* 08006EC6: lsrs r5, r0, #0x18 */
+    r5 = (r0 >> 24);
+    LSR_FLAGS(r5, r0, 24);
+    /* 08006EC8: cmp r5, #0x40 */
+    { u32 _a=r5, _b=0x40u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
+    /* 08006ECA: beq #0x8006ef4 */
+    if (zf) goto L08006EF4;
+    /* 08006ECC: ldr r4, [pc, #0x20] */
+    r4 = aot_read32(0x8006EF0u);
+    /* 08006ECE: lsls r1, r5, #4 */
+    r1 = (r5 << 4);
+    LSL_FLAGS(r1, r5, 4);
+    /* 08006ED0: adds r1, r1, r5 */
+    { u32 _a=r1, _b=r5; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006ED2: lsls r1, r1, #2 */
+    r1 = (r1 << 2);
+    LSL_FLAGS(r1, r1, 2);
+    /* 08006ED4: adds r2, r1, r4 */
+    { u32 _a=r1, _b=r4; r2=_a+_b; ADD_FLAGS(r2,_a,_b); }
+    /* 08006ED6: adds r2, #0x3e */
+    { u32 _a=r2, _b=0x3Eu; r2=_a+_b; ADD_FLAGS(r2,_a,_b); }
+    /* 08006ED8: ldrb r0, [r2] */
+    r0 = aot_read8(r2);
+    /* 08006EDA: movs r3, #4 */
+    r3 = 0x4u;
+    SET_NZ(r3);
+    /* 08006EDC: orrs r0, r3 */
+    r0 = (r0 | r3);
+    SET_NZ(r0);
+    /* 08006EDE: strb r0, [r2] */
+    aot_write8(r2, r0);
+    /* 08006EE0: adds r4, #0x1c */
+    { u32 _a=r4, _b=0x1Cu; r4=_a+_b; ADD_FLAGS(r4,_a,_b); }
+    /* 08006EE2: adds r1, r1, r4 */
+    { u32 _a=r1, _b=r4; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
+    /* 08006EE4: str r6, [r1] */
+    aot_write32(r1, r6);
+    /* 08006EE6: adds r0, r5, #0 */
+    { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
+    /* 08006EE8: b #0x8006ef6 */
+    goto L08006EF6;
+    /* 08006EEA: movs r0, r0 */
+    r0 = r0;
+    SET_NZ(r0);
+    /* 08006EEC: stm r6!, {r2, r3, r5, r7} */
+    aot_write32(r6 + 0u, r2);
+    aot_write32(r6 + 4u, r3);
+    aot_write32(r6 + 8u, r5);
+    aot_write32(r6 + 12u, r7);
+    r6 += 16u;
+    /* 08006EEE: lsrs r6, r5, #0x20 */
+    r6 = (r5 >> 32);
+    LSR_FLAGS(r6, r5, 32);
+    /* 08006EF0: lsls r0, r6, #0x18 */
+    r0 = (r6 << 24);
+    LSL_FLAGS(r0, r6, 24);
+    /* 08006EF2: lsls r2, r0, #8 */
+    r2 = (r0 << 8);
+    LSL_FLAGS(r2, r0, 8);
+L08006EF4:
+    /* 08006EF4: movs r0, #0x40 */
+    r0 = 0x40u;
+    SET_NZ(r0);
+L08006EF6:
+    /* 08006EF6: pop {r4, r5, r6} */
+    r4 = aot_read32(sp + 0u);
+    r5 = aot_read32(sp + 4u);
+    r6 = aot_read32(sp + 8u);
+    sp += 12u;
+    /* 08006EF8: pop {r1} */
+    r1 = aot_read32(sp + 0u);
+    sp += 4u;
+    /* 08006EFA: bx r1 */
+    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    AOT_RETURN();
+}
+
+/* SKIP 0x08006EFC: undecodable at 0x08006FF4 */
 
 /* Dispatch: returns 1 if PC matched and ran AOT, 0 otherwise. */
 int aot_generated_dispatch(u32 pc) {
     switch (pc) {
-    case 0x08005ED8: aot_gen_08005ED8(0x08005ED8u); return 1;
-    case 0x08005EFC: aot_gen_08005ED8(0x08005EFCu); return 1;
-    case 0x08005F1C: aot_gen_08005ED8(0x08005F1Cu); return 1;
-    case 0x0806F160: aot_gen_0806F160(0x0806F160u); return 1;
+    case 0x08006140: aot_gen_08006140(0x08006140u); return 1;
+    case 0x08006168: aot_gen_08006140(0x08006168u); return 1;
+    case 0x0800617E: aot_gen_08006140(0x0800617Eu); return 1;
+    case 0x080062E8: aot_gen_080062E8(0x080062E8u); return 1;
+    case 0x08006324: aot_gen_080062E8(0x08006324u); return 1;
+    case 0x08006368: aot_gen_08006368(0x08006368u); return 1;
+    case 0x08006370: aot_gen_08006368(0x08006370u); return 1;
+    case 0x08006378: aot_gen_08006378(0x08006378u); return 1;
+    case 0x08006478: aot_gen_08006478(0x08006478u); return 1;
+    case 0x0800649C: aot_gen_08006478(0x0800649Cu); return 1;
+    case 0x080064AA: aot_gen_08006478(0x080064AAu); return 1;
+    case 0x080064E4: aot_gen_08006478(0x080064E4u); return 1;
+    case 0x080064F0: aot_gen_08006478(0x080064F0u); return 1;
+    case 0x08006508: aot_gen_08006478(0x08006508u); return 1;
+    case 0x08006514: aot_gen_08006478(0x08006514u); return 1;
+    case 0x08006520: aot_gen_08006478(0x08006520u); return 1;
+    case 0x0800652C: aot_gen_08006478(0x0800652Cu); return 1;
+    case 0x08006540: aot_gen_08006540(0x08006540u); return 1;
+    case 0x08006560: aot_gen_08006560(0x08006560u); return 1;
+    case 0x08006586: aot_gen_08006560(0x08006586u); return 1;
+    case 0x08006594: aot_gen_08006560(0x08006594u); return 1;
+    case 0x080065CC: aot_gen_08006560(0x080065CCu); return 1;
+    case 0x080065D8: aot_gen_08006560(0x080065D8u); return 1;
+    case 0x080065F0: aot_gen_08006560(0x080065F0u); return 1;
+    case 0x080065FC: aot_gen_08006560(0x080065FCu); return 1;
+    case 0x08006608: aot_gen_08006560(0x08006608u); return 1;
+    case 0x08006614: aot_gen_08006560(0x08006614u); return 1;
+    case 0x08006628: aot_gen_08006628(0x08006628u); return 1;
+    case 0x08006648: aot_gen_08006648(0x08006648u); return 1;
+    case 0x0800666C: aot_gen_08006648(0x0800666Cu); return 1;
+    case 0x0800667A: aot_gen_08006648(0x0800667Au); return 1;
+    case 0x080066B4: aot_gen_08006648(0x080066B4u); return 1;
+    case 0x080066C0: aot_gen_08006648(0x080066C0u); return 1;
+    case 0x080066D8: aot_gen_08006648(0x080066D8u); return 1;
+    case 0x080066E4: aot_gen_08006648(0x080066E4u); return 1;
+    case 0x080066F0: aot_gen_08006648(0x080066F0u); return 1;
+    case 0x080066FC: aot_gen_08006648(0x080066FCu); return 1;
+    case 0x08006710: aot_gen_08006710(0x08006710u); return 1;
+    case 0x08006730: aot_gen_08006730(0x08006730u); return 1;
+    case 0x08006754: aot_gen_08006730(0x08006754u); return 1;
+    case 0x08006760: aot_gen_08006730(0x08006760u); return 1;
+    case 0x0800676E: aot_gen_08006730(0x0800676Eu); return 1;
+    case 0x0800677C: aot_gen_08006730(0x0800677Cu); return 1;
+    case 0x080067C0: aot_gen_08006730(0x080067C0u); return 1;
+    case 0x080067CC: aot_gen_08006730(0x080067CCu); return 1;
+    case 0x080067E4: aot_gen_08006730(0x080067E4u); return 1;
+    case 0x080067F0: aot_gen_08006730(0x080067F0u); return 1;
+    case 0x080067FC: aot_gen_08006730(0x080067FCu); return 1;
+    case 0x08006808: aot_gen_08006730(0x08006808u); return 1;
+    case 0x0800681C: aot_gen_0800681C(0x0800681Cu); return 1;
+    case 0x08006840: aot_gen_08006840(0x08006840u); return 1;
+    case 0x08006866: aot_gen_08006840(0x08006866u); return 1;
+    case 0x08006874: aot_gen_08006840(0x08006874u); return 1;
+    case 0x080068AC: aot_gen_08006840(0x080068ACu); return 1;
+    case 0x080068B8: aot_gen_08006840(0x080068B8u); return 1;
+    case 0x080068D0: aot_gen_08006840(0x080068D0u); return 1;
+    case 0x080068DC: aot_gen_08006840(0x080068DCu); return 1;
+    case 0x080068E8: aot_gen_08006840(0x080068E8u); return 1;
+    case 0x080068F4: aot_gen_08006840(0x080068F4u); return 1;
+    case 0x08006908: aot_gen_08006908(0x08006908u); return 1;
+    case 0x08006928: aot_gen_08006928(0x08006928u); return 1;
+    case 0x08006948: aot_gen_08006928(0x08006948u); return 1;
+    case 0x08006958: aot_gen_08006928(0x08006958u); return 1;
+    case 0x08006974: aot_gen_08006974(0x08006974u); return 1;
+    case 0x0800697E: aot_gen_08006974(0x0800697Eu); return 1;
+    case 0x08006982: aot_gen_08006974(0x08006982u); return 1;
+    case 0x08006986: aot_gen_08006974(0x08006986u); return 1;
+    case 0x0800698A: aot_gen_08006974(0x0800698Au); return 1;
+    case 0x0800698E: aot_gen_08006974(0x0800698Eu); return 1;
+    case 0x080069A0: aot_gen_08006974(0x080069A0u); return 1;
+    case 0x080069C0: aot_gen_080069C0(0x080069C0u); return 1;
+    case 0x080069E6: aot_gen_080069C0(0x080069E6u); return 1;
+    case 0x080069F6: aot_gen_080069C0(0x080069F6u); return 1;
+    case 0x08006A0C: aot_gen_08006A0C(0x08006A0Cu); return 1;
+    case 0x08006A12: aot_gen_08006A0C(0x08006A12u); return 1;
+    case 0x08006A16: aot_gen_08006A0C(0x08006A16u); return 1;
+    case 0x08006A1A: aot_gen_08006A0C(0x08006A1Au); return 1;
+    case 0x08006A30: aot_gen_08006A0C(0x08006A30u); return 1;
+    case 0x08006A34: aot_gen_08006A0C(0x08006A34u); return 1;
+    case 0x08006A58: aot_gen_08006A58(0x08006A58u); return 1;
+    case 0x08006B1C: aot_gen_08006B1C(0x08006B1Cu); return 1;
+    case 0x08006D1C: aot_gen_08006D1C(0x08006D1Cu); return 1;
+    case 0x08006D68: aot_gen_08006D68(0x08006D68u); return 1;
+    case 0x08006D98: aot_gen_08006D68(0x08006D98u); return 1;
+    case 0x08006DF4: aot_gen_08006DF4(0x08006DF4u); return 1;
+    case 0x08006E28: aot_gen_08006DF4(0x08006E28u); return 1;
+    case 0x08006E48: aot_gen_08006E48(0x08006E48u); return 1;
+    case 0x08006E8C: aot_gen_08006E48(0x08006E8Cu); return 1;
+    case 0x08006EB4: aot_gen_08006EB4(0x08006EB4u); return 1;
+    case 0x08006EC4: aot_gen_08006EB4(0x08006EC4u); return 1;
     default: return 0;
     }
 }
+
+/* Page-presence bitmap (4KB-page granularity) for fast reject in cpu.cc. */
+const u32 aot_page_bitmap[256] = {
+    0x00000040u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+};
