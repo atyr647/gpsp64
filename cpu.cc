@@ -3197,6 +3197,7 @@ thumb_loop:
          continue;
        }
        #endif
+       #ifndef AOT_NO_AUTO
        {
          u32 _pidx = (reg[REG_PC] >> 12) & 0x1FFF;
          if (__builtin_expect(
@@ -3219,6 +3220,7 @@ thumb_loop:
            }
          }
        }
+       #endif
        #endif
        #endif
 
