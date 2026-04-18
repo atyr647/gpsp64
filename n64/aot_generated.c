@@ -3420,6 +3420,45 @@ int aot_generated_dispatch(u32 pc) {
 #ifdef AOT_BISECT_LO
     if (pc >= 0x08006A58u) return 0;
 #endif
+#ifdef AOT_ADDITIVE
+    /* Additive bisect: base = everything < 0x080068A0 (round1 LO, known good).
+     * Enable exactly one function group from the upper half via AOT_ADD_GROUP. */
+    if (pc >= 0x080068A0u) {
+        int allowed = 0;
+#if defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 1
+        /* 08006840 continuations (head+2 early entries are in LO base) */
+        if (pc==0x080068ACu||pc==0x080068B8u||pc==0x080068D0u||
+            pc==0x080068DCu||pc==0x080068E8u||pc==0x080068F4u) allowed=1;
+#elif defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 2
+        if (pc==0x08006908u) allowed=1;
+#elif defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 3
+        if (pc==0x08006928u||pc==0x08006948u||pc==0x08006958u) allowed=1;
+#elif defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 4
+        if (pc==0x08006974u||pc==0x0800697Eu||pc==0x08006982u||
+            pc==0x08006986u||pc==0x0800698Au||pc==0x0800698Eu||pc==0x080069A0u) allowed=1;
+#elif defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 5
+        if (pc==0x080069C0u||pc==0x080069E6u||pc==0x080069F6u) allowed=1;
+#elif defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 6
+        if (pc==0x08006A0Cu||pc==0x08006A12u||pc==0x08006A16u||
+            pc==0x08006A1Au||pc==0x08006A30u||pc==0x08006A34u) allowed=1;
+#elif defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 7
+        if (pc==0x08006A58u) allowed=1;
+#elif defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 8
+        if (pc==0x08006B1Cu) allowed=1;
+#elif defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 9
+        if (pc==0x08006D1Cu) allowed=1;
+#elif defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 10
+        if (pc==0x08006D68u||pc==0x08006D98u) allowed=1;
+#elif defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 11
+        if (pc==0x08006DF4u||pc==0x08006E28u) allowed=1;
+#elif defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 12
+        if (pc==0x08006E48u||pc==0x08006E8Cu) allowed=1;
+#elif defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 13
+        if (pc==0x08006EB4u||pc==0x08006EC4u) allowed=1;
+#endif
+        if (!allowed) return 0;
+    }
+#endif
     switch (pc) {
     case 0x08006140: aot_gen_08006140(0x08006140u); return 1;
     case 0x08006168: aot_gen_08006140(0x08006168u); return 1;
