@@ -3414,6 +3414,12 @@ L08006EF6:
 
 /* Dispatch: returns 1 if PC matched and ran AOT, 0 otherwise. */
 int aot_generated_dispatch(u32 pc) {
+#ifdef AOT_BISECT_HI
+    if (pc < 0x080068A0u) return 0;
+#endif
+#ifdef AOT_BISECT_LO
+    if (pc >= 0x080068A0u) return 0;
+#endif
     switch (pc) {
     case 0x08006140: aot_gen_08006140(0x08006140u); return 1;
     case 0x08006168: aot_gen_08006140(0x08006168u); return 1;
