@@ -26,6 +26,7 @@ extern "C" {
   extern "C" int aot_try_execute(s32 *cycles_remaining_ptr);
   extern "C" void aot_0806F160_entry(void);
   extern "C" void aot_08005ED8_entry(void);
+  extern "C" int  aot_generated_dispatch(u32 pc);
 
   /* Always-on lightweight perf counters (one increment each, no array store) */
   u32 prof_arm_insns = 0;
@@ -3181,6 +3182,20 @@ thumb_loop:
         * branch costs ~2 cyc on miss.  Add more entry points here as
         * AOT functions are implemented. */
        #ifdef N64
+       #ifdef AOT_USE_GENERATED
+       /* A/B test: route the same hot PCs through the auto-generated
+        * thumb2c translation instead of the hand-written shortcuts.
+        * Used to validate translator correctness against ground-truth
+        * interpreter behavior.  Slower but proves the codegen is sound. */
+       u32 _aot_pc = reg[REG_PC];
+       if (__builtin_expect(_aot_pc == 0x0806F160 ||
+                            _aot_pc == 0x08005ED8, 0)) {
+         if (aot_generated_dispatch(_aot_pc)) {
+           cycles_remaining -= 200;
+           continue;
+         }
+       }
+       #else
        if (__builtin_expect(reg[REG_PC] == 0x0806F160, 0)) {
          aot_0806F160_entry();
          cycles_remaining -= 200;
@@ -3191,6 +3206,7 @@ thumb_loop:
          cycles_remaining -= 400;
          continue;
        }
+       #endif
        #endif
 
        /* Execute THUMB instruction */

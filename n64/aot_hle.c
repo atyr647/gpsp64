@@ -18,27 +18,37 @@
 #include "../cpu.h"
 #include "../gba_memory.h"
 
-static inline u32 aot_read32(u32 addr) {
+u32 aot_read32(u32 addr) {
     u8 *map = memory_map_read[addr >> 15];
     if (map) return eswap32(*(u32*)(map + (addr & 0x7FFF)));
     return 0;
 }
 
-static inline u16 aot_read16(u32 addr) {
+u16 aot_read16(u32 addr) {
     u8 *map = memory_map_read[addr >> 15];
     if (map) return eswap16(*(u16*)(map + (addr & 0x7FFF)));
     return 0;
 }
 
-static inline u8 aot_read8(u32 addr) {
+u8 aot_read8(u32 addr) {
     u8 *map = memory_map_read[addr >> 15];
     if (map) return *(u8*)(map + (addr & 0x7FFF));
     return 0;
 }
 
-static inline void aot_write32(u32 addr, u32 val) {
+void aot_write32(u32 addr, u32 val) {
     u8 *map = memory_map_read[addr >> 15];
     if (map) *(u32*)(map + (addr & 0x7FFF)) = eswap32(val);
+}
+
+void aot_write16(u32 addr, u16 val) {
+    u8 *map = memory_map_read[addr >> 15];
+    if (map) *(u16*)(map + (addr & 0x7FFF)) = eswap16(val);
+}
+
+void aot_write8(u32 addr, u8 val) {
+    u8 *map = memory_map_read[addr >> 15];
+    if (map) *(u8*)(map + (addr & 0x7FFF)) = val;
 }
 
 /* ===================================================================

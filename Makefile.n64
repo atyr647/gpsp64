@@ -36,6 +36,12 @@ CFLAGS += -w   # gpsp has many warnings incompatible with libdragon's -Werror
 CFLAGS += -mtune=vr4300 -falign-functions=32 -falign-loops=16
 CFLAGS += -flto -fomit-frame-pointer
 
+# EXTRA_CFLAGS: user-supplied flags appended last (e.g. for A/B testing
+# experimental switches via `make EXTRA_CFLAGS=-DAOT_USE_GENERATED`).
+CFLAGS += $(EXTRA_CFLAGS)
+CXXFLAGS += $(EXTRA_CFLAGS)
+ASFLAGS += $(EXTRA_CFLAGS)
+
 CXXFLAGS += $(filter-out -std=gnu17,$(filter -D% -I% -W%,$(CFLAGS))) -w
 CXXFLAGS += -fno-rtti -fno-exceptions
 
@@ -66,7 +72,8 @@ OBJS = main.o \
        n64/n64_audio.o \
        n64/n64_input.o \
        n64/n64_storage.o \
-       n64/aot_hle.o
+       n64/aot_hle.o \
+       n64/aot_generated.o
 
 # Build rules
 # If filesystem/ contains files, the .z64 will bundle them as DragonFS
