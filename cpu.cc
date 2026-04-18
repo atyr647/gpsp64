@@ -3184,6 +3184,7 @@ thumb_loop:
         * is ~1KB and the inline check is just a load+shift+and+branch
         * (predicted not-taken on miss). */
        #ifdef N64
+       #ifndef AOT_DISABLE
        if (__builtin_expect(reg[REG_PC] == 0x0806F160, 0)) {
          aot_0806F160_entry();
          cycles_remaining -= 200;
@@ -3204,6 +3205,7 @@ thumb_loop:
            }
          }
        }
+       #endif
        #endif
 
        /* Execute THUMB instruction */
