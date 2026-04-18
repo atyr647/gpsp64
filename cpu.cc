@@ -3202,15 +3202,18 @@ thumb_loop:
          if (__builtin_expect(
              (aot_page_bitmap[_pidx >> 5] >> (_pidx & 31)) & 1u, 0)) {
 #ifdef AOT_TRACE
-           static u32 _last_pc = 0;
-           static int _trace_n = 0;
-           if (reg[REG_PC] != _last_pc && _trace_n < 200) {
-             fprintf(stderr, "AOT %08lx\n", (unsigned long)reg[REG_PC]);
-             _last_pc = reg[REG_PC];
-             _trace_n++;
-           }
+           u32 _pc_before = reg[REG_PC];
 #endif
            if (aot_generated_dispatch(reg[REG_PC])) {
+#ifdef AOT_TRACE
+             static u32 _last_pc = 0;
+             static int _trace_n = 0;
+             if (_pc_before != _last_pc && _trace_n < 400) {
+               fprintf(stderr, "AOT %08lx\n", (unsigned long)_pc_before);
+               _last_pc = _pc_before;
+               _trace_n++;
+             }
+#endif
              cycles_remaining -= 100;
              continue;
            }

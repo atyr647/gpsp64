@@ -97,8 +97,7 @@ AOT_TOOLS   = tools/thumb2c.py tools/find_thumb_funcs.py tools/scan_targets.py
 
 # Hand-written AOTs in aot_hle.c — exclude from generated dispatch
 # so the hand-written fast paths are not shadowed.
-AOT_EXCLUDE = --exclude 0x0806F160 --exclude 0x08005ED8 \
-              --exclude 0x08006368 --exclude 0x08006974 --exclude 0x08006DF4
+AOT_EXCLUDE = --exclude 0x0806F160 --exclude 0x08005ED8
 
 n64/aot_generated.c: $(AOT_TARGETS) $(AOT_TOOLS) $(AOT_ROM)
 	@if [ -z "$(AOT_ROM)" ]; then \
