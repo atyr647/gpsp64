@@ -111,11 +111,9 @@ static void aot_gen_08006140(u32 ep) {
     /* 0800614E: adds r6, r2, #0 */
     { u32 _a=r2, _b=0x0u; r6=_a+_b; ADD_FLAGS(r6,_a,_b); }
     /* 08006150: lsls r1, r1, #0x18 */
-    r1 = (r1 << 24);
-    LSL_FLAGS(r1, r1, 24);
+    { u32 _src = r1; r1 = (_src << 24); LSL_FLAGS(r1, _src, 24); }
     /* 08006152: lsrs r1, r1, #0x18 */
-    r1 = (r1 >> 24);
-    LSR_FLAGS(r1, r1, 24);
+    { u32 _src = r1; r1 = (_src >> 24); LSR_FLAGS(r1, _src, 24); }
     /* 08006154: str r1, [sp, #4] */
     aot_write32((sp + 4u), r1);
     /* 08006156: mov r4, sp */
@@ -184,8 +182,7 @@ E_0800617E:
     /* 0800618E: bhi #0x800627e */
     if ((cf && !zf)) BAIL(0x0800627Eu);
     /* 08006190: lsls r0, r0, #2 */
-    r0 = (r0 << 2);
-    LSL_FLAGS(r0, r0, 2);
+    { u32 _src = r0; r0 = (_src << 2); LSL_FLAGS(r0, _src, 2); }
     /* 08006192: ldr r1, [pc, #8] */
     r1 = aot_read32(0x800619Cu);
     /* 08006194: adds r0, r0, r1 */
@@ -229,38 +226,29 @@ static void aot_gen_080062E8(u32 ep) {
     /* 080062EA: sub sp, #0x18 */
     sp = sp - 0x18u;
     /* 080062EC: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 080062EE: lsrs r0, r0, #0x18 */
-    r0 = (r0 >> 24);
-    LSR_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src >> 24); LSR_FLAGS(r0, _src, 24); }
     /* 080062F0: lsls r1, r1, #0x18 */
-    r1 = (r1 << 24);
-    LSL_FLAGS(r1, r1, 24);
+    { u32 _src = r1; r1 = (_src << 24); LSL_FLAGS(r1, _src, 24); }
     /* 080062F2: lsls r2, r2, #0x10 */
-    r2 = (r2 << 16);
-    LSL_FLAGS(r2, r2, 16);
+    { u32 _src = r2; r2 = (_src << 16); LSL_FLAGS(r2, _src, 16); }
     /* 080062F4: lsrs r2, r2, #0x10 */
-    r2 = (r2 >> 16);
-    LSR_FLAGS(r2, r2, 16);
+    { u32 _src = r2; r2 = (_src >> 16); LSR_FLAGS(r2, _src, 16); }
     /* 080062F6: lsls r3, r3, #0x10 */
-    r3 = (r3 << 16);
-    LSL_FLAGS(r3, r3, 16);
+    { u32 _src = r3; r3 = (_src << 16); LSL_FLAGS(r3, _src, 16); }
     /* 080062F8: lsrs r3, r3, #0x10 */
-    r3 = (r3 >> 16);
-    LSR_FLAGS(r3, r3, 16);
+    { u32 _src = r3; r3 = (_src >> 16); LSR_FLAGS(r3, _src, 16); }
     /* 080062FA: ldr r4, [pc, #0x34] */
     r4 = aot_read32(0x8006330u);
     /* 080062FC: lsrs r1, r1, #0x16 */
-    r1 = (r1 >> 22);
-    LSR_FLAGS(r1, r1, 22);
+    { u32 _src = r1; r1 = (_src >> 22); LSR_FLAGS(r1, _src, 22); }
     /* 080062FE: adds r1, r1, r4 */
     { u32 _a=r1, _b=r4; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
     /* 08006300: ldrh r5, [r1] */
     r5 = aot_read16(r1);
     /* 08006302: lsls r5, r5, #5 */
-    r5 = (r5 << 5);
-    LSL_FLAGS(r5, r5, 5);
+    { u32 _src = r5; r5 = (_src << 5); LSL_FLAGS(r5, _src, 5); }
     /* 08006304: ldr r4, [pc, #0x2c] */
     r4 = aot_read32(0x8006334u);
     /* 08006306: adds r5, r5, r4 */
@@ -377,17 +365,13 @@ static void aot_gen_08006378(u32 ep) {
     sp -= 4u;
     aot_write32(sp + 0u, lr);
     /* 0800637A: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 0800637C: lsrs r2, r0, #0x18 */
-    r2 = (r0 >> 24);
-    LSR_FLAGS(r2, r0, 24);
+    { u32 _src = r0; r2 = (_src >> 24); LSR_FLAGS(r2, _src, 24); }
     /* 0800637E: lsls r1, r1, #0x18 */
-    r1 = (r1 << 24);
-    LSL_FLAGS(r1, r1, 24);
+    { u32 _src = r1; r1 = (_src << 24); LSL_FLAGS(r1, _src, 24); }
     /* 08006380: lsrs r1, r1, #0x18 */
-    r1 = (r1 >> 24);
-    LSR_FLAGS(r1, r1, 24);
+    { u32 _src = r1; r1 = (_src >> 24); LSR_FLAGS(r1, _src, 24); }
     /* 08006382: movs r0, #0 */
     r0 = 0x0u;
     SET_NZ(r0);
@@ -396,8 +380,7 @@ static void aot_gen_08006378(u32 ep) {
     /* 08006386: bhi #0x8006456 */
     if ((cf && !zf)) BAIL(0x08006456u);
     /* 08006388: lsls r0, r1, #2 */
-    r0 = (r1 << 2);
-    LSL_FLAGS(r0, r1, 2);
+    { u32 _src = r1; r0 = (_src << 2); LSL_FLAGS(r0, _src, 2); }
     /* 0800638A: ldr r1, [pc, #8] */
     r1 = aot_read32(0x8006394u);
     /* 0800638C: adds r0, r0, r1 */
@@ -446,21 +429,17 @@ static void aot_gen_08006478(u32 ep) {
     aot_write32(sp + 4u, r5);
     aot_write32(sp + 8u, lr);
     /* 0800647A: lsls r0, r0, #0x10 */
-    r0 = (r0 << 16);
-    LSL_FLAGS(r0, r0, 16);
+    { u32 _src = r0; r0 = (_src << 16); LSL_FLAGS(r0, _src, 16); }
     /* 0800647C: lsrs r3, r0, #0x10 */
-    r3 = (r0 >> 16);
-    LSR_FLAGS(r3, r0, 16);
+    { u32 _src = r0; r3 = (_src >> 16); LSR_FLAGS(r3, _src, 16); }
     /* 0800647E: cmp r1, #1 */
     { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006480: bne #0x80064c4 */
     if (!zf) goto L080064C4;
     /* 08006482: lsrs r2, r0, #0x14 */
-    r2 = (r0 >> 20);
-    LSR_FLAGS(r2, r0, 20);
+    { u32 _src = r0; r2 = (_src >> 20); LSR_FLAGS(r2, _src, 20); }
     /* 08006484: lsls r2, r2, #9 */
-    r2 = (r2 << 9);
-    LSL_FLAGS(r2, r2, 9);
+    { u32 _src = r2; r2 = (_src << 9); LSL_FLAGS(r2, _src, 9); }
     /* 08006486: movs r0, #0xf */
     r0 = 0xFu;
     SET_NZ(r0);
@@ -468,8 +447,7 @@ static void aot_gen_08006478(u32 ep) {
     r0 = (r0 & r3);
     SET_NZ(r0);
     /* 0800648A: lsls r0, r0, #4 */
-    r0 = (r0 << 4);
-    LSL_FLAGS(r0, r0, 4);
+    { u32 _src = r0; r0 = (_src << 4); LSL_FLAGS(r0, _src, 4); }
     /* 0800648C: ldr r1, [pc, #0x2c] */
     r1 = aot_read32(0x80064BCu);
     /* 0800648E: adds r0, r0, r1 */
@@ -490,8 +468,7 @@ E_0800649C:
     r1 = 0x80u;
     SET_NZ(r1);
     /* 0800649E: lsls r1, r1, #1 */
-    r1 = (r1 << 1);
-    LSL_FLAGS(r1, r1, 1);
+    { u32 _src = r1; r1 = (_src << 1); LSL_FLAGS(r1, _src, 1); }
     /* 080064A0: adds r0, r5, r1 */
     { u32 _a=r5, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 080064A2: adds r1, r4, #0 */
@@ -526,17 +503,14 @@ E_080064AA:
     /* 080064BC: add ip, ip */
     r12 = r12 + r12;
     /* 080064BE: lsrs r5, r4, #1 */
-    r5 = (r4 >> 1);
-    LSR_FLAGS(r5, r4, 1);
+    { u32 _src = r4; r5 = (_src >> 1); LSR_FLAGS(r5, _src, 1); }
     /* 080064C0: cmp r7, #0x90 */
     { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 080064C2: lsls r0, r0, #0xc */
-    r0 = (r0 << 12);
-    LSL_FLAGS(r0, r0, 12);
+    { u32 _src = r0; r0 = (_src << 12); LSL_FLAGS(r0, _src, 12); }
 L080064C4:
     /* 080064C4: lsls r1, r3, #6 */
-    r1 = (r3 << 6);
-    LSL_FLAGS(r1, r3, 6);
+    { u32 _src = r3; r1 = (_src << 6); LSL_FLAGS(r1, _src, 6); }
     /* 080064C6: ldr r0, [pc, #0x2c] */
     r0 = aot_read32(0x80064F4u);
     /* 080064C8: adds r5, r1, r0 */
@@ -587,13 +561,11 @@ E_080064F0:
     /* 080064F4: subs r4, #0xe4 */
     { u32 _a=r4, _b=0xE4u; r4=_a-_b; SUB_FLAGS(r4,_a,_b); }
     /* 080064F6: lsrs r3, r4, #1 */
-    r3 = (r4 >> 1);
-    LSR_FLAGS(r3, r4, 1);
+    { u32 _src = r4; r3 = (_src >> 1); LSR_FLAGS(r3, _src, 1); }
     /* 080064F8: cmp r7, #0x90 */
     { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 080064FA: lsls r0, r0, #0xc */
-    r0 = (r0 << 12);
-    LSL_FLAGS(r0, r0, 12);
+    { u32 _src = r0; r0 = (_src << 12); LSL_FLAGS(r0, _src, 12); }
     /* 080064FC: pop {r2, r5, r6, r7} */
     r2 = aot_read32(sp + 0u);
     r5 = aot_read32(sp + 4u);
@@ -601,8 +573,7 @@ E_080064F0:
     r7 = aot_read32(sp + 12u);
     sp += 16u;
     /* 080064FE: lsrs r3, r4, #1 */
-    r3 = (r4 >> 1);
-    LSR_FLAGS(r3, r4, 1);
+    { u32 _src = r4; r3 = (_src >> 1); LSR_FLAGS(r3, _src, 1); }
 L08006500:
     /* 08006500: adds r0, r5, #0 */
     { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
@@ -695,11 +666,9 @@ static void aot_gen_08006540(u32 ep) {
     sp -= 4u;
     aot_write32(sp + 0u, lr);
     /* 08006542: lsls r0, r0, #0x10 */
-    r0 = (r0 << 16);
-    LSL_FLAGS(r0, r0, 16);
+    { u32 _src = r0; r0 = (_src << 16); LSL_FLAGS(r0, _src, 16); }
     /* 08006544: lsrs r2, r0, #0x10 */
-    r2 = (r0 >> 16);
-    LSR_FLAGS(r2, r0, 16);
+    { u32 _src = r0; r2 = (_src >> 16); LSR_FLAGS(r2, _src, 16); }
     /* 08006546: cmp r1, #1 */
     { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006548: beq #0x8006558 */
@@ -722,8 +691,7 @@ static void aot_gen_08006540(u32 ep) {
     r7 = aot_read32(sp + 12u);
     sp += 16u;
     /* 08006556: lsrs r3, r4, #1 */
-    r3 = (r4 >> 1);
-    LSR_FLAGS(r3, r4, 1);
+    { u32 _src = r4; r3 = (_src >> 1); LSR_FLAGS(r3, _src, 1); }
 L08006558:
     /* 08006558: movs r0, #8 */
     r0 = 0x8u;
@@ -775,21 +743,17 @@ static void aot_gen_08006560(u32 ep) {
     aot_write32(sp + 8u, r6);
     aot_write32(sp + 12u, lr);
     /* 08006562: lsls r0, r0, #0x10 */
-    r0 = (r0 << 16);
-    LSL_FLAGS(r0, r0, 16);
+    { u32 _src = r0; r0 = (_src << 16); LSL_FLAGS(r0, _src, 16); }
     /* 08006564: lsrs r3, r0, #0x10 */
-    r3 = (r0 >> 16);
-    LSR_FLAGS(r3, r0, 16);
+    { u32 _src = r0; r3 = (_src >> 16); LSR_FLAGS(r3, _src, 16); }
     /* 08006566: cmp r1, #1 */
     { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006568: bne #0x80065ac */
     if (!zf) goto L080065AC;
     /* 0800656A: lsrs r2, r0, #0x14 */
-    r2 = (r0 >> 20);
-    LSR_FLAGS(r2, r0, 20);
+    { u32 _src = r0; r2 = (_src >> 20); LSR_FLAGS(r2, _src, 20); }
     /* 0800656C: lsls r2, r2, #9 */
-    r2 = (r2 << 9);
-    LSL_FLAGS(r2, r2, 9);
+    { u32 _src = r2; r2 = (_src << 9); LSL_FLAGS(r2, _src, 9); }
     /* 0800656E: movs r5, #0xf */
     r5 = 0xFu;
     SET_NZ(r5);
@@ -799,8 +763,7 @@ static void aot_gen_08006560(u32 ep) {
     r0 = (r0 & r5);
     SET_NZ(r0);
     /* 08006574: lsls r0, r0, #4 */
-    r0 = (r0 << 4);
-    LSL_FLAGS(r0, r0, 4);
+    { u32 _src = r0; r0 = (_src << 4); LSL_FLAGS(r0, _src, 4); }
     /* 08006576: ldr r1, [pc, #0x2c] */
     r1 = aot_read32(0x80065A4u);
     /* 08006578: adds r0, r0, r1 */
@@ -821,8 +784,7 @@ E_08006586:
     r1 = 0x80u;
     SET_NZ(r1);
     /* 08006588: lsls r1, r1, #1 */
-    r1 = (r1 << 1);
-    LSL_FLAGS(r1, r1, 1);
+    { u32 _src = r1; r1 = (_src << 1); LSL_FLAGS(r1, _src, 1); }
     /* 0800658A: adds r0, r6, r1 */
     { u32 _a=r6, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 0800658C: adds r1, r4, #0 */
@@ -854,17 +816,14 @@ E_08006594:
     /* 080065A4: strh r4, [r4, #0x26] */
     aot_write16((r4 + 38u), r4);
     /* 080065A6: lsrs r5, r4, #1 */
-    r5 = (r4 >> 1);
-    LSR_FLAGS(r5, r4, 1);
+    { u32 _src = r4; r5 = (_src >> 1); LSR_FLAGS(r5, _src, 1); }
     /* 080065A8: cmp r7, #0x90 */
     { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 080065AA: lsls r0, r0, #0xc */
-    r0 = (r0 << 12);
-    LSL_FLAGS(r0, r0, 12);
+    { u32 _src = r0; r0 = (_src << 12); LSL_FLAGS(r0, _src, 12); }
 L080065AC:
     /* 080065AC: lsls r1, r3, #6 */
-    r1 = (r3 << 6);
-    LSL_FLAGS(r1, r3, 6);
+    { u32 _src = r3; r1 = (_src << 6); LSL_FLAGS(r1, _src, 6); }
     /* 080065AE: ldr r0, [pc, #0x2c] */
     r0 = aot_read32(0x80065DCu);
     /* 080065B0: adds r6, r1, r0 */
@@ -915,18 +874,15 @@ E_080065D8:
     /* 080065DC: bkpt #0xe4 */
     BAIL(0x080065DCu); /* unsupported: bkpt #0xe4 */
     /* 080065DE: lsrs r3, r4, #1 */
-    r3 = (r4 >> 1);
-    LSR_FLAGS(r3, r4, 1);
+    { u32 _src = r4; r3 = (_src >> 1); LSR_FLAGS(r3, _src, 1); }
     /* 080065E0: cmp r7, #0x90 */
     { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 080065E2: lsls r0, r0, #0xc */
-    r0 = (r0 << 12);
-    LSL_FLAGS(r0, r0, 12);
+    { u32 _src = r0; r0 = (_src << 12); LSL_FLAGS(r0, _src, 12); }
     /* 080065E4: subs r6, #0xe4 */
     { u32 _a=r6, _b=0xE4u; r6=_a-_b; SUB_FLAGS(r6,_a,_b); }
     /* 080065E6: lsrs r4, r4, #1 */
-    r4 = (r4 >> 1);
-    LSR_FLAGS(r4, r4, 1);
+    { u32 _src = r4; r4 = (_src >> 1); LSR_FLAGS(r4, _src, 1); }
 L080065E8:
     /* 080065E8: adds r0, r6, #0 */
     { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
@@ -1022,11 +978,9 @@ static void aot_gen_08006628(u32 ep) {
     sp -= 4u;
     aot_write32(sp + 0u, lr);
     /* 0800662A: lsls r0, r0, #0x10 */
-    r0 = (r0 << 16);
-    LSL_FLAGS(r0, r0, 16);
+    { u32 _src = r0; r0 = (_src << 16); LSL_FLAGS(r0, _src, 16); }
     /* 0800662C: lsrs r2, r0, #0x10 */
-    r2 = (r0 >> 16);
-    LSR_FLAGS(r2, r0, 16);
+    { u32 _src = r0; r2 = (_src >> 16); LSR_FLAGS(r2, _src, 16); }
     /* 0800662E: cmp r1, #1 */
     { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006630: beq #0x8006640 */
@@ -1045,8 +999,7 @@ static void aot_gen_08006628(u32 ep) {
     /* 0800663C: subs r6, #0xe4 */
     { u32 _a=r6, _b=0xE4u; r6=_a-_b; SUB_FLAGS(r6,_a,_b); }
     /* 0800663E: lsrs r4, r4, #1 */
-    r4 = (r4 >> 1);
-    LSR_FLAGS(r4, r4, 1);
+    { u32 _src = r4; r4 = (_src >> 1); LSR_FLAGS(r4, _src, 1); }
 L08006640:
     /* 08006640: movs r0, #8 */
     r0 = 0x8u;
@@ -1097,21 +1050,17 @@ static void aot_gen_08006648(u32 ep) {
     aot_write32(sp + 4u, r5);
     aot_write32(sp + 8u, lr);
     /* 0800664A: lsls r0, r0, #0x10 */
-    r0 = (r0 << 16);
-    LSL_FLAGS(r0, r0, 16);
+    { u32 _src = r0; r0 = (_src << 16); LSL_FLAGS(r0, _src, 16); }
     /* 0800664C: lsrs r3, r0, #0x10 */
-    r3 = (r0 >> 16);
-    LSR_FLAGS(r3, r0, 16);
+    { u32 _src = r0; r3 = (_src >> 16); LSR_FLAGS(r3, _src, 16); }
     /* 0800664E: cmp r1, #1 */
     { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006650: bne #0x8006694 */
     if (!zf) goto L08006694;
     /* 08006652: lsrs r2, r0, #0x14 */
-    r2 = (r0 >> 20);
-    LSR_FLAGS(r2, r0, 20);
+    { u32 _src = r0; r2 = (_src >> 20); LSR_FLAGS(r2, _src, 20); }
     /* 08006654: lsls r2, r2, #9 */
-    r2 = (r2 << 9);
-    LSL_FLAGS(r2, r2, 9);
+    { u32 _src = r2; r2 = (_src << 9); LSL_FLAGS(r2, _src, 9); }
     /* 08006656: movs r0, #0xf */
     r0 = 0xFu;
     SET_NZ(r0);
@@ -1119,8 +1068,7 @@ static void aot_gen_08006648(u32 ep) {
     r0 = (r0 & r3);
     SET_NZ(r0);
     /* 0800665A: lsls r0, r0, #4 */
-    r0 = (r0 << 4);
-    LSL_FLAGS(r0, r0, 4);
+    { u32 _src = r0; r0 = (_src << 4); LSL_FLAGS(r0, _src, 4); }
     /* 0800665C: ldr r1, [pc, #0x2c] */
     r1 = aot_read32(0x800668Cu);
     /* 0800665E: adds r0, r0, r1 */
@@ -1141,8 +1089,7 @@ E_0800666C:
     r1 = 0x80u;
     SET_NZ(r1);
     /* 0800666E: lsls r1, r1, #1 */
-    r1 = (r1 << 1);
-    LSL_FLAGS(r1, r1, 1);
+    { u32 _src = r1; r1 = (_src << 1); LSL_FLAGS(r1, _src, 1); }
     /* 08006670: adds r0, r5, r1 */
     { u32 _a=r5, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006672: adds r1, r4, #0 */
@@ -1177,17 +1124,14 @@ E_0800667A:
     /* 0800668C: add ip, ip */
     r12 = r12 + r12;
     /* 0800668E: lsrs r5, r4, #1 */
-    r5 = (r4 >> 1);
-    LSR_FLAGS(r5, r4, 1);
+    { u32 _src = r4; r5 = (_src >> 1); LSR_FLAGS(r5, _src, 1); }
     /* 08006690: cmp r7, #0x90 */
     { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006692: lsls r0, r0, #0xc */
-    r0 = (r0 << 12);
-    LSL_FLAGS(r0, r0, 12);
+    { u32 _src = r0; r0 = (_src << 12); LSL_FLAGS(r0, _src, 12); }
 L08006694:
     /* 08006694: lsls r1, r3, #6 */
-    r1 = (r3 << 6);
-    LSL_FLAGS(r1, r3, 6);
+    { u32 _src = r3; r1 = (_src << 6); LSL_FLAGS(r1, _src, 6); }
     /* 08006696: ldr r0, [pc, #0x2c] */
     r0 = aot_read32(0x80066C4u);
     /* 08006698: adds r5, r1, r0 */
@@ -1238,18 +1182,15 @@ E_080066C0:
     /* 080066C4: revsh r4, r4 */
     BAIL(0x080066C4u); /* unsupported: revsh r4, r4 */
     /* 080066C6: lsrs r2, r4, #1 */
-    r2 = (r4 >> 1);
-    LSR_FLAGS(r2, r4, 1);
+    { u32 _src = r4; r2 = (_src >> 1); LSR_FLAGS(r2, _src, 1); }
     /* 080066C8: cmp r7, #0x90 */
     { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 080066CA: lsls r0, r0, #0xc */
-    r0 = (r0 << 12);
-    LSL_FLAGS(r0, r0, 12);
+    { u32 _src = r0; r0 = (_src << 12); LSL_FLAGS(r0, _src, 12); }
     /* 080066CC: subs r2, #0xe4 */
     { u32 _a=r2, _b=0xE4u; r2=_a-_b; SUB_FLAGS(r2,_a,_b); }
     /* 080066CE: lsrs r3, r4, #1 */
-    r3 = (r4 >> 1);
-    LSR_FLAGS(r3, r4, 1);
+    { u32 _src = r4; r3 = (_src >> 1); LSR_FLAGS(r3, _src, 1); }
 L080066D0:
     /* 080066D0: adds r0, r5, #0 */
     { u32 _a=r5, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
@@ -1344,11 +1285,9 @@ static void aot_gen_08006710(u32 ep) {
     sp -= 4u;
     aot_write32(sp + 0u, lr);
     /* 08006712: lsls r0, r0, #0x10 */
-    r0 = (r0 << 16);
-    LSL_FLAGS(r0, r0, 16);
+    { u32 _src = r0; r0 = (_src << 16); LSL_FLAGS(r0, _src, 16); }
     /* 08006714: lsrs r2, r0, #0x10 */
-    r2 = (r0 >> 16);
-    LSR_FLAGS(r2, r0, 16);
+    { u32 _src = r0; r2 = (_src >> 16); LSR_FLAGS(r2, _src, 16); }
     /* 08006716: cmp r1, #1 */
     { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006718: beq #0x8006728 */
@@ -1367,8 +1306,7 @@ static void aot_gen_08006710(u32 ep) {
     /* 08006724: subs r2, #0xe4 */
     { u32 _a=r2, _b=0xE4u; r2=_a-_b; SUB_FLAGS(r2,_a,_b); }
     /* 08006726: lsrs r3, r4, #1 */
-    r3 = (r4 >> 1);
-    LSR_FLAGS(r3, r4, 1);
+    { u32 _src = r4; r3 = (_src >> 1); LSR_FLAGS(r3, _src, 1); }
 L08006728:
     /* 08006728: movs r0, #8 */
     r0 = 0x8u;
@@ -1422,21 +1360,17 @@ static void aot_gen_08006730(u32 ep) {
     aot_write32(sp + 8u, r6);
     aot_write32(sp + 12u, lr);
     /* 08006732: lsls r0, r0, #0x10 */
-    r0 = (r0 << 16);
-    LSL_FLAGS(r0, r0, 16);
+    { u32 _src = r0; r0 = (_src << 16); LSL_FLAGS(r0, _src, 16); }
     /* 08006734: lsrs r6, r0, #0x10 */
-    r6 = (r0 >> 16);
-    LSR_FLAGS(r6, r0, 16);
+    { u32 _src = r0; r6 = (_src >> 16); LSR_FLAGS(r6, _src, 16); }
     /* 08006736: cmp r1, #1 */
     { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006738: bne #0x80067a0 */
     if (!zf) goto L080067A0;
     /* 0800673A: lsrs r2, r0, #0x13 */
-    r2 = (r0 >> 19);
-    LSR_FLAGS(r2, r0, 19);
+    { u32 _src = r0; r2 = (_src >> 19); LSR_FLAGS(r2, _src, 19); }
     /* 0800673C: lsls r2, r2, #9 */
-    r2 = (r2 << 9);
-    LSL_FLAGS(r2, r2, 9);
+    { u32 _src = r2; r2 = (_src << 9); LSL_FLAGS(r2, _src, 9); }
     /* 0800673E: movs r0, #7 */
     r0 = 0x7u;
     SET_NZ(r0);
@@ -1444,8 +1378,7 @@ static void aot_gen_08006730(u32 ep) {
     r0 = (r0 & r6);
     SET_NZ(r0);
     /* 08006742: lsls r0, r0, #5 */
-    r0 = (r0 << 5);
-    LSL_FLAGS(r0, r0, 5);
+    { u32 _src = r0; r0 = (_src << 5); LSL_FLAGS(r0, _src, 5); }
     /* 08006744: ldr r1, [pc, #0x4c] */
     r1 = aot_read32(0x8006794u);
     /* 08006746: adds r0, r0, r1 */
@@ -1478,8 +1411,7 @@ E_08006760:
     r1 = 0x80u;
     SET_NZ(r1);
     /* 08006762: lsls r1, r1, #1 */
-    r1 = (r1 << 1);
-    LSL_FLAGS(r1, r1, 1);
+    { u32 _src = r1; r1 = (_src << 1); LSL_FLAGS(r1, _src, 1); }
     /* 08006764: adds r0, r4, r1 */
     { u32 _a=r4, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006766: adds r1, r5, #0 */
@@ -1494,8 +1426,7 @@ E_0800676E:
     r1 = 0x88u;
     SET_NZ(r1);
     /* 08006770: lsls r1, r1, #1 */
-    r1 = (r1 << 1);
-    LSL_FLAGS(r1, r1, 1);
+    { u32 _src = r1; r1 = (_src << 1); LSL_FLAGS(r1, _src, 1); }
     /* 08006772: adds r0, r4, r1 */
     { u32 _a=r4, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006774: adds r1, r5, #0 */
@@ -1539,22 +1470,18 @@ E_0800677C:
     r7 = aot_read32(r0 + 12u);
     r0 += 16u;
     /* 08006796: lsrs r6, r4, #1 */
-    r6 = (r4 >> 1);
-    LSR_FLAGS(r6, r4, 1);
+    { u32 _src = r4; r6 = (_src >> 1); LSR_FLAGS(r6, _src, 1); }
     /* 08006798: cmp r7, #0x90 */
     { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 0800679A: lsls r0, r0, #0xc */
-    r0 = (r0 << 12);
-    LSL_FLAGS(r0, r0, 12);
+    { u32 _src = r0; r0 = (_src << 12); LSL_FLAGS(r0, _src, 12); }
     /* 0800679C: ldr r0, [pc, #0x390] */
     r0 = aot_read32(0x8006B30u);
     /* 0800679E: lsrs r7, r4, #1 */
-    r7 = (r4 >> 1);
-    LSR_FLAGS(r7, r4, 1);
+    { u32 _src = r4; r7 = (_src >> 1); LSR_FLAGS(r7, _src, 1); }
 L080067A0:
     /* 080067A0: lsls r1, r6, #6 */
-    r1 = (r6 << 6);
-    LSL_FLAGS(r1, r6, 6);
+    { u32 _src = r6; r1 = (_src << 6); LSL_FLAGS(r1, _src, 6); }
     /* 080067A2: ldr r0, [pc, #0x2c] */
     r0 = aot_read32(0x80067D0u);
     /* 080067A4: adds r4, r1, r0 */
@@ -1606,13 +1533,11 @@ E_080067CC:
     r4 = ((r4 & 0xFFu) >= 32 ? 0u : (r4 >> (r4 & 0xFFu)));
     SET_NZ(r4);
     /* 080067D2: lsrs r4, r4, #1 */
-    r4 = (r4 >> 1);
-    LSR_FLAGS(r4, r4, 1);
+    { u32 _src = r4; r4 = (_src >> 1); LSR_FLAGS(r4, _src, 1); }
     /* 080067D4: cmp r7, #0x90 */
     { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 080067D6: lsls r0, r0, #0xc */
-    r0 = (r0 << 12);
-    LSL_FLAGS(r0, r0, 12);
+    { u32 _src = r0; r0 = (_src << 12); LSL_FLAGS(r0, _src, 12); }
     /* 080067D8: stm r0!, {r2, r5, r6, r7} */
     aot_write32(r0 + 0u, r2);
     aot_write32(r0 + 4u, r5);
@@ -1620,8 +1545,7 @@ E_080067CC:
     aot_write32(r0 + 12u, r7);
     r0 += 16u;
     /* 080067DA: lsrs r4, r4, #1 */
-    r4 = (r4 >> 1);
-    LSR_FLAGS(r4, r4, 1);
+    { u32 _src = r4; r4 = (_src >> 1); LSR_FLAGS(r4, _src, 1); }
 L080067DC:
     /* 080067DC: adds r0, r4, #0 */
     { u32 _a=r4, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
@@ -1715,11 +1639,9 @@ static void aot_gen_0800681C(u32 ep) {
     sp -= 4u;
     aot_write32(sp + 0u, lr);
     /* 0800681E: lsls r0, r0, #0x10 */
-    r0 = (r0 << 16);
-    LSL_FLAGS(r0, r0, 16);
+    { u32 _src = r0; r0 = (_src << 16); LSL_FLAGS(r0, _src, 16); }
     /* 08006820: lsrs r2, r0, #0x10 */
-    r2 = (r0 >> 16);
-    LSR_FLAGS(r2, r0, 16);
+    { u32 _src = r0; r2 = (_src >> 16); LSR_FLAGS(r2, _src, 16); }
     /* 08006822: cmp r1, #1 */
     { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006824: beq #0x8006830 */
@@ -1738,8 +1660,7 @@ static void aot_gen_0800681C(u32 ep) {
     aot_write32(r0 + 12u, r7);
     r0 += 16u;
     /* 0800682E: lsrs r4, r4, #1 */
-    r4 = (r4 >> 1);
-    LSR_FLAGS(r4, r4, 1);
+    { u32 _src = r4; r4 = (_src >> 1); LSR_FLAGS(r4, _src, 1); }
 L08006830:
     /* 08006830: ldr r0, [pc, #8] */
     r0 = aot_read32(0x800683Cu);
@@ -1794,21 +1715,17 @@ static void aot_gen_08006840(u32 ep) {
     aot_write32(sp + 8u, r6);
     aot_write32(sp + 12u, lr);
     /* 08006842: lsls r0, r0, #0x10 */
-    r0 = (r0 << 16);
-    LSL_FLAGS(r0, r0, 16);
+    { u32 _src = r0; r0 = (_src << 16); LSL_FLAGS(r0, _src, 16); }
     /* 08006844: lsrs r3, r0, #0x10 */
-    r3 = (r0 >> 16);
-    LSR_FLAGS(r3, r0, 16);
+    { u32 _src = r0; r3 = (_src >> 16); LSR_FLAGS(r3, _src, 16); }
     /* 08006846: cmp r1, #1 */
     { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006848: bne #0x800688c */
     if (!zf) goto L0800688C;
     /* 0800684A: lsrs r2, r0, #0x14 */
-    r2 = (r0 >> 20);
-    LSR_FLAGS(r2, r0, 20);
+    { u32 _src = r0; r2 = (_src >> 20); LSR_FLAGS(r2, _src, 20); }
     /* 0800684C: lsls r2, r2, #9 */
-    r2 = (r2 << 9);
-    LSL_FLAGS(r2, r2, 9);
+    { u32 _src = r2; r2 = (_src << 9); LSL_FLAGS(r2, _src, 9); }
     /* 0800684E: movs r5, #0xf */
     r5 = 0xFu;
     SET_NZ(r5);
@@ -1818,8 +1735,7 @@ static void aot_gen_08006840(u32 ep) {
     r0 = (r0 & r5);
     SET_NZ(r0);
     /* 08006854: lsls r0, r0, #4 */
-    r0 = (r0 << 4);
-    LSL_FLAGS(r0, r0, 4);
+    { u32 _src = r0; r0 = (_src << 4); LSL_FLAGS(r0, _src, 4); }
     /* 08006856: ldr r1, [pc, #0x2c] */
     r1 = aot_read32(0x8006884u);
     /* 08006858: adds r0, r0, r1 */
@@ -1840,8 +1756,7 @@ E_08006866:
     r1 = 0x80u;
     SET_NZ(r1);
     /* 08006868: lsls r1, r1, #1 */
-    r1 = (r1 << 1);
-    LSL_FLAGS(r1, r1, 1);
+    { u32 _src = r1; r1 = (_src << 1); LSL_FLAGS(r1, _src, 1); }
     /* 0800686A: adds r0, r6, r1 */
     { u32 _a=r6, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 0800686C: adds r1, r4, #0 */
@@ -1873,17 +1788,14 @@ E_08006874:
     /* 08006884: strh r4, [r4, #0x26] */
     aot_write16((r4 + 38u), r4);
     /* 08006886: lsrs r5, r4, #1 */
-    r5 = (r4 >> 1);
-    LSR_FLAGS(r5, r4, 1);
+    { u32 _src = r4; r5 = (_src >> 1); LSR_FLAGS(r5, _src, 1); }
     /* 08006888: cmp r7, #0x90 */
     { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 0800688A: lsls r0, r0, #0xc */
-    r0 = (r0 << 12);
-    LSL_FLAGS(r0, r0, 12);
+    { u32 _src = r0; r0 = (_src << 12); LSL_FLAGS(r0, _src, 12); }
 L0800688C:
     /* 0800688C: lsls r1, r3, #6 */
-    r1 = (r3 << 6);
-    LSL_FLAGS(r1, r3, 6);
+    { u32 _src = r3; r1 = (_src << 6); LSL_FLAGS(r1, _src, 6); }
     /* 0800688E: ldr r0, [pc, #0x2c] */
     r0 = aot_read32(0x80068BCu);
     /* 08006890: adds r6, r1, r0 */
@@ -1938,18 +1850,15 @@ E_080068B8:
     aot_write32(r2 + 12u, r7);
     r2 += 16u;
     /* 080068BE: lsrs r4, r4, #1 */
-    r4 = (r4 >> 1);
-    LSR_FLAGS(r4, r4, 1);
+    { u32 _src = r4; r4 = (_src >> 1); LSR_FLAGS(r4, _src, 1); }
     /* 080068C0: cmp r7, #0x90 */
     { u32 _a=r7, _b=0x90u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 080068C2: lsls r0, r0, #0xc */
-    r0 = (r0 << 12);
-    LSL_FLAGS(r0, r0, 12);
+    { u32 _src = r0; r0 = (_src << 12); LSL_FLAGS(r0, _src, 12); }
     /* 080068C4: cmn r4, r4 */
     { u32 _a=r4, _b=r4, _d=_a+_b; ADD_FLAGS(_d,_a,_b); }
     /* 080068C6: lsrs r5, r4, #1 */
-    r5 = (r4 >> 1);
-    LSR_FLAGS(r5, r4, 1);
+    { u32 _src = r4; r5 = (_src >> 1); LSR_FLAGS(r5, _src, 1); }
 L080068C8:
     /* 080068C8: adds r0, r6, #0 */
     { u32 _a=r6, _b=0x0u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
@@ -2043,11 +1952,9 @@ static void aot_gen_08006908(u32 ep) {
     sp -= 4u;
     aot_write32(sp + 0u, lr);
     /* 0800690A: lsls r0, r0, #0x10 */
-    r0 = (r0 << 16);
-    LSL_FLAGS(r0, r0, 16);
+    { u32 _src = r0; r0 = (_src << 16); LSL_FLAGS(r0, _src, 16); }
     /* 0800690C: lsrs r2, r0, #0x10 */
-    r2 = (r0 >> 16);
-    LSR_FLAGS(r2, r0, 16);
+    { u32 _src = r0; r2 = (_src >> 16); LSR_FLAGS(r2, _src, 16); }
     /* 0800690E: cmp r1, #1 */
     { u32 _a=r1, _b=0x1u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006910: beq #0x8006920 */
@@ -2066,8 +1973,7 @@ static void aot_gen_08006908(u32 ep) {
     /* 0800691C: cmn r4, r4 */
     { u32 _a=r4, _b=r4, _d=_a+_b; ADD_FLAGS(_d,_a,_b); }
     /* 0800691E: lsrs r5, r4, #1 */
-    r5 = (r4 >> 1);
-    LSR_FLAGS(r5, r4, 1);
+    { u32 _src = r4; r5 = (_src >> 1); LSR_FLAGS(r5, _src, 1); }
 L08006920:
     /* 08006920: movs r0, #8 */
     r0 = 0x8u;
@@ -2112,26 +2018,21 @@ static void aot_gen_08006928(u32 ep) {
     aot_write32(sp + 4u, r5);
     aot_write32(sp + 8u, lr);
     /* 0800692A: lsls r0, r0, #0x10 */
-    r0 = (r0 << 16);
-    LSL_FLAGS(r0, r0, 16);
+    { u32 _src = r0; r0 = (_src << 16); LSL_FLAGS(r0, _src, 16); }
     /* 0800692C: lsrs r4, r0, #0x14 */
-    r4 = (r0 >> 20);
-    LSR_FLAGS(r4, r0, 20);
+    { u32 _src = r0; r4 = (_src >> 20); LSR_FLAGS(r4, _src, 20); }
     /* 0800692E: lsls r4, r4, #9 */
-    r4 = (r4 << 9);
-    LSL_FLAGS(r4, r4, 9);
+    { u32 _src = r4; r4 = (_src << 9); LSL_FLAGS(r4, _src, 9); }
     /* 08006930: movs r1, #0xf0 */
     r1 = 0xF0u;
     SET_NZ(r1);
     /* 08006932: lsls r1, r1, #0xc */
-    r1 = (r1 << 12);
-    LSL_FLAGS(r1, r1, 12);
+    { u32 _src = r1; r1 = (_src << 12); LSL_FLAGS(r1, _src, 12); }
     /* 08006934: ands r1, r0 */
     r1 = (r1 & r0);
     SET_NZ(r1);
     /* 08006936: lsrs r1, r1, #0xc */
-    r1 = (r1 >> 12);
-    LSR_FLAGS(r1, r1, 12);
+    { u32 _src = r1; r1 = (_src >> 12); LSR_FLAGS(r1, _src, 12); }
     /* 08006938: ldr r0, [pc, #0x30] */
     r0 = aot_read32(0x800696Cu);
     /* 0800693A: adds r1, r1, r0 */
@@ -2152,8 +2053,7 @@ E_08006948:
     r0 = 0x80u;
     SET_NZ(r0);
     /* 0800694A: lsls r0, r0, #1 */
-    r0 = (r0 << 1);
-    LSL_FLAGS(r0, r0, 1);
+    { u32 _src = r0; r0 = (_src << 1); LSL_FLAGS(r0, _src, 1); }
     /* 0800694C: adds r4, r4, r0 */
     { u32 _a=r4, _b=r0; r4=_a+_b; ADD_FLAGS(r4,_a,_b); }
     /* 0800694E: adds r1, r5, #0 */
@@ -2333,13 +2233,11 @@ static void aot_gen_080069C0(u32 ep) {
     SET_NZ(r7);
 L080069C6:
     /* 080069C6: lsls r0, r6, #4 */
-    r0 = (r6 << 4);
-    LSL_FLAGS(r0, r6, 4);
+    { u32 _src = r6; r0 = (_src << 4); LSL_FLAGS(r0, _src, 4); }
     /* 080069C8: adds r0, r0, r6 */
     { u32 _a=r0, _b=r6; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 080069CA: lsls r0, r0, #2 */
-    r0 = (r0 << 2);
-    LSL_FLAGS(r0, r0, 2);
+    { u32 _src = r0; r0 = (_src << 2); LSL_FLAGS(r0, _src, 2); }
     /* 080069CC: ldr r1, [pc, #0x38] */
     r1 = aot_read32(0x8006A08u);
     /* 080069CE: adds r4, r0, r1 */
@@ -2388,11 +2286,9 @@ E_080069F6:
     /* 080069F6: adds r0, r6, #1 */
     { u32 _a=r6, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 080069F8: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 080069FA: lsrs r6, r0, #0x18 */
-    r6 = (r0 >> 24);
-    LSR_FLAGS(r6, r0, 24);
+    { u32 _src = r0; r6 = (_src >> 24); LSR_FLAGS(r6, _src, 24); }
     /* 080069FC: cmp r6, #0x3f */
     { u32 _a=r6, _b=0x3Fu, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 080069FE: bls #0x80069c6 */
@@ -2465,11 +2361,9 @@ E_08006A1A:
     /* 08006A20: ldrb r0, [r5] */
     r0 = aot_read8(r5);
     /* 08006A22: lsls r4, r0, #0x1f */
-    r4 = (r0 << 31);
-    LSL_FLAGS(r4, r0, 31);
+    { u32 _src = r0; r4 = (_src << 31); LSL_FLAGS(r4, _src, 31); }
     /* 08006A24: lsrs r4, r4, #0x1f */
-    r4 = (r4 >> 31);
-    LSR_FLAGS(r4, r4, 31);
+    { u32 _src = r4; r4 = (_src >> 31); LSR_FLAGS(r4, _src, 31); }
     /* 08006A26: movs r1, #1 */
     r1 = 0x1u;
     SET_NZ(r1);
@@ -2560,13 +2454,11 @@ static void aot_gen_08006A58(u32 ep) {
     r6 = aot_read32(0x8006ACCu);
 L08006A64:
     /* 08006A64: lsls r0, r4, #4 */
-    r0 = (r4 << 4);
-    LSL_FLAGS(r0, r4, 4);
+    { u32 _src = r4; r0 = (_src << 4); LSL_FLAGS(r0, _src, 4); }
     /* 08006A66: adds r0, r0, r4 */
     { u32 _a=r0, _b=r4; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006A68: lsls r0, r0, #2 */
-    r0 = (r0 << 2);
-    LSL_FLAGS(r0, r0, 2);
+    { u32 _src = r0; r0 = (_src << 2); LSL_FLAGS(r0, _src, 2); }
     /* 08006A6A: adds r3, r0, r7 */
     { u32 _a=r0, _b=r7; r3=_a+_b; ADD_FLAGS(r3,_a,_b); }
     /* 08006A6C: adds r0, r3, #0 */
@@ -2614,11 +2506,9 @@ L08006A64:
     /* 08006A90: ldrb r0, [r0] */
     r0 = aot_read8(r0);
     /* 08006A92: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006A94: asrs r0, r0, #0x18 */
-    r0 = (u32)((s32)r0 >> 24);
-    ASR_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (u32)((s32)_src >> 24); ASR_FLAGS(r0, _src, 24); }
     /* 08006A96: adds r1, r1, r0 */
     { u32 _a=r1, _b=r0; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
     /* 08006A98: ldr r0, [pc, #0x34] */
@@ -2671,14 +2561,11 @@ L08006A64:
     r0 = r0;
     SET_NZ(r0);
     /* 08006AC4: lsls r0, r6, #0x18 */
-    r0 = (r6 << 24);
-    LSL_FLAGS(r0, r6, 24);
+    { u32 _src = r6; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006AC6: lsls r2, r0, #8 */
-    r2 = (r0 << 8);
-    LSL_FLAGS(r2, r0, 8);
+    { u32 _src = r0; r2 = (_src << 8); LSL_FLAGS(r2, _src, 8); }
     /* 08006AC8: lsls r7, r7, #7 */
-    r7 = (r7 << 7);
-    LSL_FLAGS(r7, r7, 7);
+    { u32 _src = r7; r7 = (_src << 7); LSL_FLAGS(r7, _src, 7); }
     /* 08006ACA: movs r0, r0 */
     r0 = r0;
     SET_NZ(r0);
@@ -2687,13 +2574,11 @@ L08006A64:
     /* 08006AD0: subs r4, r7, r6 */
     { u32 _a=r7, _b=r6; r4=_a-_b; SUB_FLAGS(r4,_a,_b); }
     /* 08006AD2: lsls r2, r0, #8 */
-    r2 = (r0 << 8);
-    LSL_FLAGS(r2, r0, 8);
+    { u32 _src = r0; r2 = (_src << 8); LSL_FLAGS(r2, _src, 8); }
     /* 08006AD4: subs r6, r7, r6 */
     { u32 _a=r7, _b=r6; r6=_a-_b; SUB_FLAGS(r6,_a,_b); }
     /* 08006AD6: lsls r2, r0, #8 */
-    r2 = (r0 << 8);
-    LSL_FLAGS(r2, r0, 8);
+    { u32 _src = r0; r2 = (_src << 8); LSL_FLAGS(r2, _src, 8); }
 L08006AD8:
     /* 08006AD8: movs r2, #0x20 */
     r2 = 0x20u;
@@ -2714,11 +2599,9 @@ L08006AD8:
     /* 08006AE6: ldrb r0, [r0] */
     r0 = aot_read8(r0);
     /* 08006AE8: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006AEA: asrs r0, r0, #0x18 */
-    r0 = (u32)((s32)r0 >> 24);
-    ASR_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (u32)((s32)_src >> 24); ASR_FLAGS(r0, _src, 24); }
     /* 08006AEC: adds r1, r1, r0 */
     { u32 _a=r1, _b=r0; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
     /* 08006AEE: ands r1, r5 */
@@ -2757,11 +2640,9 @@ L08006B0A:
     /* 08006B0A: adds r0, r4, #1 */
     { u32 _a=r4, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006B0C: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006B0E: lsrs r4, r0, #0x18 */
-    r4 = (r0 >> 24);
-    LSR_FLAGS(r4, r0, 24);
+    { u32 _src = r0; r4 = (_src >> 24); LSR_FLAGS(r4, _src, 24); }
     /* 08006B10: cmp r4, #0x3f */
     { u32 _a=r4, _b=0x3Fu, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006B12: bls #0x8006a64 */
@@ -2815,13 +2696,11 @@ static void aot_gen_08006B1C(u32 ep) {
     r3 = aot_read32(0x8006B58u);
 L08006B24:
     /* 08006B24: lsls r0, r2, #4 */
-    r0 = (r2 << 4);
-    LSL_FLAGS(r0, r2, 4);
+    { u32 _src = r2; r0 = (_src << 4); LSL_FLAGS(r0, _src, 4); }
     /* 08006B26: adds r0, r0, r2 */
     { u32 _a=r0, _b=r2; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006B28: lsls r0, r0, #2 */
-    r0 = (r0 << 2);
-    LSL_FLAGS(r0, r0, 2);
+    { u32 _src = r0; r0 = (_src << 2); LSL_FLAGS(r0, _src, 2); }
     /* 08006B2A: adds r0, r0, r4 */
     { u32 _a=r0, _b=r4; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006B2C: adds r1, r0, #0 */
@@ -2833,20 +2712,16 @@ L08006B24:
     /* 08006B32: ldrb r0, [r0, #5] */
     r0 = aot_read8((r0 + 5u));
     /* 08006B34: lsls r0, r0, #0x1c */
-    r0 = (r0 << 28);
-    LSL_FLAGS(r0, r0, 28);
+    { u32 _src = r0; r0 = (_src << 28); LSL_FLAGS(r0, _src, 28); }
     /* 08006B36: lsrs r0, r0, #0x1e */
-    r0 = (r0 >> 30);
-    LSR_FLAGS(r0, r0, 30);
+    { u32 _src = r0; r0 = (_src >> 30); LSR_FLAGS(r0, _src, 30); }
     /* 08006B38: lsls r0, r0, #8 */
-    r0 = (r0 << 8);
-    LSL_FLAGS(r0, r0, 8);
+    { u32 _src = r0; r0 = (_src << 8); LSL_FLAGS(r0, _src, 8); }
     /* 08006B3A: orrs r1, r0 */
     r1 = (r1 | r0);
     SET_NZ(r1);
     /* 08006B3C: lsls r0, r2, #1 */
-    r0 = (r2 << 1);
-    LSL_FLAGS(r0, r2, 1);
+    { u32 _src = r2; r0 = (_src << 1); LSL_FLAGS(r0, _src, 1); }
     /* 08006B3E: adds r0, r0, r3 */
     { u32 _a=r0, _b=r3; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006B40: strh r1, [r0] */
@@ -2854,11 +2729,9 @@ L08006B24:
     /* 08006B42: adds r0, r2, #1 */
     { u32 _a=r2, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006B44: lsls r0, r0, #0x10 */
-    r0 = (r0 << 16);
-    LSL_FLAGS(r0, r0, 16);
+    { u32 _src = r0; r0 = (_src << 16); LSL_FLAGS(r0, _src, 16); }
     /* 08006B46: lsrs r2, r0, #0x10 */
-    r2 = (r0 >> 16);
-    LSR_FLAGS(r2, r0, 16);
+    { u32 _src = r0; r2 = (_src >> 16); LSR_FLAGS(r2, _src, 16); }
     /* 08006B48: cmp r2, #0x3f */
     { u32 _a=r2, _b=0x3Fu, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006B4A: bls #0x8006b24 */
@@ -2910,16 +2783,13 @@ static void aot_gen_08006D1C(u32 ep) {
     r6 = aot_read32(0x8006D64u);
 L08006D24:
     /* 08006D24: lsls r2, r4, #2 */
-    r2 = (r4 << 2);
-    LSL_FLAGS(r2, r4, 2);
+    { u32 _src = r4; r2 = (_src << 2); LSL_FLAGS(r2, _src, 2); }
     /* 08006D26: lsls r1, r4, #5 */
-    r1 = (r4 << 5);
-    LSL_FLAGS(r1, r4, 5);
+    { u32 _src = r4; r1 = (_src << 5); LSL_FLAGS(r1, _src, 5); }
     /* 08006D28: adds r1, r1, r5 */
     { u32 _a=r1, _b=r5; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
     /* 08006D2A: lsls r3, r4, #3 */
-    r3 = (r4 << 3);
-    LSL_FLAGS(r3, r4, 3);
+    { u32 _src = r4; r3 = (_src << 3); LSL_FLAGS(r3, _src, 3); }
     /* 08006D2C: adds r3, r3, r6 */
     { u32 _a=r3, _b=r6; r3=_a+_b; ADD_FLAGS(r3,_a,_b); }
     /* 08006D2E: ldrh r0, [r3] */
@@ -2929,8 +2799,7 @@ L08006D24:
     /* 08006D32: adds r0, r2, #1 */
     { u32 _a=r2, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006D34: lsls r0, r0, #3 */
-    r0 = (r0 << 3);
-    LSL_FLAGS(r0, r0, 3);
+    { u32 _src = r0; r0 = (_src << 3); LSL_FLAGS(r0, _src, 3); }
     /* 08006D36: adds r0, r0, r5 */
     { u32 _a=r0, _b=r5; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006D38: ldrh r1, [r3, #2] */
@@ -2940,8 +2809,7 @@ L08006D24:
     /* 08006D3C: adds r0, r2, #2 */
     { u32 _a=r2, _b=0x2u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006D3E: lsls r0, r0, #3 */
-    r0 = (r0 << 3);
-    LSL_FLAGS(r0, r0, 3);
+    { u32 _src = r0; r0 = (_src << 3); LSL_FLAGS(r0, _src, 3); }
     /* 08006D40: adds r0, r0, r5 */
     { u32 _a=r0, _b=r5; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006D42: ldrh r1, [r3, #4] */
@@ -2951,8 +2819,7 @@ L08006D24:
     /* 08006D46: adds r2, #3 */
     { u32 _a=r2, _b=0x3u; r2=_a+_b; ADD_FLAGS(r2,_a,_b); }
     /* 08006D48: lsls r2, r2, #3 */
-    r2 = (r2 << 3);
-    LSL_FLAGS(r2, r2, 3);
+    { u32 _src = r2; r2 = (_src << 3); LSL_FLAGS(r2, _src, 3); }
     /* 08006D4A: adds r2, r2, r5 */
     { u32 _a=r2, _b=r5; r2=_a+_b; ADD_FLAGS(r2,_a,_b); }
     /* 08006D4C: ldrh r0, [r3, #6] */
@@ -2962,11 +2829,9 @@ L08006D24:
     /* 08006D50: adds r0, r4, #1 */
     { u32 _a=r4, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006D52: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006D54: lsrs r4, r0, #0x18 */
-    r4 = (r0 >> 24);
-    LSR_FLAGS(r4, r0, 24);
+    { u32 _src = r0; r4 = (_src >> 24); LSR_FLAGS(r4, _src, 24); }
     /* 08006D56: cmp r4, #0x1f */
     { u32 _a=r4, _b=0x1Fu, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006D58: bls #0x8006d24 */
@@ -3031,13 +2896,11 @@ L08006D72:
     /* 08006D76: ldrb r1, [r0] */
     r1 = aot_read8(r0);
     /* 08006D78: lsls r0, r1, #4 */
-    r0 = (r1 << 4);
-    LSL_FLAGS(r0, r1, 4);
+    { u32 _src = r1; r0 = (_src << 4); LSL_FLAGS(r0, _src, 4); }
     /* 08006D7A: adds r0, r0, r1 */
     { u32 _a=r0, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006D7C: lsls r0, r0, #2 */
-    r0 = (r0 << 2);
-    LSL_FLAGS(r0, r0, 2);
+    { u32 _src = r0; r0 = (_src << 2); LSL_FLAGS(r0, _src, 2); }
     /* 08006D7E: ldr r1, [pc, #0x64] */
     r1 = aot_read32(0x8006DE4u);
     /* 08006D80: adds r2, r0, r1 */
@@ -3067,8 +2930,7 @@ L08006D72:
     BAIL(0x08008880u);
 E_08006D98:
     /* 08006D98: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006D9A: cmp r0, #0 */
     { u32 _a=r0, _b=0x0u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006D9C: bne #0x8006dd8 */
@@ -3077,11 +2939,9 @@ L08006D9E:
     /* 08006D9E: adds r0, r4, #1 */
     { u32 _a=r4, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006DA0: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006DA2: lsrs r4, r0, #0x18 */
-    r4 = (r0 >> 24);
-    LSR_FLAGS(r4, r0, 24);
+    { u32 _src = r0; r4 = (_src >> 24); LSR_FLAGS(r4, _src, 24); }
     /* 08006DA4: cmp r4, #0x3f */
     { u32 _a=r4, _b=0x3Fu, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006DA6: bls #0x8006d72 */
@@ -3112,8 +2972,7 @@ L08006DBE:
     /* 08006DBE: ldrb r0, [r1] */
     r0 = aot_read8(r1);
     /* 08006DC0: lsls r0, r0, #3 */
-    r0 = (r0 << 3);
-    LSL_FLAGS(r0, r0, 3);
+    { u32 _src = r0; r0 = (_src << 3); LSL_FLAGS(r0, _src, 3); }
     /* 08006DC2: adds r0, r0, r5 */
     { u32 _a=r0, _b=r5; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006DC4: str r2, [r0] */
@@ -3127,11 +2986,9 @@ L08006DBE:
     /* 08006DCC: strb r0, [r1] */
     aot_write8(r1, r0);
     /* 08006DCE: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006DD0: lsrs r0, r0, #0x18 */
-    r0 = (r0 >> 24);
-    LSR_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src >> 24); LSR_FLAGS(r0, _src, 24); }
     /* 08006DD2: ldrb r6, [r4] */
     r6 = aot_read8(r4);
     /* 08006DD4: cmp r0, r6 */
@@ -3190,11 +3047,9 @@ static void aot_gen_08006DF4(u32 ep) {
     /* 08006DF8: adds r7, r0, #0 */
     { u32 _a=r0, _b=0x0u; r7=_a+_b; ADD_FLAGS(r7,_a,_b); }
     /* 08006DFA: lsls r3, r3, #0x18 */
-    r3 = (r3 << 24);
-    LSL_FLAGS(r3, r3, 24);
+    { u32 _src = r3; r3 = (_src << 24); LSL_FLAGS(r3, _src, 24); }
     /* 08006DFC: lsrs r4, r3, #0x18 */
-    r4 = (r3 >> 24);
-    LSR_FLAGS(r4, r3, 24);
+    { u32 _src = r3; r4 = (_src >> 24); LSR_FLAGS(r4, _src, 24); }
     /* 08006DFE: movs r3, #0 */
     r3 = 0x0u;
     SET_NZ(r3);
@@ -3203,20 +3058,16 @@ static void aot_gen_08006DF4(u32 ep) {
     /* 08006E02: mov ip, r0 */
     r12 = r0;
     /* 08006E04: lsls r5, r1, #0x10 */
-    r5 = (r1 << 16);
-    LSL_FLAGS(r5, r1, 16);
+    { u32 _src = r1; r5 = (_src << 16); LSL_FLAGS(r5, _src, 16); }
     /* 08006E06: lsls r6, r2, #0x10 */
-    r6 = (r2 << 16);
-    LSL_FLAGS(r6, r2, 16);
+    { u32 _src = r2; r6 = (_src << 16); LSL_FLAGS(r6, _src, 16); }
 L08006E08:
     /* 08006E08: lsls r0, r3, #4 */
-    r0 = (r3 << 4);
-    LSL_FLAGS(r0, r3, 4);
+    { u32 _src = r3; r0 = (_src << 4); LSL_FLAGS(r0, _src, 4); }
     /* 08006E0A: adds r0, r0, r3 */
     { u32 _a=r0, _b=r3; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006E0C: lsls r0, r0, #2 */
-    r0 = (r0 << 2);
-    LSL_FLAGS(r0, r0, 2);
+    { u32 _src = r0; r0 = (_src << 2); LSL_FLAGS(r0, _src, 2); }
     /* 08006E0E: add r0, ip */
     r0 = r0 + r12;
     /* 08006E10: adds r0, #0x3e */
@@ -3224,8 +3075,7 @@ L08006E08:
     /* 08006E12: ldrb r0, [r0] */
     r0 = aot_read8(r0);
     /* 08006E14: lsls r0, r0, #0x1f */
-    r0 = (r0 << 31);
-    LSL_FLAGS(r0, r0, 31);
+    { u32 _src = r0; r0 = (_src << 31); LSL_FLAGS(r0, _src, 31); }
     /* 08006E16: cmp r0, #0 */
     { u32 _a=r0, _b=0x0u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006E18: bne #0x8006e34 */
@@ -3237,41 +3087,33 @@ L08006E08:
     /* 08006E1E: adds r1, r7, #0 */
     { u32 _a=r7, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
     /* 08006E20: asrs r2, r5, #0x10 */
-    r2 = (u32)((s32)r5 >> 16);
-    ASR_FLAGS(r2, r5, 16);
+    { u32 _src = r5; r2 = (u32)((s32)_src >> 16); ASR_FLAGS(r2, _src, 16); }
     /* 08006E22: asrs r3, r6, #0x10 */
-    r3 = (u32)((s32)r6 >> 16);
-    ASR_FLAGS(r3, r6, 16);
+    { u32 _src = r6; r3 = (u32)((s32)_src >> 16); ASR_FLAGS(r3, _src, 16); }
     /* 08006E24: bl #0x8006efc */
     lr = 0x8006E29u;
     BAIL(0x08006EFCu);
 E_08006E28:
     /* 08006E28: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006E2A: lsrs r0, r0, #0x18 */
-    r0 = (r0 >> 24);
-    LSR_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src >> 24); LSR_FLAGS(r0, _src, 24); }
     /* 08006E2C: b #0x8006e40 */
     goto L08006E40;
     /* 08006E2E: movs r0, r0 */
     r0 = r0;
     SET_NZ(r0);
     /* 08006E30: lsls r0, r6, #0x18 */
-    r0 = (r6 << 24);
-    LSL_FLAGS(r0, r6, 24);
+    { u32 _src = r6; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006E32: lsls r2, r0, #8 */
-    r2 = (r0 << 8);
-    LSL_FLAGS(r2, r0, 8);
+    { u32 _src = r0; r2 = (_src << 8); LSL_FLAGS(r2, _src, 8); }
 L08006E34:
     /* 08006E34: adds r0, r3, #1 */
     { u32 _a=r3, _b=0x1u; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006E36: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006E38: lsrs r3, r0, #0x18 */
-    r3 = (r0 >> 24);
-    LSR_FLAGS(r3, r0, 24);
+    { u32 _src = r0; r3 = (_src >> 24); LSR_FLAGS(r3, _src, 24); }
     /* 08006E3A: cmp r3, #0x3f */
     { u32 _a=r3, _b=0x3Fu, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006E3C: bls #0x8006e08 */
@@ -3337,11 +3179,9 @@ static void aot_gen_08006E48(u32 ep) {
     /* 08006E50: adds r7, r0, #0 */
     { u32 _a=r0, _b=0x0u; r7=_a+_b; ADD_FLAGS(r7,_a,_b); }
     /* 08006E52: lsls r3, r3, #0x18 */
-    r3 = (r3 << 24);
-    LSL_FLAGS(r3, r3, 24);
+    { u32 _src = r3; r3 = (_src << 24); LSL_FLAGS(r3, _src, 24); }
     /* 08006E54: lsrs r6, r3, #0x18 */
-    r6 = (r3 >> 24);
-    LSR_FLAGS(r6, r3, 24);
+    { u32 _src = r3; r6 = (_src >> 24); LSR_FLAGS(r6, _src, 24); }
     /* 08006E56: movs r3, #0x3f */
     r3 = 0x3Fu;
     SET_NZ(r3);
@@ -3357,26 +3197,20 @@ static void aot_gen_08006E48(u32 ep) {
     /* 08006E60: mov ip, r0 */
     r12 = r0;
     /* 08006E62: lsls r4, r1, #0x10 */
-    r4 = (r1 << 16);
-    LSL_FLAGS(r4, r1, 16);
+    { u32 _src = r1; r4 = (_src << 16); LSL_FLAGS(r4, _src, 16); }
     /* 08006E64: lsls r5, r2, #0x10 */
-    r5 = (r2 << 16);
-    LSL_FLAGS(r5, r2, 16);
+    { u32 _src = r2; r5 = (_src << 16); LSL_FLAGS(r5, _src, 16); }
 L08006E66:
     /* 08006E66: lsls r0, r3, #0x10 */
-    r0 = (r3 << 16);
-    LSL_FLAGS(r0, r3, 16);
+    { u32 _src = r3; r0 = (_src << 16); LSL_FLAGS(r0, _src, 16); }
     /* 08006E68: asrs r1, r0, #0x10 */
-    r1 = (u32)((s32)r0 >> 16);
-    ASR_FLAGS(r1, r0, 16);
+    { u32 _src = r0; r1 = (u32)((s32)_src >> 16); ASR_FLAGS(r1, _src, 16); }
     /* 08006E6A: lsls r0, r1, #4 */
-    r0 = (r1 << 4);
-    LSL_FLAGS(r0, r1, 4);
+    { u32 _src = r1; r0 = (_src << 4); LSL_FLAGS(r0, _src, 4); }
     /* 08006E6C: adds r0, r0, r1 */
     { u32 _a=r0, _b=r1; r0=_a+_b; ADD_FLAGS(r0,_a,_b); }
     /* 08006E6E: lsls r0, r0, #2 */
-    r0 = (r0 << 2);
-    LSL_FLAGS(r0, r0, 2);
+    { u32 _src = r0; r0 = (_src << 2); LSL_FLAGS(r0, _src, 2); }
     /* 08006E70: add r0, r8 */
     r0 = r0 + r8;
     /* 08006E72: adds r0, #0x3e */
@@ -3384,61 +3218,49 @@ L08006E66:
     /* 08006E74: ldrb r0, [r0] */
     r0 = aot_read8(r0);
     /* 08006E76: lsls r0, r0, #0x1f */
-    r0 = (r0 << 31);
-    LSL_FLAGS(r0, r0, 31);
+    { u32 _src = r0; r0 = (_src << 31); LSL_FLAGS(r0, _src, 31); }
     /* 08006E78: cmp r0, #0 */
     { u32 _a=r0, _b=0x0u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006E7A: bne #0x8006e98 */
     if (!zf) goto L08006E98;
     /* 08006E7C: lsls r0, r3, #0x18 */
-    r0 = (r3 << 24);
-    LSL_FLAGS(r0, r3, 24);
+    { u32 _src = r3; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006E7E: lsrs r0, r0, #0x18 */
-    r0 = (r0 >> 24);
-    LSR_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src >> 24); LSR_FLAGS(r0, _src, 24); }
     /* 08006E80: str r6, [sp] */
     aot_write32(sp, r6);
     /* 08006E82: adds r1, r7, #0 */
     { u32 _a=r7, _b=0x0u; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
     /* 08006E84: asrs r2, r4, #0x10 */
-    r2 = (u32)((s32)r4 >> 16);
-    ASR_FLAGS(r2, r4, 16);
+    { u32 _src = r4; r2 = (u32)((s32)_src >> 16); ASR_FLAGS(r2, _src, 16); }
     /* 08006E86: asrs r3, r5, #0x10 */
-    r3 = (u32)((s32)r5 >> 16);
-    ASR_FLAGS(r3, r5, 16);
+    { u32 _src = r5; r3 = (u32)((s32)_src >> 16); ASR_FLAGS(r3, _src, 16); }
     /* 08006E88: bl #0x8006efc */
     lr = 0x8006E8Du;
     BAIL(0x08006EFCu);
 E_08006E8C:
     /* 08006E8C: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006E8E: lsrs r0, r0, #0x18 */
-    r0 = (r0 >> 24);
-    LSR_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src >> 24); LSR_FLAGS(r0, _src, 24); }
     /* 08006E90: b #0x8006ea6 */
     goto L08006EA6;
     /* 08006E92: movs r0, r0 */
     r0 = r0;
     SET_NZ(r0);
     /* 08006E94: lsls r0, r6, #0x18 */
-    r0 = (r6 << 24);
-    LSL_FLAGS(r0, r6, 24);
+    { u32 _src = r6; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006E96: lsls r2, r0, #8 */
-    r2 = (r0 << 8);
-    LSL_FLAGS(r2, r0, 8);
+    { u32 _src = r0; r2 = (_src << 8); LSL_FLAGS(r2, _src, 8); }
 L08006E98:
     /* 08006E98: subs r0, r1, #1 */
     { u32 _a=r1, _b=0x1u; r0=_a-_b; SUB_FLAGS(r0,_a,_b); }
     /* 08006E9A: lsls r0, r0, #0x10 */
-    r0 = (r0 << 16);
-    LSL_FLAGS(r0, r0, 16);
+    { u32 _src = r0; r0 = (_src << 16); LSL_FLAGS(r0, _src, 16); }
     /* 08006E9C: lsrs r3, r0, #0x10 */
-    r3 = (r0 >> 16);
-    LSR_FLAGS(r3, r0, 16);
+    { u32 _src = r0; r3 = (_src >> 16); LSR_FLAGS(r3, _src, 16); }
     /* 08006E9E: asrs r0, r0, #0x10 */
-    r0 = (u32)((s32)r0 >> 16);
-    ASR_FLAGS(r0, r0, 16);
+    { u32 _src = r0; r0 = (u32)((s32)_src >> 16); ASR_FLAGS(r0, _src, 16); }
     /* 08006EA0: cmp r0, ip */
     { u32 _a=r0, _b=r12, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006EA2: bgt #0x8006e66 */
@@ -3516,11 +3338,9 @@ static void aot_gen_08006EB4(u32 ep) {
     BAIL(0x08006DF4u);
 E_08006EC4:
     /* 08006EC4: lsls r0, r0, #0x18 */
-    r0 = (r0 << 24);
-    LSL_FLAGS(r0, r0, 24);
+    { u32 _src = r0; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006EC6: lsrs r5, r0, #0x18 */
-    r5 = (r0 >> 24);
-    LSR_FLAGS(r5, r0, 24);
+    { u32 _src = r0; r5 = (_src >> 24); LSR_FLAGS(r5, _src, 24); }
     /* 08006EC8: cmp r5, #0x40 */
     { u32 _a=r5, _b=0x40u, _d=_a-_b; SUB_FLAGS(_d,_a,_b); }
     /* 08006ECA: beq #0x8006ef4 */
@@ -3528,13 +3348,11 @@ E_08006EC4:
     /* 08006ECC: ldr r4, [pc, #0x20] */
     r4 = aot_read32(0x8006EF0u);
     /* 08006ECE: lsls r1, r5, #4 */
-    r1 = (r5 << 4);
-    LSL_FLAGS(r1, r5, 4);
+    { u32 _src = r5; r1 = (_src << 4); LSL_FLAGS(r1, _src, 4); }
     /* 08006ED0: adds r1, r1, r5 */
     { u32 _a=r1, _b=r5; r1=_a+_b; ADD_FLAGS(r1,_a,_b); }
     /* 08006ED2: lsls r1, r1, #2 */
-    r1 = (r1 << 2);
-    LSL_FLAGS(r1, r1, 2);
+    { u32 _src = r1; r1 = (_src << 2); LSL_FLAGS(r1, _src, 2); }
     /* 08006ED4: adds r2, r1, r4 */
     { u32 _a=r1, _b=r4; r2=_a+_b; ADD_FLAGS(r2,_a,_b); }
     /* 08006ED6: adds r2, #0x3e */
@@ -3569,14 +3387,11 @@ E_08006EC4:
     aot_write32(r6 + 12u, r7);
     r6 += 16u;
     /* 08006EEE: lsrs r6, r5, #0x20 */
-    r6 = (r5 >> 32);
-    LSR_FLAGS(r6, r5, 32);
+    { u32 _src = r5; r6 = (_src >> 32); LSR_FLAGS(r6, _src, 32); }
     /* 08006EF0: lsls r0, r6, #0x18 */
-    r0 = (r6 << 24);
-    LSL_FLAGS(r0, r6, 24);
+    { u32 _src = r6; r0 = (_src << 24); LSL_FLAGS(r0, _src, 24); }
     /* 08006EF2: lsls r2, r0, #8 */
-    r2 = (r0 << 8);
-    LSL_FLAGS(r2, r0, 8);
+    { u32 _src = r0; r2 = (_src << 8); LSL_FLAGS(r2, _src, 8); }
 L08006EF4:
     /* 08006EF4: movs r0, #0x40 */
     r0 = 0x40u;

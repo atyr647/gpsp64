@@ -650,12 +650,17 @@ def _t_shift(ins, addr, next_addr, ctx, op_c, flag_macro):
                     return [f'cf = {rs} & 1u;', f'{rd} = 0u;', f'SET_NZ({rd});']
                 return [f'{rd} = 0u;']
             if op_c == '>>>':  # ASR
-                expr = f'(u32)((s32){rs} >> {imm})'
+                expr_tmpl = '(u32)((s32){src} >> {n})'
             else:
-                expr = f'({rs} {op_c} {imm})'
+                expr_tmpl = '({src} {op} {n})'
             if setflags:
-                return [f'{rd} = {expr};',
-                        f'{flag_macro}({rd}, {rs}, {imm});']
+                # Save source first — when rd == rs the assignment would
+                # otherwise clobber the value the flag macro needs.
+                expr = expr_tmpl.format(src='_src', op=op_c, n=imm)
+                return [f'{{ u32 _src = {rs}; '
+                        f'{rd} = {expr}; '
+                        f'{flag_macro}({rd}, _src, {imm}); }}']
+            expr = expr_tmpl.format(src=rs, op=op_c, n=imm)
             return [f'{rd} = {expr};']
         if ops[2].type == ARM_OP_REG:
             rm = op_reg_name(ops[2])
