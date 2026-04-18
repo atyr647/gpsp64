@@ -165,8 +165,9 @@ extern void aot_write8 (u32, u8);
     if (_n) cf=((u32)(a)>>(_n-1))&1u; \
     SET_NZ(d); } while(0)
 
-/* BAIL: write all state back, set PC to bail addr, return so the
- * interpreter can resume. */
+/* BAIL: write all state back, set PC to bail addr (assumed Thumb,
+ * since we never bail mid-function across a mode switch), return so
+ * the interpreter can resume. */
 #define BAIL(addr) do { \
     reg[0]=r0; reg[1]=r1; reg[2]=r2; reg[3]=r3; \
     reg[4]=r4; reg[5]=r5; reg[6]=r6; reg[7]=r7; \
@@ -177,16 +178,23 @@ extern void aot_write8 (u32, u8);
     return; \
 } while(0)
 
-/* Function return: PC = LR & ~1, write back regs, return. */
-#define AOT_RETURN() do { \
+/* Indirect-branch BAIL: target's low bit selects mode (1=Thumb,
+ * 0=ARM).  Used for BX/BLX-reg/POP{pc}/MOV pc,X and the function
+ * return AOT_RETURN. */
+#define BAIL_INDIRECT(target) do { \
+    u32 _t = (target); \
     reg[0]=r0; reg[1]=r1; reg[2]=r2; reg[3]=r3; \
     reg[4]=r4; reg[5]=r5; reg[6]=r6; reg[7]=r7; \
     reg[8]=r8; reg[9]=r9; reg[10]=r10; reg[11]=r11; reg[12]=r12; \
-    reg[13]=sp; reg[14]=lr; reg[REG_PC]=lr & ~1u; \
+    reg[13]=sp; reg[14]=lr; \
+    if (_t & 1u) { reg[REG_PC]=_t & ~1u; reg[REG_CPSR] |= 0x20u; } \
+    else         { reg[REG_PC]=_t;        reg[REG_CPSR] &= ~0x20u; } \
     reg[REG_C_FLAG]=cf; reg[REG_N_FLAG]=nf; \
     reg[REG_Z_FLAG]=zf; reg[REG_V_FLAG]=vf; \
     return; \
 } while(0)
+
+#define AOT_RETURN() BAIL_INDIRECT(lr)
 
 """
 
@@ -358,15 +366,15 @@ def t_mov(ins, addr, next_addr, ctx):
     rd = op_reg_name(ops[0])
     if rd is None:
         return None
-    # Indirect branch: mov pc, X
+    # Indirect branch: mov pc, X — bit 0 of source selects mode
     if rd == 'pc':
         if ops[1].type == ARM_OP_REG:
             rs = op_reg_name(ops[1])
             if rs is None:
                 return None
-            return [f'reg[REG_PC] = {rs};', 'BAIL(reg[REG_PC]);']
+            return [f'BAIL_INDIRECT({rs});']
         if ops[1].type == ARM_OP_IMM:
-            return [f'BAIL(0x{ops[1].imm:X}u);']
+            return [f'BAIL_INDIRECT(0x{ops[1].imm:X}u);']
         return None
     if ops[1].type == ARM_OP_IMM:
         imm = ops[1].imm
@@ -563,7 +571,7 @@ def t_bl(ins, addr, next_addr, ctx):
 
 
 def t_blx(ins, addr, next_addr, ctx):
-    """BLX — like BL but the target is a register, can switch mode."""
+    """BLX — like BL but target is a register; bit 0 selects mode."""
     ops = ins.operands
     if len(ops) != 1:
         return None
@@ -575,28 +583,29 @@ def t_blx(ins, addr, next_addr, ctx):
             return None
         return [
             f'lr = 0x{(cont | 1) & 0xFFFFFFFF:X}u;',
-            f'reg[REG_PC] = {rm};',
-            f'BAIL(reg[REG_PC]);',
+            f'BAIL_INDIRECT({rm});',
         ]
     if ops[0].type == ARM_OP_IMM:
         tgt = ops[0].imm
+        # BLX immediate (Thumb-1) targets ARM mode — clear bit 0.
         return [
             f'lr = 0x{(cont | 1) & 0xFFFFFFFF:X}u;',
-            f'BAIL(0x{tgt:08X}u);',
+            f'BAIL_INDIRECT(0x{tgt & ~1:08X}u);',
         ]
     return None
 
 
 def t_bx(ins, addr, next_addr, ctx):
-    """BX Rm — switch mode. If Rm=lr, this is a function return."""
+    """BX Rm — branch w/ mode switch. Bit 0 of Rm selects ARM/Thumb.
+    BX lr is a typical function return."""
     if not ins.operands or ins.operands[0].type != ARM_OP_REG:
         return None
     nm = reg_name(ins.operands[0].reg)
+    if nm is None:
+        return None
     if nm == 'lr':
         return ['AOT_RETURN();']
-    # BX to anything else: cannot statically know target. BAIL with
-    # PC=Rm (interpreter handles mode switch from low bit).
-    return [f'reg[REG_PC] = {nm}; BAIL(reg[REG_PC]);']
+    return [f'BAIL_INDIRECT({nm});']
 
 
 # ----- dispatch ----------------------------------------------------------

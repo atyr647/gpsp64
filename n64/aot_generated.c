@@ -30,8 +30,9 @@ extern void aot_write8 (u32, u8);
     if (_n) cf=((u32)(a)>>(_n-1))&1u; \
     SET_NZ(d); } while(0)
 
-/* BAIL: write all state back, set PC to bail addr, return so the
- * interpreter can resume. */
+/* BAIL: write all state back, set PC to bail addr (assumed Thumb,
+ * since we never bail mid-function across a mode switch), return so
+ * the interpreter can resume. */
 #define BAIL(addr) do { \
     reg[0]=r0; reg[1]=r1; reg[2]=r2; reg[3]=r3; \
     reg[4]=r4; reg[5]=r5; reg[6]=r6; reg[7]=r7; \
@@ -42,16 +43,23 @@ extern void aot_write8 (u32, u8);
     return; \
 } while(0)
 
-/* Function return: PC = LR & ~1, write back regs, return. */
-#define AOT_RETURN() do { \
+/* Indirect-branch BAIL: target's low bit selects mode (1=Thumb,
+ * 0=ARM).  Used for BX/BLX-reg/POP{pc}/MOV pc,X and the function
+ * return AOT_RETURN. */
+#define BAIL_INDIRECT(target) do { \
+    u32 _t = (target); \
     reg[0]=r0; reg[1]=r1; reg[2]=r2; reg[3]=r3; \
     reg[4]=r4; reg[5]=r5; reg[6]=r6; reg[7]=r7; \
     reg[8]=r8; reg[9]=r9; reg[10]=r10; reg[11]=r11; reg[12]=r12; \
-    reg[13]=sp; reg[14]=lr; reg[REG_PC]=lr & ~1u; \
+    reg[13]=sp; reg[14]=lr; \
+    if (_t & 1u) { reg[REG_PC]=_t & ~1u; reg[REG_CPSR] |= 0x20u; } \
+    else         { reg[REG_PC]=_t;        reg[REG_CPSR] &= ~0x20u; } \
     reg[REG_C_FLAG]=cf; reg[REG_N_FLAG]=nf; \
     reg[REG_Z_FLAG]=zf; reg[REG_V_FLAG]=vf; \
     return; \
 } while(0)
+
+#define AOT_RETURN() BAIL_INDIRECT(lr)
 
 /* function 0x08006140: 43 insns, 0 branch targets, 2 BL continuations */
 static void aot_gen_08006140(u32 ep) {
@@ -185,8 +193,7 @@ E_0800617E:
     /* 08006196: ldr r0, [r0] */
     r0 = aot_read32(r0);
     /* 08006198: mov pc, r0 */
-    reg[REG_PC] = r0;
-    BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -301,7 +308,7 @@ E_08006324:
     r1 = aot_read32(sp + 0u);
     sp += 4u;
     /* 0800632C: bx r1 */
-    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r1);
     AOT_RETURN();
 }
 
@@ -342,7 +349,7 @@ E_08006370:
     r0 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006372: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -398,8 +405,7 @@ static void aot_gen_08006378(u32 ep) {
     /* 0800638E: ldr r0, [r0] */
     r0 = aot_read32(r0);
     /* 08006390: mov pc, r0 */
-    reg[REG_PC] = r0;
-    BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -661,7 +667,7 @@ L08006534:
     r0 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006538: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -727,7 +733,7 @@ L0800655A:
     r1 = aot_read32(sp + 0u);
     sp += 4u;
     /* 0800655C: bx r1 */
-    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r1);
     AOT_RETURN();
 }
 
@@ -986,7 +992,7 @@ L0800661C:
     r0 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006620: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -1050,7 +1056,7 @@ L08006642:
     r1 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006644: bx r1 */
-    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r1);
     AOT_RETURN();
 }
 
@@ -1308,7 +1314,7 @@ L08006704:
     r0 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006708: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -1372,7 +1378,7 @@ L0800672A:
     r1 = aot_read32(sp + 0u);
     sp += 4u;
     /* 0800672C: bx r1 */
-    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r1);
     AOT_RETURN();
 }
 
@@ -1681,7 +1687,7 @@ L08006810:
     r0 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006814: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -1746,7 +1752,7 @@ L08006832:
     r1 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006838: bx r1 */
-    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r1);
     AOT_RETURN();
 }
 
@@ -2009,7 +2015,7 @@ L080068FC:
     r0 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006900: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -2071,7 +2077,7 @@ L08006922:
     r1 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006924: bx r1 */
-    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r1);
     AOT_RETURN();
 }
 
@@ -2184,7 +2190,7 @@ E_08006958:
     r0 = aot_read32(sp + 0u);
     sp += 4u;
     /* 0800696A: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -2283,7 +2289,7 @@ E_080069A0:
     r0 = aot_read32(sp + 0u);
     sp += 4u;
     /* 080069AC: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -2401,7 +2407,7 @@ E_080069F6:
     r0 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006A04: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -2510,7 +2516,7 @@ E_08006A34:
     r0 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006A4A: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -2770,7 +2776,7 @@ L08006B0A:
     r0 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006B18: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -2864,7 +2870,7 @@ L08006B24:
     r0 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006B50: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -2974,7 +2980,7 @@ L08006D24:
     r0 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006D5E: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -3144,7 +3150,7 @@ L08006DD8:
     r0 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006DDE: bx r0 */
-    reg[REG_PC] = r0; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r0);
     AOT_RETURN();
 }
 
@@ -3286,7 +3292,7 @@ L08006E40:
     r1 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006E46: bx r1 */
-    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r1);
     AOT_RETURN();
 }
 
@@ -3458,7 +3464,7 @@ L08006EA6:
     r1 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006EB0: bx r1 */
-    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r1);
     AOT_RETURN();
 }
 
@@ -3585,7 +3591,7 @@ L08006EF6:
     r1 = aot_read32(sp + 0u);
     sp += 4u;
     /* 08006EFA: bx r1 */
-    reg[REG_PC] = r1; BAIL(reg[REG_PC]);
+    BAIL_INDIRECT(r1);
     AOT_RETURN();
 }
 
