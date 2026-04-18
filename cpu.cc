@@ -3185,6 +3185,7 @@ thumb_loop:
         * (predicted not-taken on miss). */
        #ifdef N64
        #ifndef AOT_DISABLE
+       #ifndef AOT_NO_HANDWRITTEN
        if (__builtin_expect(reg[REG_PC] == 0x0806F160, 0)) {
          aot_0806F160_entry();
          cycles_remaining -= 200;
@@ -3195,6 +3196,7 @@ thumb_loop:
          cycles_remaining -= 400;
          continue;
        }
+       #endif
        {
          u32 _pidx = (reg[REG_PC] >> 12) & 0x1FFF;
          if (__builtin_expect(
