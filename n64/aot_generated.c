@@ -3455,6 +3455,14 @@ int aot_generated_dispatch(u32 pc) {
         if (pc==0x08006E48u||pc==0x08006E8Cu) allowed=1;
 #elif defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 13
         if (pc==0x08006EB4u||pc==0x08006EC4u) allowed=1;
+#elif defined(AOT_ADD_GROUP) && AOT_ADD_GROUP == 14
+        /* Combined groups 1-4 */
+        if (pc==0x080068ACu||pc==0x080068B8u||pc==0x080068D0u||
+            pc==0x080068DCu||pc==0x080068E8u||pc==0x080068F4u||
+            pc==0x08006908u||
+            pc==0x08006928u||pc==0x08006948u||pc==0x08006958u||
+            pc==0x08006974u||pc==0x0800697Eu||pc==0x08006982u||
+            pc==0x08006986u||pc==0x0800698Au||pc==0x0800698Eu||pc==0x080069A0u) allowed=1;
 #endif
         if (!allowed) return 0;
     }
