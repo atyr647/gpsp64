@@ -3215,7 +3215,7 @@ thumb_loop:
                _trace_n++;
              }
 #endif
-             cycles_remaining -= 100;
+             cycles_remaining -= 20;
              continue;
            }
          }
