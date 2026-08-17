@@ -153,29 +153,44 @@ extern void aot_write32(u32, u32);
 extern void aot_write16(u32, u16);
 extern void aot_write8 (u32, u8);
 
-/* Flag computation helpers — match ARM7TDMI semantics. */
-#define SET_NZ(x) do { u32 _x=(u32)(x); nf=(_x>>31)&1u; zf=(_x==0); } while(0)
-#define ADD_FLAGS(d,a,b) do { u32 _a=(a),_b=(b),_d=(d); \
-    nf=(_d>>31)&1u; zf=(_d==0); \
-    cf=(_d<_a); \
-    vf=(((_a^_d)&(_b^_d))>>31)&1u; } while(0)
-#define SUB_FLAGS(d,a,b) do { u32 _a=(a),_b=(b),_d=(d); \
-    nf=(_d>>31)&1u; zf=(_d==0); \
-    cf=(_a>=_b); \
-    vf=(((_a^_b)&(_a^_d))>>31)&1u; } while(0)
-#define LSL_FLAGS(d,a,n) do { u32 _n=(n); \
-    if (_n) cf=((u32)(a)>>(32-_n))&1u; \
+/* Flag computation helpers — match ARM7TDMI semantics.
+ *
+ * Internal temps use a __gfNN_ prefix that can never collide with the
+ * codegen's own emitted temp names (_a, _b, _d, _n, _x, _src, _t).  A
+ * plain _a/_b/_d name here would previously self-shadow: C block scope
+ * begins at the *end of a declarator*, so `u32 _a=(_a), _b=(_b), ...`
+ * (as produced when e.g. SUB_FLAGS is invoked as
+ * `SUB_FLAGS(_d,_a,_b)` from a `{ u32 _a=..,_b=..,_d=_a-_b; ... }`
+ * block) reads the macro's own not-yet-initialized _a/_b instead of
+ * the caller's — indeterminate value, silently wrong flags. This was
+ * invisible in most translated functions (the optimizer's register
+ * allocation happened to carry the right value through the bogus
+ * self-read by coincidence) but broke loop-exit CMPs whose flags feed
+ * a backward branch every iteration, hanging those loops outright. */
+#define SET_NZ(x) do { u32 __gf1_x=(u32)(x); nf=(__gf1_x>>31)&1u; zf=(__gf1_x==0); } while(0)
+#define ADD_FLAGS(d,a,b) do { u32 __gf2_a=(a),__gf2_b=(b),__gf2_d=(d); \
+    nf=(__gf2_d>>31)&1u; zf=(__gf2_d==0); \
+    cf=(__gf2_d<__gf2_a); \
+    vf=(((__gf2_a^__gf2_d)&(__gf2_b^__gf2_d))>>31)&1u; } while(0)
+#define SUB_FLAGS(d,a,b) do { u32 __gf3_a=(a),__gf3_b=(b),__gf3_d=(d); \
+    nf=(__gf3_d>>31)&1u; zf=(__gf3_d==0); \
+    cf=(__gf3_a>=__gf3_b); \
+    vf=(((__gf3_a^__gf3_b)&(__gf3_a^__gf3_d))>>31)&1u; } while(0)
+#define LSL_FLAGS(d,a,n) do { u32 __gf4_n=(n); \
+    if (__gf4_n) cf=((u32)(a)>>(32-__gf4_n))&1u; \
     SET_NZ(d); } while(0)
-#define LSR_FLAGS(d,a,n) do { u32 _n=(n); \
-    if (_n) cf=((u32)(a)>>(_n-1))&1u; \
+#define LSR_FLAGS(d,a,n) do { u32 __gf5_n=(n); \
+    if (__gf5_n) cf=((u32)(a)>>(__gf5_n-1))&1u; \
     SET_NZ(d); } while(0)
-#define ASR_FLAGS(d,a,n) do { u32 _n=(n); \
-    if (_n) cf=((u32)(a)>>(_n-1))&1u; \
+#define ASR_FLAGS(d,a,n) do { u32 __gf6_n=(n); \
+    if (__gf6_n) cf=((u32)(a)>>(__gf6_n-1))&1u; \
     SET_NZ(d); } while(0)
 
 /* BAIL: write all state back, set PC to bail addr (assumed Thumb,
- * since we never bail mid-function across a mode switch), return so
- * the interpreter can resume. */
+ * since we never bail mid-function across a mode switch), return the
+ * accumulated GBA-cycle count so the caller can deduct the actual
+ * amount of work done (not a flat guess) before the interpreter
+ * resumes. */
 #define BAIL(addr) do { \
     reg[0]=r0; reg[1]=r1; reg[2]=r2; reg[3]=r3; \
     reg[4]=r4; reg[5]=r5; reg[6]=r6; reg[7]=r7; \
@@ -183,23 +198,23 @@ extern void aot_write8 (u32, u8);
     reg[13]=sp; reg[14]=lr; reg[REG_PC]=(addr); \
     reg[REG_C_FLAG]=cf; reg[REG_N_FLAG]=nf; \
     reg[REG_Z_FLAG]=zf; reg[REG_V_FLAG]=vf; \
-    return; \
+    return _cyc; \
 } while(0)
 
 /* Indirect-branch BAIL: target's low bit selects mode (1=Thumb,
  * 0=ARM).  Used for BX/BLX-reg/POP{pc}/MOV pc,X and the function
  * return AOT_RETURN. */
 #define BAIL_INDIRECT(target) do { \
-    u32 _t = (target); \
+    u32 __gf7_t = (target); \
     reg[0]=r0; reg[1]=r1; reg[2]=r2; reg[3]=r3; \
     reg[4]=r4; reg[5]=r5; reg[6]=r6; reg[7]=r7; \
     reg[8]=r8; reg[9]=r9; reg[10]=r10; reg[11]=r11; reg[12]=r12; \
     reg[13]=sp; reg[14]=lr; \
-    if (_t & 1u) { reg[REG_PC]=_t & ~1u; reg[REG_CPSR] |= 0x20u; } \
-    else         { reg[REG_PC]=_t;        reg[REG_CPSR] &= ~0x20u; } \
+    if (__gf7_t & 1u) { reg[REG_PC]=__gf7_t & ~1u; reg[REG_CPSR] |= 0x20u; } \
+    else         { reg[REG_PC]=__gf7_t;        reg[REG_CPSR] &= ~0x20u; } \
     reg[REG_C_FLAG]=cf; reg[REG_N_FLAG]=nf; \
     reg[REG_Z_FLAG]=zf; reg[REG_V_FLAG]=vf; \
-    return; \
+    return _cyc; \
 } while(0)
 
 #define AOT_RETURN() BAIL_INDIRECT(lr)
@@ -212,12 +227,16 @@ def emit_header(out, targets):
 
 
 def emit_dispatch(out, entry_to_func):
-    out.write('\n/* Dispatch: returns 1 if PC matched and ran AOT, 0 otherwise. */\n')
-    out.write('int aot_generated_dispatch(u32 pc) {\n')
+    out.write('\n/* Dispatch: returns 1 if PC matched and ran AOT, 0 otherwise.\n'
+              ' * On a match, *cycles_used is set to the actual number of GBA\n'
+              ' * cycles the translated function consumed (accumulated per\n'
+              ' * instruction executed, including loop iterations) — the\n'
+              ' * caller deducts this instead of assuming a flat cost. */\n')
+    out.write('int aot_generated_dispatch(u32 pc, u32 *cycles_used) {\n')
     out.write('    switch (pc) {\n')
     for ep in sorted(entry_to_func):
         fn = entry_to_func[ep]
-        out.write(f'    case 0x{ep:08X}: aot_gen_{fn:08X}(0x{ep:08X}u); return 1;\n')
+        out.write(f'    case 0x{ep:08X}: *cycles_used = aot_gen_{fn:08X}(0x{ep:08X}u); return 1;\n')
     out.write('    default: return 0;\n')
     out.write('    }\n')
     out.write('}\n')
@@ -964,6 +983,49 @@ for cb in COND_BRANCH:
     TRANSLATORS[cb] = t_bcond
 
 
+# Approximate per-instruction GBA cycle costs, used to accumulate a
+# real (loop-trip-count-scaled) cycle charge instead of a flat guess
+# per AOT dispatch call.  Not cycle-exact (that would require full
+# waitstate-region modeling like the interpreter's ws_cyc tables), but
+# close enough in magnitude and — critically — it scales with actual
+# instructions executed, so a 64-iteration loop is charged ~64x a
+# straight-line function of the same size instead of a flat constant
+# regardless of how many times it looped.
+_REG_ONLY_OPS = {
+    'mov', 'movs', 'mvn', 'mvns', 'add', 'adds', 'sub', 'subs',
+    'and', 'ands', 'orr', 'orrs', 'eor', 'eors', 'bic', 'bics',
+    'lsl', 'lsls', 'lsr', 'lsrs', 'asr', 'asrs', 'ror', 'rors',
+    'cmp', 'cmn', 'tst', 'neg', 'negs', 'nop',
+}
+_LOAD_OPS = {'ldr', 'ldrh', 'ldrb', 'ldrsh', 'ldrsb'}
+_STORE_OPS = {'str', 'strh', 'strb'}
+_BLOCK_OPS = {'push', 'pop', 'ldm', 'stm'}
+
+
+def insn_cycles(ins):
+    """Approximate GBA cycle cost for one executed Thumb instruction."""
+    m = ins.mnemonic.lower()
+    if m in _REG_ONLY_OPS:
+        return 1
+    if m == 'mul' or m == 'muls':
+        return 3
+    if m in _LOAD_OPS:
+        return 3
+    if m in _STORE_OPS:
+        return 2
+    if m in _BLOCK_OPS:
+        n = 0
+        for op in ins.operands:
+            if op.type == ARM_OP_REG:
+                n += 1
+        return 1 + max(n, 1)
+    if m in COND_BRANCH or m in UNCOND_BRANCH:
+        return 2
+    if m in ('bl', 'blx', 'bx'):
+        return 3
+    return 1  # unsupported/BAIL-only insns — minimal charge
+
+
 def translate_insn(ins, ctx):
     m = ins.mnemonic.lower()
     fn = TRANSLATORS.get(m)
@@ -1000,6 +1062,7 @@ def translate_function(out, rom, md, pc, target_set):
             body_lines.append(('label', f'L{ins.address:08X}:'))
         body_lines.append(('comment',
             f'/* {ins.address:08X}: {ins.mnemonic} {ins.op_str} */'))
+        body_lines.append(('stmt', f'_cyc += {insn_cycles(ins)}u;'))
         lines = translate_insn(ins, ctx)
         if lines is None:
             skipped.append((ins.address, ins.mnemonic, ins.op_str))
@@ -1015,13 +1078,14 @@ def translate_function(out, rom, md, pc, target_set):
     out.write(f'/* function 0x{pc:08X}: {len(insns)} insns, '
               f'{len(branch_targets)} branch targets, '
               f'{len(ctx["continuations"])} BL continuations */\n')
-    out.write(f'static void aot_gen_{pc:08X}(u32 ep) {{\n')
+    out.write(f'static u32 aot_gen_{pc:08X}(u32 ep) {{\n')
     for i in range(13):
         out.write(f'    u32 r{i} = reg[{i}];\n')
     out.write('    u32 sp = reg[13];\n')
     out.write('    u32 lr = reg[14];\n')
     out.write('    u32 cf = reg[REG_C_FLAG], nf = reg[REG_N_FLAG];\n')
     out.write('    u32 zf = reg[REG_Z_FLAG], vf = reg[REG_V_FLAG];\n')
+    out.write('    u32 _cyc = 0;\n')
     out.write('    (void)cf; (void)nf; (void)zf; (void)vf;\n')
 
     # Entry-point dispatch: jump to E_<addr> based on `ep`.

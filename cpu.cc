@@ -26,7 +26,7 @@ extern "C" {
   extern "C" int aot_try_execute(s32 *cycles_remaining_ptr);
   extern "C" void aot_0806F160_entry(void);
   extern "C" void aot_08005ED8_entry(void);
-  extern "C" int  aot_generated_dispatch(u32 pc);
+  extern "C" int  aot_generated_dispatch(u32 pc, u32 *cycles_used);
   extern "C" const u32 aot_page_bitmap[256];
 
   /* Always-on lightweight perf counters (one increment each, no array store) */
@@ -3205,7 +3205,8 @@ thumb_loop:
 #ifdef AOT_TRACE
            u32 _pc_before = reg[REG_PC];
 #endif
-           if (aot_generated_dispatch(reg[REG_PC])) {
+           u32 _aot_cyc = 0;
+           if (aot_generated_dispatch(reg[REG_PC], &_aot_cyc)) {
 #ifdef AOT_TRACE
              static u32 _last_pc = 0;
              static int _trace_n = 0;
@@ -3215,7 +3216,7 @@ thumb_loop:
                _trace_n++;
              }
 #endif
-             cycles_remaining -= 20;
+             cycles_remaining -= (s32)_aot_cyc;
              continue;
            }
          }
