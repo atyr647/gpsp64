@@ -25,3 +25,8 @@ tools/__pycache__/
 
 # AOT pipeline scratch
 n64/.aot_pcs.tmp
+
+# Native x86-64 debugging harness build artifacts (see native/)
+/native_gpsp
+/native_gpsp_noauto
+/native_bisect

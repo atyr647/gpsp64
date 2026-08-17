@@ -20,12 +20,18 @@
 #include "common.h"
 #include <ctype.h>
 
-/* CPU vs PPU profiling (N64 COUNT register) */
-#ifdef N64
+/* CPU vs PPU profiling (N64 COUNT register).  Gated on __mips__ (not just
+ * N64) so a native x86-64 build of the portable core — e.g. the AOT
+ * debugging harness in native/ — can still define N64 (for AOT dispatch)
+ * without pulling in the MIPS-only mfc0 instruction. */
+#if defined(N64) && defined(__mips__)
   #define PROF_TICK() ({ u32 _t; __asm__ volatile("mfc0 %0, $9" : "=r"(_t)); _t; })
   u32 prof_ppu_ticks = 0;
 #else
   #define PROF_TICK() 0
+  #ifdef N64
+    u32 prof_ppu_ticks = 0;
+  #endif
 #endif
 
 timer_type timer[4];
