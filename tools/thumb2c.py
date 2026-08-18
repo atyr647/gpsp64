@@ -217,6 +217,25 @@ extern void aot_write8 (u32, u8);
     return _cyc; \
 } while(0)
 
+/* Direct PC write: MOV PC,Rm and ADD PC,Rm.  On ARMv4T these do NOT
+ * interwork -- bit 0 of the source is ignored and the core stays in
+ * Thumb state (only BX/BLX switch mode).  Compiler-generated jump
+ * tables dispatched via MOV PC,Rm therefore hold *even* addresses, so
+ * routing them through BAIL_INDIRECT (which reads bit 0 as a mode
+ * selector) drops to ARM and executes Thumb code as ARM garbage.
+ * Matches the interpreter: reg[REG_PC] = dest & ~1, T bit untouched. */
+#define BAIL_THUMB(target) do { \
+    u32 __gf8_t = (target) & ~1u; \
+    reg[0]=r0; reg[1]=r1; reg[2]=r2; reg[3]=r3; \
+    reg[4]=r4; reg[5]=r5; reg[6]=r6; reg[7]=r7; \
+    reg[8]=r8; reg[9]=r9; reg[10]=r10; reg[11]=r11; reg[12]=r12; \
+    reg[13]=sp; reg[14]=lr; reg[REG_PC]=__gf8_t; \
+    reg[REG_CPSR] |= 0x20u; \
+    reg[REG_C_FLAG]=cf; reg[REG_N_FLAG]=nf; \
+    reg[REG_Z_FLAG]=zf; reg[REG_V_FLAG]=vf; \
+    return _cyc; \
+} while(0)
+
 #define AOT_RETURN() BAIL_INDIRECT(lr)
 
 """
@@ -233,6 +252,15 @@ def emit_dispatch(out, entry_to_func):
               ' * instruction executed, including loop iterations) — the\n'
               ' * caller deducts this instead of assuming a flat cost. */\n')
     out.write('int aot_generated_dispatch(u32 pc, u32 *cycles_used) {\n')
+    # Build-time PC gates, for bisecting which translated function is at
+    # fault: -DAOT_PC_MIN/-DAOT_PC_MAX restrict dispatch to an address
+    # window, so a binary search over the window isolates one function.
+    out.write('#ifdef AOT_PC_MIN\n')
+    out.write('    if (pc < (u32)(AOT_PC_MIN)) return 0;\n')
+    out.write('#endif\n')
+    out.write('#ifdef AOT_PC_MAX\n')
+    out.write('    if (pc >= (u32)(AOT_PC_MAX)) return 0;\n')
+    out.write('#endif\n')
     out.write('    switch (pc) {\n')
     for ep in sorted(entry_to_func):
         fn = entry_to_func[ep]
@@ -393,15 +421,16 @@ def t_mov(ins, addr, next_addr, ctx):
     rd = op_reg_name(ops[0])
     if rd is None:
         return None
-    # Indirect branch: mov pc, X — bit 0 of source selects mode
+    # MOV PC,X: branch WITHOUT interworking -- stays in Thumb, bit 0
+    # ignored.  (BX is the interworking form; see BAIL_THUMB.)
     if rd == 'pc':
         if ops[1].type == ARM_OP_REG:
             rs = op_reg_name(ops[1])
             if rs is None:
                 return None
-            return [f'BAIL_INDIRECT({rs});']
+            return [f'BAIL_THUMB({rs});']
         if ops[1].type == ARM_OP_IMM:
-            return [f'BAIL_INDIRECT(0x{ops[1].imm:X}u);']
+            return [f'BAIL_THUMB(0x{ops[1].imm:X}u);']
         return None
     if ops[1].type == ARM_OP_IMM:
         imm = ops[1].imm
@@ -463,6 +492,10 @@ def t_add(ins, addr, next_addr, ctx):
             rs = op_reg_name(ops[1])
             if rs is None:
                 return None
+            # ADD PC,Rm: non-interworking branch to (PC+4)+Rm, staying in
+            # Thumb.  'pc' is not a C local, so this must be handled here.
+            if rd == 'pc':
+                return [f'BAIL_THUMB(0x{(addr + 4) & 0xFFFFFFFF:X}u + {rs});']
             # Hi-reg add: never sets flags
             return [f'{rd} = {rd} + {rs};']
     return None
@@ -923,11 +956,18 @@ def t_ldm(ins, addr, next_addr, ctx):
         if nm is None:
             return None
         regs.append(nm)
-    lines = []
-    for i, r in enumerate(regs):
-        lines.append(f'{r} = aot_read32({base} + {i * 4}u);')
+    # Every address must come from the base's ORIGINAL value: if the
+    # base is itself in the register list, loading it first would make
+    # the remaining addresses depend on freshly-loaded data.  Writeback
+    # happens before the loads so that, when the base is in the list,
+    # the loaded value wins -- matching exec_thumb_block_mem().
+    n = len(regs)
+    lines = [f'{{ u32 __ldm_b = {base};']
     if ins.writeback or '!' in ins.op_str:
-        lines.append(f'{base} += {len(regs) * 4}u;')
+        lines.append(f'  {base} = __ldm_b + {n * 4}u;')
+    for i, r in enumerate(regs):
+        lines.append(f'  {r} = aot_read32(__ldm_b + {i * 4}u);')
+    lines.append('}')
     return lines
 
 
@@ -946,11 +986,23 @@ def t_stm(ins, addr, next_addr, ctx):
         if nm is None:
             return None
         regs.append(nm)
-    lines = []
+    # As for LDM, addresses come from the original base.  ARM7TDMI
+    # stores the ORIGINAL base when the base is first in the list, and
+    # the written-back value otherwise (exec_thumb_block_mem's
+    # base_first / writeback_first logic).
+    n = len(regs)
+    writeback = bool(ins.writeback) or '!' in ins.op_str
+    base_in_list = base in regs
+    base_first = base_in_list and regs[0] == base
+    writeback_first = writeback and not (base_in_list and base_first)
+    lines = [f'{{ u32 __stm_b = {base};']
+    if writeback_first:
+        lines.append(f'  {base} = __stm_b + {n * 4}u;')
     for i, r in enumerate(regs):
-        lines.append(f'aot_write32({base} + {i * 4}u, {r});')
-    if ins.writeback or '!' in ins.op_str:
-        lines.append(f'{base} += {len(regs) * 4}u;')
+        lines.append(f'  aot_write32(__stm_b + {i * 4}u, {r});')
+    if writeback and not writeback_first:
+        lines.append(f'  {base} = __stm_b + {n * 4}u;')
+    lines.append('}')
     return lines
 
 

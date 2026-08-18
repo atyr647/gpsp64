@@ -74,6 +74,25 @@ extern void aot_write8 (u32, u8);
     return _cyc; \
 } while(0)
 
+/* Direct PC write: MOV PC,Rm and ADD PC,Rm.  On ARMv4T these do NOT
+ * interwork -- bit 0 of the source is ignored and the core stays in
+ * Thumb state (only BX/BLX switch mode).  Compiler-generated jump
+ * tables dispatched via MOV PC,Rm therefore hold *even* addresses, so
+ * routing them through BAIL_INDIRECT (which reads bit 0 as a mode
+ * selector) drops to ARM and executes Thumb code as ARM garbage.
+ * Matches the interpreter: reg[REG_PC] = dest & ~1, T bit untouched. */
+#define BAIL_THUMB(target) do { \
+    u32 __gf8_t = (target) & ~1u; \
+    reg[0]=r0; reg[1]=r1; reg[2]=r2; reg[3]=r3; \
+    reg[4]=r4; reg[5]=r5; reg[6]=r6; reg[7]=r7; \
+    reg[8]=r8; reg[9]=r9; reg[10]=r10; reg[11]=r11; reg[12]=r12; \
+    reg[13]=sp; reg[14]=lr; reg[REG_PC]=__gf8_t; \
+    reg[REG_CPSR] |= 0x20u; \
+    reg[REG_C_FLAG]=cf; reg[REG_N_FLAG]=nf; \
+    reg[REG_Z_FLAG]=zf; reg[REG_V_FLAG]=vf; \
+    return _cyc; \
+} while(0)
+
 #define AOT_RETURN() BAIL_INDIRECT(lr)
 
 /* function 0x08006140: 43 insns, 0 branch targets, 2 BL continuations */
@@ -249,7 +268,7 @@ E_0800617E:
     r0 = aot_read32(r0);
     /* 08006198: mov pc, r0 */
     _cyc += 1u;
-    BAIL_INDIRECT(r0);
+    BAIL_THUMB(r0);
     AOT_RETURN();
 }
 
@@ -502,7 +521,7 @@ static u32 aot_gen_08006378(u32 ep) {
     r0 = aot_read32(r0);
     /* 08006390: mov pc, r0 */
     _cyc += 1u;
-    BAIL_INDIRECT(r0);
+    BAIL_THUMB(r0);
     AOT_RETURN();
 }
 
@@ -1944,11 +1963,13 @@ E_0800677C:
     SET_NZ(r0);
     /* 08006794: ldm r0!, {r2, r5, r6, r7} */
     _cyc += 6u;
-    r2 = aot_read32(r0 + 0u);
-    r5 = aot_read32(r0 + 4u);
-    r6 = aot_read32(r0 + 8u);
-    r7 = aot_read32(r0 + 12u);
-    r0 += 16u;
+    { u32 __ldm_b = r0;
+      r0 = __ldm_b + 16u;
+      r2 = aot_read32(__ldm_b + 0u);
+      r5 = aot_read32(__ldm_b + 4u);
+      r6 = aot_read32(__ldm_b + 8u);
+      r7 = aot_read32(__ldm_b + 12u);
+    }
     /* 08006796: lsrs r6, r4, #1 */
     _cyc += 1u;
     { u32 _src = r4; r6 = (_src >> 1); LSR_FLAGS(r6, _src, 1); }
@@ -2051,11 +2072,13 @@ E_080067CC:
     { u32 _src = r0; r0 = (_src << 12); LSL_FLAGS(r0, _src, 12); }
     /* 080067D8: stm r0!, {r2, r5, r6, r7} */
     _cyc += 6u;
-    aot_write32(r0 + 0u, r2);
-    aot_write32(r0 + 4u, r5);
-    aot_write32(r0 + 8u, r6);
-    aot_write32(r0 + 12u, r7);
-    r0 += 16u;
+    { u32 __stm_b = r0;
+      r0 = __stm_b + 16u;
+      aot_write32(__stm_b + 0u, r2);
+      aot_write32(__stm_b + 4u, r5);
+      aot_write32(__stm_b + 8u, r6);
+      aot_write32(__stm_b + 12u, r7);
+    }
     /* 080067DA: lsrs r4, r4, #1 */
     _cyc += 1u;
     { u32 _src = r4; r4 = (_src >> 1); LSR_FLAGS(r4, _src, 1); }
@@ -2202,11 +2225,13 @@ static u32 aot_gen_0800681C(u32 ep) {
     SET_NZ(r0);
     /* 0800682C: stm r0!, {r2, r5, r6, r7} */
     _cyc += 6u;
-    aot_write32(r0 + 0u, r2);
-    aot_write32(r0 + 4u, r5);
-    aot_write32(r0 + 8u, r6);
-    aot_write32(r0 + 12u, r7);
-    r0 += 16u;
+    { u32 __stm_b = r0;
+      r0 = __stm_b + 16u;
+      aot_write32(__stm_b + 0u, r2);
+      aot_write32(__stm_b + 4u, r5);
+      aot_write32(__stm_b + 8u, r6);
+      aot_write32(__stm_b + 12u, r7);
+    }
     /* 0800682E: lsrs r4, r4, #1 */
     _cyc += 1u;
     { u32 _src = r4; r4 = (_src >> 1); LSR_FLAGS(r4, _src, 1); }
@@ -2458,11 +2483,13 @@ E_080068B8:
     SET_NZ(r0);
     /* 080068BC: stm r2!, {r2, r5, r6, r7} */
     _cyc += 6u;
-    aot_write32(r2 + 0u, r2);
-    aot_write32(r2 + 4u, r5);
-    aot_write32(r2 + 8u, r6);
-    aot_write32(r2 + 12u, r7);
-    r2 += 16u;
+    { u32 __stm_b = r2;
+      aot_write32(__stm_b + 0u, r2);
+      aot_write32(__stm_b + 4u, r5);
+      aot_write32(__stm_b + 8u, r6);
+      aot_write32(__stm_b + 12u, r7);
+      r2 = __stm_b + 16u;
+    }
     /* 080068BE: lsrs r4, r4, #1 */
     _cyc += 1u;
     { u32 _src = r4; r4 = (_src >> 1); LSR_FLAGS(r4, _src, 1); }
@@ -4504,11 +4531,13 @@ E_08006EC4:
     SET_NZ(r0);
     /* 08006EEC: stm r6!, {r2, r3, r5, r7} */
     _cyc += 6u;
-    aot_write32(r6 + 0u, r2);
-    aot_write32(r6 + 4u, r3);
-    aot_write32(r6 + 8u, r5);
-    aot_write32(r6 + 12u, r7);
-    r6 += 16u;
+    { u32 __stm_b = r6;
+      r6 = __stm_b + 16u;
+      aot_write32(__stm_b + 0u, r2);
+      aot_write32(__stm_b + 4u, r3);
+      aot_write32(__stm_b + 8u, r5);
+      aot_write32(__stm_b + 12u, r7);
+    }
     /* 08006EEE: lsrs r6, r5, #0x20 */
     _cyc += 1u;
     { u32 _src = r5; r6 = (_src >> 32); LSR_FLAGS(r6, _src, 32); }
@@ -4548,6 +4577,12 @@ L08006EF6:
  * instruction executed, including loop iterations) — the
  * caller deducts this instead of assuming a flat cost. */
 int aot_generated_dispatch(u32 pc, u32 *cycles_used) {
+#ifdef AOT_PC_MIN
+    if (pc < (u32)(AOT_PC_MIN)) return 0;
+#endif
+#ifdef AOT_PC_MAX
+    if (pc >= (u32)(AOT_PC_MAX)) return 0;
+#endif
     switch (pc) {
     case 0x08006140: *cycles_used = aot_gen_08006140(0x08006140u); return 1;
     case 0x08006168: *cycles_used = aot_gen_08006140(0x08006168u); return 1;
