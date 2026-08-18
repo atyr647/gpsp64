@@ -1,18 +1,34 @@
-/* Native x86-64 test harness for gpSP N64 core logic.
+/* Native x86-64 harness for the gpSP N64 core: correctness testing and
+ * deterministic performance measurement.
  *
- * Links the portable GBA CPU/PPU/AOT code (the same cpu.cc, video.cc,
- * aot_generated.c used by the real N64 build) without any N64/libdragon
- * hardware dependency, so the AOT dispatch + cycle-accounting bug can be
- * iterated on natively instead of round-tripping through a flashcart.
+ * Links the portable GBA CPU/PPU/AOT code (the same cpu.cc, video.cc and
+ * aot_generated.c the real N64 build uses) with no N64/libdragon
+ * dependency, so the emulator core can be exercised in ~1s instead of a
+ * flashcart round-trip.
  *
- * NOT a performance benchmark: x86-64 wall-clock numbers are meaningless
- * for N64 timing.  This only validates correctness/behavior (does the
- * hang reproduce, does a cycle-penalty fix change it) — final performance
- * numbers still require real N64 hardware.
+ * On benchmarking: x86-64 wall-clock time here is meaningless for N64
+ * performance.  What IS meaningful, and what --bench measures, is the
+ * amount of *emulated work* per GBA frame:
+ *
+ *   - interpreted GBA instructions/frame.  This is the primary metric.
+ *     Every instruction the AOT does not cover runs through the
+ *     interpreter at roughly 150-250 VR4300 cycles on real hardware, so
+ *     driving this number down is what raises framerate.  It is exactly
+ *     reproducible for a given ROM + input script, so before/after deltas
+ *     are trustworthy in a way wall-clock never is.
+ *   - AOT dispatches/frame and the GBA cycles they account for, i.e. how
+ *     much work the AOT is absorbing.
+ *   - ARM vs Thumb split, per hot page.  tools/thumb2c.py only translates
+ *     Thumb, so an ARM-dominated hot page cannot be helped by adding AOT
+ *     targets -- this split says which pages are actually actionable.
+ *
+ * Absolute framerate still has to come from real hardware (or ares); this
+ * harness tells you which direction you are moving and why.
  */
 
 #include "../common.h"
 #include <stdio.h>
+#include <string.h>
 
 /* Platform globals normally provided by n64/n64_main.c */
 u32 skip_next_frame = 0;
@@ -35,21 +51,44 @@ void netpacket_send(uint16_t client_id, const void *buf, size_t len) {
   (void)client_id; (void)buf; (void)len;
 }
 
+extern u32 prof_arm_insns, prof_thumb_insns;
+extern u32 prof_idle_hits, prof_idle_detect_fires;
+#ifdef PROFILE_AOT
+#define AOT_PAGE_BUCKETS 6144
+extern u32 prof_page_hist[];
+extern u32 prof_page_hist_thumb[];
+extern u32 prof_aot_hits, prof_aot_hw_hits, prof_aot_gba_cycles;
+extern u32 prof_pc_hist[];
+extern u32 prof_pc_hist_page;
+typedef struct { u32 pc; u32 count; } bl_target_t;
+extern bl_target_t prof_bl_targets[];
+#define AOT_BL_TABLE_SIZE 512
+#endif
+
+/* A GBA frame is 228 scanlines * 1232 cycles. Used to express AOT
+ * coverage as a fraction of the total emulated cycle budget. */
+#define GBA_CYCLES_PER_FRAME 280896
+
+/* Drained once per frame to mirror n64_audio_render_frame(); leaving the
+ * sound ring buffer permanently full makes the GBA sound engine behave
+ * differently than it does on hardware. */
+static s16 audio_scratch[1024 * 2];
+
 static void run_frame(void)
 {
   skip_next_frame = 1;
   clear_gamepak_stickybits();
   execute_arm(execute_cycles);
+  sound_read_samples(audio_scratch, 1024);
 }
 
-/* Simulate a player mashing Start/A every couple seconds to get past
- * splash/title/menu screens, since the harness has no real controller.
- * GBA key register is active-low: 0 = pressed, 1 = released.
- * Bit 0 = A, bit 3 = Start. */
+/* Deterministic input script: mash Start/A every 2 seconds of GBA time
+ * to walk through splash/title/menu screens.  Determinism matters --
+ * it is what makes instruction counts comparable across builds. */
 static void poll_fake_input(long frame)
 {
-  long phase = frame % 120;   /* every 2 seconds of GBA time (60fps) */
-  u16 key_input = 0x3FF;      /* all released */
+  long phase = frame % 120;
+  u16 key_input = 0x3FF;      /* active-low; all released */
   if (phase < 6) {
     key_input &= ~(1 << 3);   /* Start */
     key_input &= ~(1 << 0);   /* A */
@@ -57,19 +96,148 @@ static void poll_fake_input(long frame)
   write_ioreg(REG_P1, key_input);
 }
 
+static void reset_counters(void)
+{
+  prof_arm_insns = prof_thumb_insns = 0;
+  prof_idle_hits = prof_idle_detect_fires = 0;
+#ifdef PROFILE_AOT
+  prof_aot_hits = prof_aot_hw_hits = prof_aot_gba_cycles = 0;
+  memset(prof_page_hist, 0, sizeof(u32) * AOT_PAGE_BUCKETS);
+  memset(prof_page_hist_thumb, 0, sizeof(u32) * AOT_PAGE_BUCKETS);
+  memset(prof_bl_targets, 0, sizeof(bl_target_t) * AOT_BL_TABLE_SIZE);
+  memset(prof_pc_hist, 0, sizeof(u32) * 2048);
+#endif
+}
+
+#ifdef PROFILE_AOT
+/* Dump every executed page to a file as "addr total thumb", descending
+ * by total.  tools/suggest_targets.py turns this into aot_targets.txt
+ * ranges. */
+static void dump_pages(const char *path, long frames)
+{
+  FILE *fp = fopen(path, "w");
+  if (!fp) return;
+  fprintf(fp, "# page_addr  total_insns  thumb_insns   (over %ld frames)\n",
+          frames);
+  for (;;) {
+    u32 best = 0, best_i = 0;
+    for (u32 i = 0; i < AOT_PAGE_BUCKETS; i++)
+      if (prof_page_hist[i] > best) { best = prof_page_hist[i]; best_i = i; }
+    if (!best) break;
+    fprintf(fp, "0x%08lx  %10lu  %10lu\n",
+            (unsigned long)((best_i + 0x8000) * 0x1000),
+            (unsigned long)best,
+            (unsigned long)prof_page_hist_thumb[best_i]);
+    prof_page_hist[best_i] = 0;   /* consume so the next pass finds the next */
+  }
+  fclose(fp);
+}
+
+static void report_hot_pages(long frames, int topn)
+{
+  fprintf(stderr, "\n  hot pages (interpreted only; Thumb%% = AOT-able):\n");
+  /* Copy so we can consume without destroying the caller's data. */
+  static u32 tmp[AOT_PAGE_BUCKETS];
+  memcpy(tmp, prof_page_hist, sizeof(tmp));
+  u32 grand = 0;
+  for (u32 i = 0; i < AOT_PAGE_BUCKETS; i++) grand += tmp[i];
+  if (!grand) grand = 1;
+
+  for (int n = 0; n < topn; n++) {
+    u32 best = 0, best_i = 0;
+    for (u32 i = 0; i < AOT_PAGE_BUCKETS; i++)
+      if (tmp[i] > best) { best = tmp[i]; best_i = i; }
+    if (!best) break;
+    u32 th = prof_page_hist_thumb[best_i];
+    fprintf(stderr,
+            "    0x%08lx  %8lu/frame  %5.1f%% of interp  Thumb %3lu%%\n",
+            (unsigned long)((best_i + 0x8000) * 0x1000),
+            (unsigned long)(best / (frames ? frames : 1)),
+            100.0 * (double)best / (double)grand,
+            (unsigned long)(best ? (th * 100) / best : 0));
+    tmp[best_i] = 0;
+  }
+}
+
+static void report_hot_pcs(long frames, int topn)
+{
+  if (prof_pc_hist_page == 0xFFFFFFFFu) return;
+  fprintf(stderr, "\n  hottest instructions in page 0x%08lx:\n",
+          (unsigned long)(prof_pc_hist_page << 12));
+  static u32 tmp[2048];
+  memcpy(tmp, prof_pc_hist, sizeof(tmp));
+  for (int n = 0; n < topn; n++) {
+    u32 best = 0, best_i = 0;
+    for (u32 i = 0; i < 2048; i++)
+      if (tmp[i] > best) { best = tmp[i]; best_i = i; }
+    if (!best) break;
+    fprintf(stderr, "    0x%08lx  %8lu /frame\n",
+            (unsigned long)((prof_pc_hist_page << 12) | (best_i << 1)),
+            (unsigned long)(best / (frames ? frames : 1)));
+    tmp[best_i] = 0;
+  }
+}
+
+static void report_hot_calls(long frames, int topn)
+{
+  fprintf(stderr, "\n  hottest call targets (BL destinations):\n");
+  static bl_target_t tmp[AOT_BL_TABLE_SIZE];
+  memcpy(tmp, prof_bl_targets, sizeof(tmp));
+  for (int n = 0; n < topn; n++) {
+    u32 best = 0; int best_i = -1;
+    for (int i = 0; i < AOT_BL_TABLE_SIZE; i++)
+      if (tmp[i].count > best) { best = tmp[i].count; best_i = i; }
+    if (best_i < 0 || !best) break;
+    fprintf(stderr, "    0x%08lx  %8lu calls/frame\n",
+            (unsigned long)tmp[best_i].pc,
+            (unsigned long)(best / (frames ? frames : 1)));
+    tmp[best_i].count = 0;
+  }
+}
+#endif
+
 int main(int argc, char **argv)
 {
-  if (argc < 2) {
-    fprintf(stderr, "usage: %s <rom.gba> [frames] [bios.bin]\n", argv[0]);
+  const char *rom_path = NULL;
+  const char *bios_path = "bios/open_gba_bios.bin";
+  long num_frames = 600;
+  long warmup = 0;
+  int bench = 0;
+  const char *pages_out = NULL;
+  int positional = 0;
+
+  for (int i = 1; i < argc; i++) {
+    if (!strcmp(argv[i], "--bench")) { bench = 1; }
+    else if (!strcmp(argv[i], "--warmup") && i + 1 < argc) warmup = atol(argv[++i]);
+    else if (!strcmp(argv[i], "--pages") && i + 1 < argc) pages_out = argv[++i];
+#ifdef PROFILE_AOT
+    else if (!strcmp(argv[i], "--pchist") && i + 1 < argc)
+      prof_pc_hist_page = (u32)strtoul(argv[++i], NULL, 0) >> 12;
+#endif
+    else if (argv[i][0] == '-') {
+      fprintf(stderr, "unknown option: %s\n", argv[i]);
+      return 1;
+    }
+    else if (positional == 0) { rom_path = argv[i]; positional++; }
+    else if (positional == 1) { num_frames = atol(argv[i]); positional++; }
+    else if (positional == 2) { bios_path = argv[i]; positional++; }
+  }
+
+  if (!rom_path) {
+    fprintf(stderr,
+      "usage: %s <rom.gba> [frames] [bios.bin] [--bench] [--warmup N] [--pages FILE]\n",
+      argv[0]);
     return 1;
   }
-  const char *rom_path = argv[1];
-  long num_frames = (argc >= 3) ? atol(argv[2]) : 600;
-  const char *bios_path = (argc >= 4) ? argv[3] : "bios/open_gba_bios.bin";
 
   static u16 screen_buf[240 * 160];
   gba_screen_pixels = screen_buf;
   memset(gba_screen_pixels, 0, sizeof(screen_buf));
+
+  /* Match n64_main.c's startup order: the sound engine must be
+   * initialised (noise tables + reset_sound) before the ROM runs, or the
+   * GBA sound/DMA state starts out garbage. */
+  init_sound();
 
   init_gamepak_buffer();
 
@@ -98,56 +266,78 @@ int main(int argc, char **argv)
 
   reset_gba();
 
-  extern u32 prof_arm_insns, prof_thumb_insns;
-  extern u32 prof_idle_hits, prof_idle_detect_fires;
-#ifdef PROFILE_AOT
-  extern u32 prof_page_hist[];
-  extern u32 prof_ppu_ticks;
-#endif
-
-  for (long f = 0; f < num_frames; f++) {
-    poll_fake_input(f);
-    run_frame();
-
-    if ((f % 60) == 59) {
-      u32 total_insns = prof_arm_insns + prof_thumb_insns;
-      u32 arm_pct = total_insns ? (prof_arm_insns * 100) / total_insns : 0;
-      u32 thm_pct = total_insns ? (prof_thumb_insns * 100) / total_insns : 0;
-      fprintf(stderr,
-              "FRAME %6ld | %luK insns | ARM%lu%%/Thm%lu%% idle %lu rt %lu | PC=0x%08x\n",
-              f + 1,
-              (unsigned long)(total_insns / 1000),
-              (unsigned long)arm_pct, (unsigned long)thm_pct,
-              (unsigned long)prof_idle_hits,
-              (unsigned long)prof_idle_detect_fires,
-              reg[REG_PC]);
-#ifdef PROFILE_AOT
-      {
-        u32 pg_idx[3] = {0}, pg_cnt[3] = {0};
-        for (u32 i = 0; i < 6144; i++) {
-          u32 c = prof_page_hist[i];
-          if (!c) continue;
-          for (u32 j = 0; j < 3; j++) {
-            if (c > pg_cnt[j]) {
-              for (u32 k = 2; k > j; k--) { pg_cnt[k]=pg_cnt[k-1]; pg_idx[k]=pg_idx[k-1]; }
-              pg_cnt[j] = c; pg_idx[j] = i;
-              break;
-            }
-          }
-        }
-        fprintf(stderr, "  aot-pages: 0x%05lx:%lu 0x%05lx:%lu 0x%05lx:%lu\n",
-                (unsigned long)((pg_idx[0]+0x8000)*0x1000), (unsigned long)pg_cnt[0],
-                (unsigned long)((pg_idx[1]+0x8000)*0x1000), (unsigned long)pg_cnt[1],
-                (unsigned long)((pg_idx[2]+0x8000)*0x1000), (unsigned long)pg_cnt[2]);
-        memset(prof_page_hist, 0, sizeof(u32) * 6144);
+  if (!bench) {
+    /* Interactive/regression mode: periodic progress, catches hangs. */
+    for (long f = 0; f < num_frames; f++) {
+      poll_fake_input(f);
+      run_frame();
+      if ((f % 60) == 59) {
+        u32 total = prof_arm_insns + prof_thumb_insns;
+        fprintf(stderr, "FRAME %6ld | %luK insns | ARM%lu%%/Thm%lu%% | PC=0x%08x\n",
+                f + 1, (unsigned long)(total / 1000),
+                (unsigned long)(total ? (prof_arm_insns * 100) / total : 0),
+                (unsigned long)(total ? (prof_thumb_insns * 100) / total : 0),
+                reg[REG_PC]);
+        reset_counters();
       }
-#endif
-      prof_arm_insns = prof_thumb_insns = 0;
-      prof_idle_hits = 0;
-      prof_idle_detect_fires = 0;
     }
+    fprintf(stderr, "Done: %ld frames. Final PC=0x%08x\n", num_frames, reg[REG_PC]);
+    return 0;
   }
 
-  fprintf(stderr, "Done: %ld frames. Final PC=0x%08x\n", num_frames, reg[REG_PC]);
+  /* --- benchmark mode --- */
+
+  /* Warm up past BIOS decompression / intro so we measure steady-state
+   * gameplay rather than one-off boot work. */
+  for (long f = 0; f < warmup; f++) { poll_fake_input(f); run_frame(); }
+  reset_counters();
+
+  for (long f = warmup; f < warmup + num_frames; f++) {
+    poll_fake_input(f);
+    run_frame();
+  }
+
+  {
+    double frames = (double)(num_frames ? num_frames : 1);
+    u64 interp = (u64)prof_arm_insns + (u64)prof_thumb_insns;
+
+    fprintf(stderr, "\n=== BENCH (%ld frames after %ld warmup) ===\n",
+            num_frames, warmup);
+    fprintf(stderr, "  final PC              0x%08x\n", reg[REG_PC]);
+    fprintf(stderr, "  interpreted insns     %10.0f /frame   <-- primary metric\n",
+            (double)interp / frames);
+    fprintf(stderr, "    ARM                 %10.0f /frame  (%.0f%%)\n",
+            (double)prof_arm_insns / frames,
+            interp ? 100.0 * (double)prof_arm_insns / (double)interp : 0.0);
+    fprintf(stderr, "    Thumb               %10.0f /frame  (%.0f%%)\n",
+            (double)prof_thumb_insns / frames,
+            interp ? 100.0 * (double)prof_thumb_insns / (double)interp : 0.0);
+    fprintf(stderr, "  idle-loop skips       %10.0f /frame\n",
+            (double)prof_idle_hits / frames);
+#ifdef PROFILE_AOT
+    fprintf(stderr, "  AOT dispatches        %10.0f /frame  (auto %lu, handwritten %lu total)\n",
+            (double)(prof_aot_hits + prof_aot_hw_hits) / frames,
+            (unsigned long)prof_aot_hits, (unsigned long)prof_aot_hw_hits);
+    fprintf(stderr, "  AOT-covered cycles    %10.0f /frame  (%.1f%% of %d cyc frame budget)\n",
+            (double)prof_aot_gba_cycles / frames,
+            100.0 * ((double)prof_aot_gba_cycles / frames) / (double)GBA_CYCLES_PER_FRAME,
+            GBA_CYCLES_PER_FRAME);
+    report_hot_pages(num_frames, 12);
+    report_hot_calls(num_frames, 10);
+    report_hot_pcs(num_frames, 16);
+    if (pages_out) dump_pages(pages_out, num_frames);
+#endif
+    /* Single-line machine-readable summary for scripted diffing. */
+    fprintf(stderr, "\nBENCHSUM interp_per_frame=%.0f arm=%.0f thumb=%.0f",
+            (double)interp / frames,
+            (double)prof_arm_insns / frames,
+            (double)prof_thumb_insns / frames);
+#ifdef PROFILE_AOT
+    fprintf(stderr, " aot_per_frame=%.0f aot_cyc_per_frame=%.0f",
+            (double)(prof_aot_hits + prof_aot_hw_hits) / frames,
+            (double)prof_aot_gba_cycles / frames);
+#endif
+    fprintf(stderr, "\n");
+  }
   return 0;
 }

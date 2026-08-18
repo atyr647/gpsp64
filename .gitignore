@@ -30,3 +30,7 @@ n64/.aot_pcs.tmp
 /native_gpsp
 /native_gpsp_noauto
 /native_bisect
+
+# Native benchmark harness artifacts
+/bench-results/
+/.bench-obj/

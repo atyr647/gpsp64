@@ -78,7 +78,31 @@ extern "C" {
 
     extern "C" {
       u32 prof_page_hist[AOT_PAGE_BUCKETS] = {0};
+      /* Thumb-only execution counts, same page indexing as
+       * prof_page_hist.  tools/thumb2c.py can only translate Thumb, so
+       * a hot page is only an AOT candidate to the extent it is Thumb;
+       * comparing the two histograms tells us which hot pages are
+       * actually actionable. */
+      u32 prof_page_hist_thumb[AOT_PAGE_BUCKETS] = {0};
       bl_target_t prof_bl_targets[AOT_BL_TABLE_SIZE] = {{0,0}};
+
+      /* AOT coverage counters.  prof_aot_hits counts auto-generated
+       * dispatch successes, prof_aot_hw_hits the hand-written ones, and
+       * prof_aot_gba_cycles the GBA cycles those dispatches accounted
+       * for.  Together with prof_arm_insns/prof_thumb_insns (which count
+       * only *interpreted* instructions) these give AOT coverage as a
+       * fraction of total emulated work. */
+      u32 prof_aot_hits = 0;
+      u32 prof_aot_hw_hits = 0;
+      u32 prof_aot_gba_cycles = 0;
+
+      /* Fine-grained PC profiler for one 4KB page, at 2-byte (Thumb
+       * instruction) granularity.  Page histograms say *which* page is
+       * hot; this says which instructions inside it, which is what you
+       * need to identify the actual loop.  Set prof_pc_hist_page to a
+       * page index (pc >> 12); 0xFFFFFFFF disables it. */
+      u32 prof_pc_hist[2048] = {0};
+      u32 prof_pc_hist_page = 0xFFFFFFFFu;
     }
 
     static inline void prof_bl_record(u32 target_pc) {
@@ -3120,7 +3144,9 @@ skip_instruction:
        #endif
        #ifdef PROFILE_AOT
        { u32 _pg = (reg[REG_PC] >> 12) - 0x8000;
-         if (_pg < AOT_PAGE_BUCKETS) prof_page_hist[_pg]++; }
+         if (_pg < AOT_PAGE_BUCKETS) prof_page_hist[_pg]++;
+         if ((reg[REG_PC] >> 12) == prof_pc_hist_page)
+           prof_pc_hist[(reg[REG_PC] & 0xFFF) >> 1]++; }
        #endif
        #endif
        cycles_remaining -= _ws_cyc_arm_seq;  /* cached: ws_cyc_seq[mem_region][1] */
@@ -3188,11 +3214,17 @@ thumb_loop:
        #ifndef AOT_NO_HANDWRITTEN
        if (__builtin_expect(reg[REG_PC] == 0x0806F160, 0)) {
          aot_0806F160_entry();
+         #ifdef PROFILE_AOT
+         prof_aot_hw_hits++; prof_aot_gba_cycles += 200;
+         #endif
          cycles_remaining -= 200;
          continue;
        }
        if (__builtin_expect(reg[REG_PC] == 0x08005ED8, 0)) {
          aot_08005ED8_entry();
+         #ifdef PROFILE_AOT
+         prof_aot_hw_hits++; prof_aot_gba_cycles += 400;
+         #endif
          cycles_remaining -= 400;
          continue;
        }
@@ -3216,6 +3248,9 @@ thumb_loop:
                _trace_n++;
              }
 #endif
+             #ifdef PROFILE_AOT
+             prof_aot_hits++; prof_aot_gba_cycles += _aot_cyc;
+             #endif
              cycles_remaining -= (s32)_aot_cyc;
              continue;
            }
@@ -3716,7 +3751,12 @@ thumb_loop:
        #endif
        #ifdef PROFILE_AOT
        { u32 _pg = (reg[REG_PC] >> 12) - 0x8000;
-         if (_pg < AOT_PAGE_BUCKETS) prof_page_hist[_pg]++; }
+         if (_pg < AOT_PAGE_BUCKETS) {
+           prof_page_hist[_pg]++;
+           prof_page_hist_thumb[_pg]++;
+         }
+         if ((reg[REG_PC] >> 12) == prof_pc_hist_page)
+           prof_pc_hist[(reg[REG_PC] & 0xFFF) >> 1]++; }
        #endif
        /* Runtime idle-loop detector.
         * Catches busy-wait patterns the static idle_loop_target_pc
