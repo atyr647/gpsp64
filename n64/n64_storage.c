@@ -79,6 +79,14 @@ bool n64_storage_browse_roms(char *path_out, size_t path_size)
   if (scan_rom_directory() == 0)
     return false;
 
+  /* Single ROM found (the common case for a dedicated cart/SD card):
+   * skip the picker and launch it immediately. */
+  if (rom_count == 1) {
+    strncpy(path_out, rom_entries[0], path_size - 1);
+    path_out[path_size - 1] = '\0';
+    return true;
+  }
+
   int selected = 0;
   bool chosen = false;
 
