@@ -38,7 +38,9 @@ void n64_video_init(void)
 {
   display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2,
                GAMMA_NONE, FILTERS_RESAMPLE);
+#ifndef N64_CPU_BLIT
   rdpq_init();
+#endif
   /* memalign for 8-byte alignment so u32/u64 accesses are safe */
   rgba_buf = (u16 *)memalign(8,
               GBA_SCREEN_WIDTH * GBA_SCREEN_HEIGHT * sizeof(u16));
@@ -73,6 +75,27 @@ void n64_video_render_frame(void)
   for (int i = 0; i < pairs; i++)
     dst[i] = xbgr_pair_to_rgba_pair(src[i]);
 
+#ifdef N64_CPU_BLIT
+  /* CPU-side fallback blit -- bypasses RDP entirely.  Used only for
+   * testing under emulators with no RDP backend (e.g. ares without
+   * Vulkan/paraLLEl-RDP, which silently no-ops rdpq_tex_blit).  Real
+   * hardware always has RDP; this path is not used there. */
+  if (initial_clear_remaining > 0) {
+    memset(disp->buffer, 0, disp->stride * N64_SCREEN_HEIGHT);
+    initial_clear_remaining--;
+  }
+  {
+    u8 *dstrow = (u8 *)disp->buffer + GBA_OFFSET_Y * disp->stride
+                 + GBA_OFFSET_X * 2;
+    const u8 *srcrow = (const u8 *)rgba_buf;
+    for (int y = 0; y < GBA_SCREEN_HEIGHT; y++) {
+      memcpy(dstrow, srcrow, GBA_SCREEN_WIDTH * 2);
+      dstrow += disp->stride;
+      srcrow += GBA_SCREEN_WIDTH * 2;
+    }
+  }
+  display_show(disp);
+#else
   /* Wrap the converted buffer as a surface for rdpq */
   surface_t gba_surf = surface_make_linear(rgba_buf,
     FMT_RGBA16, GBA_SCREEN_WIDTH, GBA_SCREEN_HEIGHT);
@@ -90,6 +113,7 @@ void n64_video_render_frame(void)
   rdpq_set_mode_copy(false);
   rdpq_tex_blit(&gba_surf, GBA_OFFSET_X, GBA_OFFSET_Y, NULL);
   rdpq_detach_show();
+#endif
 }
 
 void n64_video_flip(void)
