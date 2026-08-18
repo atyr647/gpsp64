@@ -82,14 +82,23 @@ static void run_frame(void)
   sound_read_samples(audio_scratch, 1024);
 }
 
-/* Deterministic input script: mash Start/A every 2 seconds of GBA time
- * to walk through splash/title/menu screens.  Determinism matters --
- * it is what makes instruction counts comparable across builds. */
+/* Deterministic input scripts.  Determinism is the point: it is what
+ * makes instruction counts comparable across builds.
+ *
+ *   mash  - press Start/A every 2s, walking through splash/title/menu.
+ *           Ends parked in the game's idle loop, so it measures a
+ *           lightly-loaded state and is the best hang/correctness check.
+ *   none  - never press anything, so the intro cutscene and the animated
+ *           title screen keep running.  Much heavier CPU+PPU load, and
+ *           therefore the more useful workload for perf work.
+ */
+enum { INPUT_MASH, INPUT_NONE };
+static int input_mode = INPUT_MASH;
+
 static void poll_fake_input(long frame)
 {
-  long phase = frame % 120;
   u16 key_input = 0x3FF;      /* active-low; all released */
-  if (phase < 6) {
+  if (input_mode == INPUT_MASH && (frame % 120) < 6) {
     key_input &= ~(1 << 3);   /* Start */
     key_input &= ~(1 << 0);   /* A */
   }
@@ -209,6 +218,12 @@ int main(int argc, char **argv)
   for (int i = 1; i < argc; i++) {
     if (!strcmp(argv[i], "--bench")) { bench = 1; }
     else if (!strcmp(argv[i], "--warmup") && i + 1 < argc) warmup = atol(argv[++i]);
+    else if (!strcmp(argv[i], "--input") && i + 1 < argc) {
+      const char *m = argv[++i];
+      if (!strcmp(m, "none")) input_mode = INPUT_NONE;
+      else if (!strcmp(m, "mash")) input_mode = INPUT_MASH;
+      else { fprintf(stderr, "unknown --input mode: %s\n", m); return 1; }
+    }
     else if (!strcmp(argv[i], "--pages") && i + 1 < argc) pages_out = argv[++i];
 #ifdef PROFILE_AOT
     else if (!strcmp(argv[i], "--pchist") && i + 1 < argc)
@@ -225,7 +240,8 @@ int main(int argc, char **argv)
 
   if (!rom_path) {
     fprintf(stderr,
-      "usage: %s <rom.gba> [frames] [bios.bin] [--bench] [--warmup N] [--pages FILE]\n",
+      "usage: %s <rom.gba> [frames] [bios.bin] [--bench] [--warmup N]\n"
+      "       [--input mash|none] [--pages FILE] [--pchist ADDR]\n",
       argv[0]);
     return 1;
   }

@@ -54,7 +54,7 @@ AOTFN=$(grep -c '^static u32 aot_gen_' n64/aot_generated.c || echo 0)
 
 echo "[bench:$LABEL] running $FRAMES frames (warmup $WARMUP)..."
 "$OBJ/bench" "$ROM" "$FRAMES" "$BIOS" --bench --warmup "$WARMUP" \
-    --pages "$OUT/$LABEL.pages" > "$OUT/$LABEL.txt" 2>&1
+    --input "${BENCH_INPUT:-mash}" --pages "$OUT/$LABEL.pages" > "$OUT/$LABEL.txt" 2>&1
 RC=$?
 
 echo "  aot_generated.c: $AOTSZ bytes, $AOTFN functions" >> "$OUT/$LABEL.txt"
