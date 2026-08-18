@@ -236,6 +236,14 @@ extern void aot_write8 (u32, u8);
     return _cyc; \
 } while(0)
 
+/* Cycle budget after which a backward branch yields to the interpreter.
+ * Overridable at build time (-DAOT_LOOP_BUDGET=N) for tuning: lower is
+ * safer/finer-grained for hardware polling loops, higher lets benign
+ * compute loops finish in a single dispatch. */
+#ifndef AOT_LOOP_BUDGET
+#define AOT_LOOP_BUDGET 8192u
+#endif
+
 #define AOT_RETURN() BAIL_INDIRECT(lr)
 
 """
@@ -581,13 +589,33 @@ def t_pop(ins, addr, next_addr, ctx):
     return lines
 
 
+# Maximum GBA cycles an AOT function may run before a backward branch
+# must yield to the interpreter.  Any loop that polls emulated hardware
+# (VCOUNT, DMA status, key state, ...) can only terminate if emulated
+# time advances, and time only advances in the interpreter's dispatch
+# loop via update_gba().  Spinning inside translated C would hang
+# forever -- Emerald polls VCOUNT for VBlank at 0x082E0638.  Bounding
+# every backward branch also keeps long loops from consuming a whole
+# frame slice in one dispatch, which improves cycle accounting.
+AOT_LOOP_BUDGET = 512
+
+
+def _loop_guard(tgt, addr):
+    """Yield to the interpreter at `tgt` if this back-edge has burned the
+    cycle budget.  Only backward branches can loop, so forward branches
+    need no guard."""
+    if tgt > addr:
+        return []
+    return [f'if (_cyc >= AOT_LOOP_BUDGET) BAIL(0x{tgt:08X}u);']
+
+
 def t_b(ins, addr, next_addr, ctx):
     """Unconditional B — goto label inside function, else BAIL."""
     if not ins.operands or ins.operands[0].type != ARM_OP_IMM:
         return None
     tgt = ins.operands[0].imm
     if tgt in ctx['branch_targets']:
-        return [f'goto L{tgt:08X};']
+        return _loop_guard(tgt, addr) + [f'goto L{tgt:08X};']
     return [f'BAIL(0x{tgt:08X}u);']
 
 
@@ -610,6 +638,9 @@ def t_bcond(ins, addr, next_addr, ctx):
     if cond is None:
         return None
     if tgt in ctx['branch_targets']:
+        if tgt <= addr:
+            guard = _loop_guard(tgt, addr)[0]
+            return [f'if ({cond}) {{ {guard} goto L{tgt:08X}; }}']
         return [f'if ({cond}) goto L{tgt:08X};']
     # Branch out of function — BAIL with PC=tgt only when condition holds.
     return [f'if ({cond}) BAIL(0x{tgt:08X}u);']

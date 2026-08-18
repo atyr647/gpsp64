@@ -12,3 +12,13 @@
 #   <start_pc>  <end_pc>      # comment
 #
 0x08006000  0x08007000        # text engine page (GetStringWidth helpers)
+
+# Added from profiling the animated title screen with native/bench.sh:
+#   BENCH_INPUT=none ./native/bench.sh anim
+#   tools/suggest_targets.py bench-results/anim.pages
+# Only the highest-value Thumb pages are included: the long tail of small
+# pages roughly doubles generated code size for ~1% each, which is a poor
+# trade for N64 RAM.  Percentages are share of interpreted instructions.
+0x08000000  0x08002000        # 24.1% - core/task dispatch
+0x08007000  0x08009000        # 13.6% - adjacent to the text engine page
+0x082DF000  0x082E1000        # 10.8% - sprite/OAM helpers
