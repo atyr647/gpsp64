@@ -1,29 +1,29 @@
-/* Native x86-64 harness for the gpSP N64 core: correctness testing and
- * deterministic performance measurement.
+/* Native x86-64 harness for the gpSP N64 core -- CORRECTNESS testing.
  *
  * Links the portable GBA CPU/PPU/AOT code (the same cpu.cc, video.cc and
  * aot_generated.c the real N64 build uses) with no N64/libdragon
- * dependency, so the emulator core can be exercised in ~1s instead of a
- * flashcart round-trip.
+ * dependency, so the emulator core can be exercised in ~30s instead of a
+ * flashcart round-trip.  This is what found the MOV-PC interworking and
+ * LDM/STM base-in-list bugs, and it is the right tool for bisecting a
+ * miscompiled AOT function (see native/bisect_correctness.sh).
  *
- * On benchmarking: x86-64 wall-clock time here is meaningless for N64
- * performance.  What IS meaningful, and what --bench measures, is the
- * amount of *emulated work* per GBA frame:
+ * NOT FOR PERFORMANCE.  All performance numbers for this project come
+ * from native/ares_bench.sh, which runs the real N64 ROM under ares and
+ * reads the ROM's own VR4300 COUNT-based PROF output.  The target is an
+ * N64; host instruction counts cannot see the things that actually
+ * decide N64 framerate -- I-cache pressure from generated code, memory
+ * latency, DMA and RDP contention.  Counting interpreted instructions
+ * here can point the wrong way (more AOT coverage lowers this count
+ * while potentially thrashing the VR4300's 16 KB I-cache), so treat the
+ * counts below strictly as a correctness/regression signal.
  *
- *   - interpreted GBA instructions/frame.  This is the primary metric.
- *     Every instruction the AOT does not cover runs through the
- *     interpreter at roughly 150-250 VR4300 cycles on real hardware, so
- *     driving this number down is what raises framerate.  It is exactly
- *     reproducible for a given ROM + input script, so before/after deltas
- *     are trustworthy in a way wall-clock never is.
- *   - AOT dispatches/frame and the GBA cycles they account for, i.e. how
- *     much work the AOT is absorbing.
- *   - ARM vs Thumb split, per hot page.  tools/thumb2c.py only translates
- *     Thumb, so an ARM-dominated hot page cannot be helped by adding AOT
- *     targets -- this split says which pages are actually actionable.
- *
- * Absolute framerate still has to come from real hardware (or ares); this
- * harness tells you which direction you are moving and why.
+ * What --bench reports (correctness-oriented):
+ *   - interpreted GBA instructions/frame, exactly reproducible for a
+ *     given ROM + input script, so an unexpected change flags a
+ *     behavioural regression.
+ *   - final PC: a healthy run parks in the game's idle loop; a derailed
+ *     one ends up executing data.
+ *   - ARM vs Thumb split per hot page, since thumb2c.py is Thumb-only.
  */
 
 #include "../common.h"

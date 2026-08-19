@@ -3,9 +3,10 @@
 #
 #   native/bench.sh [label] [extra-cflags...]
 #
-# Measures emulated work per GBA frame (interpreted instructions, AOT
-# coverage, hot pages).  See native/native_main.c for why interpreted
-# instructions/frame is the metric that tracks real N64 framerate.
+# CORRECTNESS / regression harness.  For performance numbers use
+# native/ares_bench.sh instead -- this project targets the N64, so speed
+# is measured on the real ROM under ares, not by counting host-side
+# instructions (which cannot see VR4300 I-cache or memory effects).
 #
 # Results go to bench-results/<label>.txt and the page histogram to
 # bench-results/<label>.pages so tools/suggest_targets.py can consume it.
