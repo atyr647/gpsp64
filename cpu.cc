@@ -3230,6 +3230,13 @@ thumb_loop:
        }
        #endif
        #ifndef AOT_NO_AUTO
+       /* Never let AOT cover the page holding the game's idle loop.  The
+        * idle-skip check below only fires when the interpreter sees
+        * PC == idle_loop_target_pc; an AOT function whose internal loop
+        * spans that PC starves it, so the emulator burns a full cycle
+        * budget spinning instead of skipping to the next event.  Measured
+        * on ares: 6.9 -> 3.3 FPS when this page was AOT'd. */
+       if (__builtin_expect((reg[REG_PC] >> 12) != (idle_loop_target_pc >> 12), 1))
        {
          u32 _pidx = (reg[REG_PC] >> 12) & 0x1FFF;
          if (__builtin_expect(

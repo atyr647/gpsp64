@@ -19,6 +19,12 @@
 # Only the highest-value Thumb pages are included: the long tail of small
 # pages roughly doubles generated code size for ~1% each, which is a poor
 # trade for N64 RAM.  Percentages are share of interpreted instructions.
-0x08000000  0x08002000        # 24.1% - core/task dispatch
+#
+# DO NOT add the page containing idle_loop_target_pc (0x080008CE for
+# Emerald, i.e. page 0x08000000).  Measured on ares: adding it drops the
+# game from 6.9 to 3.3 FPS and zeroes the idle-skip counter, because an
+# AOT function whose internal loop covers that PC never returns to the
+# interpreter, so the idle-loop fast-path in cpu.cc can never fire.
+# cpu.cc now also refuses to AOT that page at runtime as a backstop.
 0x08007000  0x08009000        # 13.6% - adjacent to the text engine page
 0x082DF000  0x082E1000        # 10.8% - sprite/OAM helpers
