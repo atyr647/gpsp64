@@ -18,16 +18,29 @@
 #include "../cpu.h"
 #include "../gba_memory.h"
 
+/* Reads must force natural alignment.  The VR4300 raises an Address
+ * Error on an unaligned lw/lh, whereas x86 silently allows it -- so an
+ * unaligned AOT read is invisible to the native harness and only breaks
+ * on the actual target.  Aligning also lets us reproduce the ARM7TDMI
+ * semantics gpSP implements in read_memory32/read_memory16: an unaligned
+ * load reads the *aligned* word and rotates the result right by the
+ * misalignment, rather than reading across the boundary. */
 u32 aot_read32(u32 addr) {
     u8 *map = memory_map_read[addr >> 15];
-    if (map) return eswap32(*(u32*)(map + (addr & 0x7FFF)));
-    return 0;
+    if (!map) return 0;
+    u32 value = eswap32(*(u32*)(map + (addr & 0x7FFC)));
+    u32 rotate = (addr & 3u) * 8u;
+    if (rotate) value = (value >> rotate) | (value << (32u - rotate));
+    return value;
 }
 
 u16 aot_read16(u32 addr) {
     u8 *map = memory_map_read[addr >> 15];
-    if (map) return eswap16(*(u16*)(map + (addr & 0x7FFF)));
-    return 0;
+    if (!map) return 0;
+    u32 value = eswap16(*(u16*)(map + (addr & 0x7FFE)));
+    /* Matches read_memory16(): odd address rotates the halfword by 8. */
+    if (addr & 1u) value = ((value >> 8) | (value << 8)) & 0xFFFFu;
+    return (u16)value;
 }
 
 u8 aot_read8(u32 addr) {
@@ -51,8 +64,12 @@ u8 aot_read8(u32 addr) {
  * mid-AOT process one instruction later than they would in the
  * interpreter.  Fine for game logic, would matter only for cycle-
  * exact demos.  */
-void aot_write32(u32 addr, u32 val) { (void)write_memory32(addr, val); }
-void aot_write16(u32 addr, u16 val) { (void)write_memory16(addr, val); }
+/* Addresses are masked to natural alignment first, exactly as cpu.cc's
+ * store_aligned* macros do before calling these: write_memory32/16
+ * expect an already-aligned address and will otherwise perform an
+ * unaligned store, which faults on the VR4300. */
+void aot_write32(u32 addr, u32 val) { (void)write_memory32(addr & ~3u, val); }
+void aot_write16(u32 addr, u16 val) { (void)write_memory16(addr & ~1u, val); }
 void aot_write8 (u32 addr, u8  val) { (void)write_memory8 (addr, val); }
 
 /* ===================================================================
