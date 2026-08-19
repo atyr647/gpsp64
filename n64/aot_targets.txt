@@ -28,3 +28,10 @@
 # cpu.cc now also refuses to AOT that page at runtime as a backstop.
 0x08007000  0x08009000        # 13.6% - adjacent to the text engine page
 0x082DF000  0x082E1000        # 10.8% - sprite/OAM helpers
+# Measured and REJECTED (native/ares_bench.sh): adding the hottest
+# remaining call-target pages 0x082E7000 and 0x0800B000 cost 65 KB of
+# .text and made things slower -- 12.82 -> 12.50 FPS -- while interpreted
+# work barely moved (653K -> 649K insns/window). AOT coverage is not
+# monotonically good on N64: past a point the extra code costs more in
+# VR4300 I-cache pressure (16 KB) than it saves in interpretation.
+# Re-measure on ares before adding any further pages.

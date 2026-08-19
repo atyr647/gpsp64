@@ -15,6 +15,10 @@ import statistics
 import sys
 
 # PROF: CPU91% PPU9% Blt4% 101ms/f | 4383K insns 723KIPS ~130 cyc/i | ARM99%/Thm0% idle 0 rt 0
+# PROF:  aot-pages: 0x82e1000:15% 0x806f000:14% ...
+PAGES_RE = re.compile(r'^PROF:\s+aot-pages:\s+(.*)$')
+PAGE_ENTRY = re.compile(r'(0x[0-9a-fA-F]+):(\d+)%')
+
 PROF_RE = re.compile(
     r'^PROF: CPU(?P<cpu>\d+)% PPU(?P<ppu>\d+)% Blt(?P<blt>\d+)% (?P<ms>\d+)ms/f'
     r' \| (?P<insns>\d+)K insns (?P<kips>\d+)KIPS ~(?P<cyc>\d+) cyc/i'
@@ -22,13 +26,43 @@ PROF_RE = re.compile(
 
 
 def parse(path):
-    rows = []
+    """Return (windows, page_samples).  page_samples[i] is the hot-page
+    list reported for window i, as [(addr, pct), ...] measured on the N64
+    itself -- the right basis for choosing new AOT targets."""
+    rows, pages, pending = [], [], None
     with open(path, errors='replace') as f:
         for line in f:
+            line = line.rstrip()
             m = PROF_RE.match(line.strip())
             if m:
                 rows.append({k: int(v) for k, v in m.groupdict().items()})
-    return rows
+                pending = len(rows) - 1
+                continue
+            mp = PAGES_RE.match(line)
+            if mp and pending is not None:
+                pages.append((pending,
+                              [(a, int(p)) for a, p in PAGE_ENTRY.findall(mp.group(1))]))
+                pending = None
+    return rows, pages
+
+
+def report_pages(pages, skip):
+    """Aggregate hot pages over the steady-state windows."""
+    agg = {}
+    n = 0
+    for idx, entries in pages:
+        if idx < skip:
+            continue
+        n += 1
+        for addr, pct in entries:
+            agg[int(addr, 16)] = agg.get(int(addr, 16), 0) + pct
+    if not agg or not n:
+        return
+    print('\n  hot pages on N64 (share of interpreted insns, averaged):')
+    for addr, tot in sorted(agg.items(), key=lambda kv: -kv[1])[:10]:
+        if tot / n < 0.5:
+            continue
+        print(f'    0x{addr:08X}  {tot / n:5.1f}%')
 
 
 def main():
@@ -44,7 +78,7 @@ def main():
                     help='measure only windows A:B (0-based, python slice)')
     args = ap.parse_args()
 
-    rows = parse(args.log)
+    rows, pages = parse(args.log)
     if not rows:
         print(f'{args.label}: no PROF output found in {args.log}', file=sys.stderr)
         return 1
@@ -82,6 +116,7 @@ def main():
     print(f'  idle-loop skips    {avg("idle"):.0f}/window   runtime-detected {avg("rt"):.0f}')
     if args.text:
         print(f'  .text              {args.text} bytes')
+    report_pages(pages, args.skip)
     print(f'\nARESSUM {args.label} fps={fps:.2f} ms={ms:.1f} cpu={avg("cpu"):.0f} '
           f'ppu={avg("ppu"):.0f} blt={avg("blt"):.0f} cyc_per_insn={avg("cyc"):.0f} '
           f'insns_k={avg("insns"):.0f} text={args.text}')
