@@ -91,7 +91,13 @@ gpsp.elf: $(OBJS)
 # Re-runs whenever the ROM, the targets list, or either Python tool
 # changes.  Set AOT_ROM to override the ROM path; defaults to the first
 # .gba in filesystem/gba/.
-AOT_ROM ?= $(firstword $(wildcard filesystem/gba/*.gba))
+# ROM discovery happens inside the recipe, not in a Make variable:
+# GBA ROM filenames routinely contain spaces, and Make's $(firstword)/
+# prerequisite syntax cannot represent those.  filesystem/gba/ is checked
+# first (that copy is also embedded in the DFS, wanted only for emulator
+# testing); a ROM at the repo root is the fallback and drives AOT
+# generation *without* being embedded, so a shipping ROM still gets the
+# AOT speedup while loading the game from SD card.
 AOT_TARGETS = n64/aot_targets.txt
 AOT_TOOLS   = tools/thumb2c.py tools/find_thumb_funcs.py tools/scan_targets.py
 
@@ -99,15 +105,26 @@ AOT_TOOLS   = tools/thumb2c.py tools/find_thumb_funcs.py tools/scan_targets.py
 # so the hand-written fast paths are not shadowed.
 AOT_EXCLUDE = --exclude 0x0806F160 --exclude 0x08005ED8
 
-n64/aot_generated.c: $(AOT_TARGETS) $(AOT_TOOLS) $(AOT_ROM)
-	@if [ -z "$(AOT_ROM)" ]; then \
-	  echo "    [AOT] no ROM in filesystem/gba/; emitting empty stub"; \
-	  printf '#include "../common.h"\nint aot_generated_dispatch(u32 pc){(void)pc;return 0;}\nconst u32 aot_page_bitmap[256]={0};\n' > $@; \
+# NOTE: the ROM is deliberately not a prerequisite (see above); the
+# targets file and tools drive regeneration.
+n64/aot_generated.c: $(AOT_TARGETS) $(AOT_TOOLS)
+	@ROM=""; \
+	for f in filesystem/gba/*.gba *.gba; do \
+	  [ -f "$$f" ] && { ROM="$$f"; break; }; \
+	done; \
+	if [ -z "$$ROM" ]; then \
+	  if grep -q 'aot_gen_' $@ 2>/dev/null; then \
+	    echo "    [AOT] no ROM found; keeping existing $@ (not clobbering)"; \
+	    touch $@; \
+	  else \
+	    echo "    [AOT] no ROM found; emitting empty stub (build will be SLOW)"; \
+	    printf '#include "../common.h"\nint aot_generated_dispatch(u32 pc, u32 *cycles_used){(void)pc;(void)cycles_used;return 0;}\nconst u32 aot_page_bitmap[256]={0};\n' > $@; \
+	  fi; \
 	else \
-	  echo "    [AOT] scanning $(AOT_ROM)"; \
-	  python3 tools/scan_targets.py "$(AOT_ROM)" $(AOT_TARGETS) > n64/.aot_pcs.tmp; \
+	  echo "    [AOT] scanning $$ROM"; \
+	  python3 tools/scan_targets.py "$$ROM" $(AOT_TARGETS) > n64/.aot_pcs.tmp; \
 	  echo "    [AOT] translating $$(wc -l < n64/.aot_pcs.tmp) candidate functions"; \
-	  python3 tools/thumb2c.py "$(AOT_ROM)" $(AOT_EXCLUDE) --pcs-from n64/.aot_pcs.tmp -o $@; \
+	  python3 tools/thumb2c.py "$$ROM" $(AOT_EXCLUDE) --pcs-from n64/.aot_pcs.tmp -o $@; \
 	fi
 
 # Force DFS rebuild whenever filesystem contents change
