@@ -52,6 +52,13 @@ ASFLAGS += $(EXTRA_CFLAGS)
 # every like-indexed PROF window) for +162 KB of .text.  Worth it even
 # though code size otherwise hurts on this target (16 KB I-cache).
 N64_OPT ?= -O3
+# n64/aot_generated.c is by far the largest object, so its size presses
+# directly on the VR4300's 16 KB I-cache.  AOT_OPT builds just that file
+# at a different level from the rest (e.g. AOT_OPT=-Os to trade a little
+# AOT speed for a smaller footprint); empty means it follows N64_OPT.
+AOT_OPT ?=
+n64/aot_generated.o: CFLAGS += $(AOT_OPT)
+
 %.z64: CFLAGS   += $(N64_OPT) $(EXTRA_CFLAGS)
 %.z64: CXXFLAGS += $(N64_OPT) $(EXTRA_CFLAGS)
 
