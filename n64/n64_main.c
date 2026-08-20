@@ -245,6 +245,33 @@ int main(void)
                  (unsigned long)prof_idle_hits,
                  (unsigned long)prof_idle_detect_fires);
 
+#ifdef PROFILE_CYCLES
+          /* Where the VR4300 cycles actually go inside one emulated
+           * frame.  prof_emu is all of run_frame(); update_gba is the
+           * hardware event engine (scanline/timer/DMA/IRQ) and already
+           * contains the PPU render; AOT is translated code.  Whatever
+           * is left is the interpreter proper. */
+          {
+            extern u32 prof_update_ticks, prof_update_calls, prof_aot_ticks;
+            extern u32 prof_aot_hits, prof_aot_gba_cycles;
+            u32 upd_ex_ppu = prof_update_ticks > prof_ppu_ticks
+                           ? prof_update_ticks - prof_ppu_ticks : 0;
+            u32 accounted  = prof_update_ticks + prof_aot_ticks;
+            u32 interp     = prof_emu > accounted ? prof_emu - accounted : 0;
+            u32 e = prof_emu ? prof_emu : 1;
+            debugf("PROF:  cyc: interp %lu%% aot %lu%% event %lu%% ppu %lu%%"
+                   " | yields/frame %lu | aot-calls %lu gba-cyc %luK\n",
+                   (unsigned long)((u64)interp       * 100 / e),
+                   (unsigned long)((u64)prof_aot_ticks * 100 / e),
+                   (unsigned long)((u64)upd_ex_ppu   * 100 / e),
+                   (unsigned long)((u64)prof_ppu_ticks * 100 / e),
+                   (unsigned long)(prof_update_calls / 60),
+                   (unsigned long)prof_aot_hits,
+                   (unsigned long)(prof_aot_gba_cycles / 1000));
+            prof_update_ticks = prof_update_calls = prof_aot_ticks = 0;
+          }
+#endif
+
 #ifdef PROFILE_OPCODES
           /* Heavy diagnostics — opcode histograms, top-N, PC sample.
            * Only built when PROFILE_OPCODES is defined; off by default.

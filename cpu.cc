@@ -37,6 +37,14 @@ extern "C" {
   u32 prof_thumb_insns = 0;
   u32 prof_idle_hits   = 0;
   u32 prof_idle_detect_fires = 0;
+  /* Cycle attribution, -DPROFILE_CYCLES only: VR4300 ticks spent inside
+   * AOT-translated functions.  With prof_update_ticks from main.c this
+   * splits emulation time three ways -- AOT, the hardware event engine,
+   * and (by subtraction) the interpreter itself. */
+  u32 prof_aot_ticks = 0;
+  #ifdef PROFILE_CYCLES
+    #define PROF_CYC_TICK() ({ u32 _t; __asm__ volatile("mfc0 %0, $9" : "=r"(_t)); _t; })
+  #endif
   /* Runtime idle-loop detector state — see use site in the Thumb loop.
    * Hot path; cheap to maintain; not gated. */
   u32 idle_detect_pc        = 0;
@@ -3312,7 +3320,13 @@ thumb_loop:
                _trace_n++;
              }
 #endif
+#ifdef PROFILE_CYCLES
+             u32 _aot_t0 = PROF_CYC_TICK();
+#endif
              u32 _aot_cyc = _pg->fns[_slot - 1](reg[REG_PC]);
+#ifdef PROFILE_CYCLES
+             prof_aot_ticks += PROF_CYC_TICK() - _aot_t0;
+#endif
              #ifdef PROFILE_AOT
              prof_aot_hits++; prof_aot_gba_cycles += _aot_cyc;
              #endif

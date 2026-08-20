@@ -27,6 +27,12 @@
 #if defined(N64) && defined(__mips__)
   #define PROF_TICK() ({ u32 _t; __asm__ volatile("mfc0 %0, $9" : "=r"(_t)); _t; })
   u32 prof_ppu_ticks = 0;
+  /* Cycle attribution, -DPROFILE_CYCLES only.  prof_emu (whole frame of
+   * emulation) minus these tells us how much is left for the actual
+   * instruction interpretation, which is the number that decides which
+   * optimisations are worth anything. */
+  u32 prof_update_ticks = 0;   /* inside update_gba, PPU render included */
+  u32 prof_update_calls = 0;   /* timeslice yields -- one per hw event */
 #else
   #define PROF_TICK() 0
   #ifdef N64
@@ -133,6 +139,10 @@ void init_main(void)
 
 u32 function_cc update_gba(int remaining_cycles)
 {
+#ifdef PROFILE_CYCLES
+  u32 _upd_t0 = PROF_TICK();
+  prof_update_calls++;
+#endif
   u32 changed_pc = 0;
   u32 frame_complete = 0;
   irq_type irq_raised = IRQ_NONE;
@@ -312,6 +322,9 @@ u32 function_cc update_gba(int remaining_cycles)
   dma_cycles = MIN(64, dma_cycles);
   dma_cycles = MIN(execute_cycles, dma_cycles);
 
+#ifdef PROFILE_CYCLES
+  prof_update_ticks += PROF_TICK() - _upd_t0;
+#endif
   return (execute_cycles - dma_cycles) | changed_pc | frame_complete;
 }
 
