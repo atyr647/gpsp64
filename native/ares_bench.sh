@@ -59,7 +59,7 @@ echo "[ares:$LABEL] building N64 ROM${EXTRA:+ ($EXTRA)}..."
 ( cd "$SCRATCH" \
   && export N64_INST="$REPO/toolchain/opt/libdragon" PATH="$REPO/toolchain/opt/libdragon/bin:$PATH" \
   && make -f Makefile.n64 clean >/dev/null 2>&1 \
-  && make -f Makefile.n64 ${EXTRA:+EXTRA_CFLAGS="$EXTRA"} ${N64_OPT:+N64_OPT="$N64_OPT"} ${AOT_OPT:+AOT_OPT="$AOT_OPT"} -j"$(nproc)" >"$SCRATCH/build.log" 2>&1 ) \
+  && make -f Makefile.n64 ${EXTRA:+EXTRA_CFLAGS="$EXTRA"} ${N64_OPT:+N64_OPT="$N64_OPT"} ${AOT_OPT:+AOT_OPT="$AOT_OPT"} ${PROFILE_FLAGS+PROFILE_FLAGS="$PROFILE_FLAGS"} -j"$(nproc)" >"$SCRATCH/build.log" 2>&1 ) \
   || { echo "BUILD FAILED"; tail -25 "$SCRATCH/build.log"; exit 1; }
 
 TEXT=$("$REPO/toolchain/opt/libdragon/bin/mips64-elf-size" "$SCRATCH/gpsp.elf" | awk 'NR==2{print $1}')

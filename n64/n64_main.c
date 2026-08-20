@@ -405,6 +405,60 @@ int main(void)
             memset(prof_page_hist, 0, sizeof(u32) * 6144);
             memset(prof_bl_targets, 0, sizeof(prof_bl_targets[0]) * 512);
           }
+
+#ifdef PROFILE_REGIONS
+          /* Where interpreted code lives, by GBA memory region.  ROM and
+           * BIOS are at fixed addresses so they can be translated ahead
+           * of time; IWRAM/EWRAM code is copied there at runtime, which
+           * a static translator cannot follow. */
+          {
+            extern u32 prof_region_arm[16], prof_region_thumb[16];
+            static const char *rn[16] = {
+              "bios","?1","ewram","iwram","io","pal","vram","oam",
+              "rom","rom","rom","rom","rom","sram","?e","?f"
+            };
+            u32 tot = 0;
+            for (u32 i = 0; i < 16; i++)
+              tot += prof_region_arm[i] + prof_region_thumb[i];
+            if (!tot) tot = 1;
+            debugf("PROF:  regions(arm/thm %%):");
+            for (u32 i = 0; i < 16; i++) {
+              u32 a = prof_region_arm[i], t = prof_region_thumb[i];
+              if (!a && !t) continue;
+              debugf(" %s:%lu/%lu", rn[i],
+                     (unsigned long)((a * 100) / tot),
+                     (unsigned long)((t * 100) / tot));
+            }
+            debugf("\n");
+            memset(prof_region_arm, 0, sizeof(prof_region_arm));
+            memset(prof_region_thumb, 0, sizeof(prof_region_thumb));
+          }
+
+          /* Top BIOS SWIs by call count -- the candidates for native
+           * (HLE) implementations, which would remove the interpreted
+           * ARM BIOS handlers entirely. */
+          {
+            extern u32 prof_swi_hist[256];
+            u32 si[6] = {0}, sc[6] = {0};
+            for (u32 i = 0; i < 256; i++) {
+              u32 c = prof_swi_hist[i];
+              if (!c) continue;
+              for (u32 j = 0; j < 6; j++) {
+                if (c > sc[j]) {
+                  for (u32 k = 5; k > j; k--) { sc[k]=sc[k-1]; si[k]=si[k-1]; }
+                  sc[j] = c; si[j] = i;
+                  break;
+                }
+              }
+            }
+            debugf("PROF:  swi:");
+            for (u32 j = 0; j < 6; j++)
+              if (sc[j]) debugf(" %02lx:%lu", (unsigned long)si[j],
+                                (unsigned long)sc[j]);
+            debugf("\n");
+            memset(prof_swi_hist, 0, sizeof(prof_swi_hist));
+          }
+#endif /* PROFILE_REGIONS */
 #endif
 
           prof_emu = prof_blit = prof_total = prof_frames = 0;

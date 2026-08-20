@@ -38,7 +38,7 @@ done
 for f in cpu video; do
   g++ $CXXFLAGS -c "$f.cc" -o "$OBJ/$f.o" || { echo "FAILED: $f.cc"; exit 1; }
 done
-for f in n64/aot_hle n64/aot_generated; do
+for f in n64/aot_hle n64/bios_hle n64/aot_generated; do
   gcc $CFLAGS -c "$f.c" -o "$OBJ/$f.o" || { echo "FAILED: $f.c"; exit 1; }
 done
 gcc $CFLAGS -c native/native_main.c -o "$OBJ/native_main.o" || exit 1

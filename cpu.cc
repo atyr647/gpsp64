@@ -27,6 +27,7 @@ extern "C" {
   extern "C" void aot_0806F160_entry(void);
   extern "C" void aot_08005ED8_entry(void);
   extern "C" int  aot_generated_dispatch(u32 pc, u32 *cycles_used);
+  extern "C" int  bios_hle_swi(u32 swi_num, u32 *cycles);
   extern "C" const u32 aot_page_bitmap[256];
 
   /* Always-on lightweight perf counters (one increment each, no array store) */
@@ -103,6 +104,21 @@ extern "C" {
        * page index (pc >> 12); 0xFFFFFFFF disables it. */
       u32 prof_pc_hist[2048] = {0};
       u32 prof_pc_hist_page = 0xFFFFFFFFu;
+
+      /* Where interpreted code actually lives, bucketed by GBA memory
+       * region (PC >> 24): 0x00 BIOS, 0x02 EWRAM, 0x03 IWRAM, 0x08+ ROM.
+       * This decides whether an ARM translator is even feasible: ROM and
+       * BIOS sit at fixed addresses and can be translated statically,
+       * whereas IWRAM/EWRAM code is copied there at runtime. */
+      u32 prof_region_arm[16] = {0};
+      u32 prof_region_thumb[16] = {0};
+
+      /* Which BIOS software interrupts the game actually calls.  Every
+       * SWI currently jumps to 0x00000008 and the BIOS handler is then
+       * interpreted as ARM code, which is where all remaining ARM
+       * execution comes from; this says which ones are worth replacing
+       * with native implementations. */
+      u32 prof_swi_hist[256] = {0};
     }
 
     static inline void prof_bl_record(u32 target_pc) {
@@ -3123,6 +3139,18 @@ arm_loop:
 #endif
 
           case 0xF0 ... 0xFF:
+            #ifdef PROFILE_REGIONS
+            prof_swi_hist[(opcode >> 16) & 0xFF]++;
+            #endif
+            #ifdef N64
+            /* Native BIOS call: stay in ARM, just step over the SWI. */
+            { u32 _swi_cyc = 0;
+              if (bios_hle_swi((opcode >> 16) & 0xFF, &_swi_cyc)) {
+                cycles_remaining -= (s32)_swi_cyc;
+                arm_pc_offset(4);
+                break;
+              } }
+            #endif
             collapse_flags();
             reg[REG_BUS_VALUE] = 0xe3a02004;  // After SWI, we read bios[0xE4]
             REG_MODE(MODE_SUPERVISOR)[6] = reg[REG_PC] + 4;
@@ -3146,7 +3174,11 @@ skip_instruction:
        { u32 _pg = (reg[REG_PC] >> 12) - 0x8000;
          if (_pg < AOT_PAGE_BUCKETS) prof_page_hist[_pg]++;
          if ((reg[REG_PC] >> 12) == prof_pc_hist_page)
-           prof_pc_hist[(reg[REG_PC] & 0xFFF) >> 1]++; }
+           prof_pc_hist[(reg[REG_PC] & 0xFFF) >> 1]++;
+#ifdef PROFILE_REGIONS
+         prof_region_arm[(reg[REG_PC] >> 24) & 0xF]++;
+#endif
+       }
        #endif
        #endif
        cycles_remaining -= _ws_cyc_arm_seq;  /* cached: ws_cyc_seq[mem_region][1] */
@@ -3698,6 +3730,18 @@ thumb_loop:
              break;
 
           case 0xDF:
+             #ifdef PROFILE_REGIONS
+             prof_swi_hist[opcode & 0xFF]++;
+             #endif
+             #ifdef N64
+             /* Native BIOS call: stay in Thumb, just step over the SWI. */
+             { u32 _swi_cyc = 0;
+               if (bios_hle_swi(opcode & 0xFF, &_swi_cyc)) {
+                 cycles_remaining -= (s32)_swi_cyc;
+                 thumb_pc_offset(2);
+                 break;
+               } }
+             #endif
              collapse_flags();
              REG_MODE(MODE_SUPERVISOR)[6] = reg[REG_PC] + 2;
              REG_SPSR(MODE_SUPERVISOR) = reg[REG_CPSR];
@@ -3763,7 +3807,11 @@ thumb_loop:
            prof_page_hist_thumb[_pg]++;
          }
          if ((reg[REG_PC] >> 12) == prof_pc_hist_page)
-           prof_pc_hist[(reg[REG_PC] & 0xFFF) >> 1]++; }
+           prof_pc_hist[(reg[REG_PC] & 0xFFF) >> 1]++;
+#ifdef PROFILE_REGIONS
+         prof_region_thumb[(reg[REG_PC] >> 24) & 0xF]++;
+#endif
+       }
        #endif
        /* Runtime idle-loop detector.
         * Catches busy-wait patterns the static idle_loop_target_pc
