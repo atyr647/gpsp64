@@ -277,6 +277,14 @@ def emit_dispatch(out, entry_to_func):
     because the target has an Expansion Pak.  Locality is good despite
     the size: every instruction on a page hits the *same* page-table
     entry, and slot lookups walk sequentially with the PC.
+
+    Measured on ares: 14.08 -> 14.81 FPS (+5.2%), cycles per interpreted
+    instruction 786 -> 740, instruction count unchanged.
+
+    Note for anyone re-tuning AOT coverage: adding a target page used to
+    make dispatch slower for *every* page, because it deepened the binary
+    search.  With this table it does not -- coverage and dispatch cost are
+    now independent.
     """
     # Group entry points by 4KB page, and per page assign each distinct
     # translated function a small slot index.
