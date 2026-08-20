@@ -366,7 +366,13 @@ int main(void)
             }
             u32 ti = prof_arm_insns + prof_thumb_insns;
             ti = ti ? ti : 1;
-            debugf("PROF:  aot-pages:"
+            {
+            extern u32 prof_rom_page_misses;
+            debugf("PROF:  rom-page-misses: %lu (buffer %d MB)\n",
+                   (unsigned long)prof_rom_page_misses, ROM_BUFFER_SIZE);
+            prof_rom_page_misses = 0;
+          }
+          debugf("PROF:  aot-pages:"
                    " 0x%05lx:%lu%% 0x%05lx:%lu%% 0x%05lx:%lu%%"
                    " 0x%05lx:%lu%% 0x%05lx:%lu%%\n",
                    (unsigned long)((pg_idx[0]+0x8000)*0x1000), (unsigned long)((pg_cnt[0]*100)/ti),

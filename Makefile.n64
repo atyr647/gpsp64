@@ -18,7 +18,13 @@ N64_ROM_TITLE = "gpSP GBA Emulator"
 N64_MKDFS_ROOT = filesystem
 
 # Extra CFLAGS on top of libdragon's defaults
-CFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH
+# HAVE_DYNAREC is deliberately NOT defined: gpSP's MIPS JIT is disabled
+# on N64 (dynarec_enable = 0) because its generated code has unresolved
+# big-endian bugs.  Compiling it in anyway cost ~896 KB of BSS
+# (rom_translation_cache 512K, rom_branch_hash 256K,
+# ram_translation_cache 128K) plus ~372 KB of dead code, for a code path
+# that can never run.
+CFLAGS += -DN64 -DMIPS_ARCH
 CFLAGS += -DTINY_TRANSLATION_CACHE
 CFLAGS += -DROM_BUFFER_SIZE=2
 CFLAGS += -DUSE_XBGR1555_FORMAT
@@ -73,7 +79,7 @@ n64/aot_generated.o: CFLAGS += $(AOT_OPT)
 CXXFLAGS += $(filter-out -std=gnu17,$(filter -D% -I% -W%,$(CFLAGS))) -w
 CXXFLAGS += -fno-rtti -fno-exceptions
 
-ASFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH -DTINY_TRANSLATION_CACHE
+ASFLAGS += -DN64 -DMIPS_ARCH -DTINY_TRANSLATION_CACHE
 ASFLAGS += -I$(CURDIR)
 
 # Core emulator objects
@@ -90,9 +96,7 @@ OBJS = main.o \
        memmap.o \
        video.o \
        cpu.o \
-       cpu_threaded.o \
        bios_data.o \
-       mips/mips_stub.o \
        mips/mips_interp.o \
        n64/n64_interp.o \
        n64/n64_main.o \

@@ -2198,10 +2198,17 @@ static u32 evict_gamepak_page(void)
   return ret;
 }
 
+/* Counts ROM page faults: each one is a 32 KB seek+read from the cart,
+ * so this says whether the ROM page buffer (ROM_BUFFER_SIZE) is doing
+ * any work, i.e. whether extra RAM could help at all. */
+u32 prof_rom_page_misses = 0;
+
 u8 *load_gamepak_page(u32 physical_index)
 {
   if(physical_index >= (gamepak_size >> 15))
     return &gamepak_buffers[0][0];
+
+  prof_rom_page_misses++;
 
   u32 entry = evict_gamepak_page();
   u32 block_idx = entry / 32;
