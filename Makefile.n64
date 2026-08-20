@@ -36,11 +36,24 @@ CFLAGS += -w   # gpsp has many warnings incompatible with libdragon's -Werror
 CFLAGS += -mtune=vr4300 -falign-functions=32 -falign-loops=16
 CFLAGS += -flto -fomit-frame-pointer
 
-# EXTRA_CFLAGS: user-supplied flags appended last (e.g. for A/B testing
-# experimental switches via `make EXTRA_CFLAGS=-DAOT_USE_GENERATED`).
+# EXTRA_CFLAGS: user-supplied flags for A/B testing
+# (e.g. `make EXTRA_CFLAGS=-DAOT_PC_MAX=0x08006A58`).
 CFLAGS += $(EXTRA_CFLAGS)
 CXXFLAGS += $(EXTRA_CFLAGS)
 ASFLAGS += $(EXTRA_CFLAGS)
+
+# libdragon's n64.mk appends $(N64_CFLAGS) -- which contains -O2 -- with
+# a target-specific rule (`%.z64: CFLAGS+=...`).  Target-specific values
+# are appended AFTER everything assigned above, so a plain
+# `CFLAGS += -O3` here is silently overridden and the build stays at -O2.
+# Re-apply through the same mechanism so these actually win; because
+# these lines come after the include, they land last on the command line.
+# Measured on ares: -O3 gives 12.82 -> 13.70 FPS (+6.8%, consistent on
+# every like-indexed PROF window) for +162 KB of .text.  Worth it even
+# though code size otherwise hurts on this target (16 KB I-cache).
+N64_OPT ?= -O3
+%.z64: CFLAGS   += $(N64_OPT) $(EXTRA_CFLAGS)
+%.z64: CXXFLAGS += $(N64_OPT) $(EXTRA_CFLAGS)
 
 CXXFLAGS += $(filter-out -std=gnu17,$(filter -D% -I% -W%,$(CFLAGS))) -w
 CXXFLAGS += -fno-rtti -fno-exceptions

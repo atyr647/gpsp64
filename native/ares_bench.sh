@@ -28,6 +28,9 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
 
 LABEL="${1:?usage: ares_bench.sh <label> [EXTRA_CFLAGS...]}"; shift || true
+# N64_OPT=-O3 etc. is forwarded as a make variable, not a CFLAG: it has
+# to be applied through the same target-specific mechanism libdragon
+# uses for -O2, or it is overridden.  See Makefile.n64.
 EXTRA="$*"
 
 ROM="${BENCH_ROM:-$REPO/Pokemon - Emerald Version (USA, Europe).gba}"
@@ -56,7 +59,7 @@ echo "[ares:$LABEL] building N64 ROM${EXTRA:+ ($EXTRA)}..."
 ( cd "$SCRATCH" \
   && export N64_INST="$REPO/toolchain/opt/libdragon" PATH="$REPO/toolchain/opt/libdragon/bin:$PATH" \
   && make -f Makefile.n64 clean >/dev/null 2>&1 \
-  && make -f Makefile.n64 ${EXTRA:+EXTRA_CFLAGS="$EXTRA"} -j"$(nproc)" >"$SCRATCH/build.log" 2>&1 ) \
+  && make -f Makefile.n64 ${EXTRA:+EXTRA_CFLAGS="$EXTRA"} ${N64_OPT:+N64_OPT="$N64_OPT"} -j"$(nproc)" >"$SCRATCH/build.log" 2>&1 ) \
   || { echo "BUILD FAILED"; tail -25 "$SCRATCH/build.log"; exit 1; }
 
 TEXT=$("$REPO/toolchain/opt/libdragon/bin/mips64-elf-size" "$SCRATCH/gpsp.elf" | awk 'NR==2{print $1}')
