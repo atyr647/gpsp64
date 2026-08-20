@@ -35,3 +35,14 @@
 # monotonically good on N64: past a point the extra code costs more in
 # VR4300 I-cache pressure (16 KB) than it saves in interpretation.
 # Re-measure on ares before adding any further pages.
+# Re-measured after AOT dispatch became a table lookup (commit a7d2382),
+# on the theory that the rejection above was an artifact of the old
+# switch, where each added page deepened the binary search for every
+# page.  It was not: 0x082E6000-0x082E8000 still costs 14.81 -> 14.49
+# FPS.  The cost really is VR4300 I-cache pressure, so the note above
+# stands on its own merits.
+#
+# 0x0806F000 did help slightly (14.81 -> 14.93) but the gain vanished
+# once the idle detector was tuned -- combined with IDLE_DETECT_ITERS=3
+# it scored the same as the idle change alone, for 70 KB of extra .text.
+# Not worth adding.

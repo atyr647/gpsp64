@@ -3865,14 +3865,31 @@ thumb_loop:
         *    aggressive threshold rarely triggers on real loops.
         *
         * The threshold is pure overhead once a loop IS a busy-wait: every
-        * iteration below it is interpreted and thrown away.  At ~4 insns
-        * per iteration and ~2000 detector fires per profiling window,
-        * a threshold of 16 costs ~126K interpreted instructions per
-        * window out of ~650K.  Overridable so it can be A/B'd on ares;
-        * lowering it trades false-positive risk for that work.
+        * iteration below it is interpreted and thrown away.  Swept on
+        * ares (14 windows, deterministic harness):
+        *
+        *     16 -> 14.81 FPS, 544K insns/window   (was the default)
+        *      8 -> 15.04 FPS, 536K
+        *      4 -> 15.38 FPS, 524K
+        *      3 -> 15.50 FPS, 516K   <- knee
+        *      2 -> 15.38 FPS, 506K   REGRESSES, and misdetects (below)
+        *
+        * Correctness check that matters more than the FPS: the total
+        * number of timeslice yields per window (prof_idle_hits +
+        * prof_idle_detect_fires) must stay flat.  It does, at ~34.7K for
+        * every threshold down to 3 -- so we are yielding at the same
+        * points and merely noticing sooner, not ending timeslices early
+        * and underclocking the emulated CPU.  Phase progression across
+        * all 14 windows also stays aligned with the baseline.
+        *
+        * At 2 both signals break: yields drop below baseline and the
+        * window-10 phase reads CPU98%/PPU2% where every other build
+        * reads CPU76%/PPU24%, i.e. the game is somewhere else by then.
+        * That is the detector firing on real game loops.  3 is the last
+        * value that is still provably only deleting wasted work.
         */
        #ifndef IDLE_DETECT_ITERS
-       #define IDLE_DETECT_ITERS 16
+       #define IDLE_DETECT_ITERS 3
        #endif
        {
          s32 _pc_delta = (s32)(reg[REG_PC] - _idle_pc_before);
