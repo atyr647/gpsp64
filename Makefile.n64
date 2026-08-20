@@ -18,13 +18,17 @@ N64_ROM_TITLE = "gpSP GBA Emulator"
 N64_MKDFS_ROOT = filesystem
 
 # Extra CFLAGS on top of libdragon's defaults
-# HAVE_DYNAREC is deliberately NOT defined: gpSP's MIPS JIT is disabled
-# on N64 (dynarec_enable = 0) because its generated code has unresolved
-# big-endian bugs.  Compiling it in anyway cost ~896 KB of BSS
-# (rom_translation_cache 512K, rom_branch_hash 256K,
-# ram_translation_cache 128K) plus ~372 KB of dead code, for a code path
-# that can never run.
-CFLAGS += -DN64 -DMIPS_ARCH
+# HAVE_DYNAREC is defined even though gpSP's MIPS JIT is disabled at
+# runtime on N64 (dynarec_enable = 0, its generated code has unresolved
+# big-endian bugs).  Removing it reclaims ~1.28 MB -- 896 KB of BSS
+# (rom_translation_cache 512K, rom_branch_hash 256K, ram_translation_cache
+# 128K) plus ~372 KB of dead code -- but measured 1.4% SLOWER on ares,
+# consistently on every window: dropping 417 KB of text shifts everything
+# else, and the VR4300 I-cache is direct-mapped, so conflict-miss patterns
+# change.  With the Expansion Pak the RAM is free and the framerate is
+# not, so it stays in.  Drop it (and the two objects below) if targeting
+# a 4 MB console, where the footprint matters more than 1.4%.
+CFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH
 CFLAGS += -DTINY_TRANSLATION_CACHE
 CFLAGS += -DROM_BUFFER_SIZE=2
 CFLAGS += -DUSE_XBGR1555_FORMAT
@@ -79,13 +83,14 @@ n64/aot_generated.o: CFLAGS += $(AOT_OPT)
 CXXFLAGS += $(filter-out -std=gnu17,$(filter -D% -I% -W%,$(CFLAGS))) -w
 CXXFLAGS += -fno-rtti -fno-exceptions
 
-ASFLAGS += -DN64 -DMIPS_ARCH -DTINY_TRANSLATION_CACHE
+ASFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH -DTINY_TRANSLATION_CACHE
 ASFLAGS += -I$(CURDIR)
 
 # Core emulator objects
 OBJS = main.o \
        gba_memory.o \
        savestate.o \
+       cpu_threaded.o \
        sound.o \
        cheats.o \
        serial.o \
@@ -97,6 +102,7 @@ OBJS = main.o \
        video.o \
        cpu.o \
        bios_data.o \
+       mips/mips_stub.o \
        mips/mips_interp.o \
        n64/n64_interp.o \
        n64/n64_main.o \
