@@ -3860,16 +3860,26 @@ thumb_loop:
         *    body <= 16; tightening to 10 excludes it cleanly while
         *    keeping any plausible busy-wait.
         *
-        * 2. Threshold of 16 iterations.  Real busy-waits fire
-        *    thousands of times; with the body guard in place the
+        * 2. Threshold of IDLE_DETECT_ITERS iterations.  Real busy-waits
+        *    fire thousands of times; with the body guard in place the
         *    aggressive threshold rarely triggers on real loops.
+        *
+        * The threshold is pure overhead once a loop IS a busy-wait: every
+        * iteration below it is interpreted and thrown away.  At ~4 insns
+        * per iteration and ~2000 detector fires per profiling window,
+        * a threshold of 16 costs ~126K interpreted instructions per
+        * window out of ~650K.  Overridable so it can be A/B'd on ares;
+        * lowering it trades false-positive risk for that work.
         */
+       #ifndef IDLE_DETECT_ITERS
+       #define IDLE_DETECT_ITERS 16
+       #endif
        {
          s32 _pc_delta = (s32)(reg[REG_PC] - _idle_pc_before);
          if (_pc_delta < 0 && _pc_delta >= -10) {
            /* Tight backward branch — candidate busy-wait back-edge */
            if (reg[REG_PC] == idle_detect_pc) {
-             if (++idle_detect_count >= 16 && cycles_remaining > 0) {
+             if (++idle_detect_count >= IDLE_DETECT_ITERS && cycles_remaining > 0) {
                idle_detect_count = 0;
                prof_idle_detect_fires++;
                cycles_remaining = 0;
