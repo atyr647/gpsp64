@@ -36,14 +36,24 @@ CFLAGS += -DUSE_XBGR1555_FORMAT
 #   -DPROFILE_OPCODES  per-insn opcode histogram (~5 cyc/insn overhead)
 #   -DPROFILE_PPU      PPU sub-category timers (~few MFC0/scanline)
 #   -DPROFILE_AOT      page histogram + BL target counting for AOT HLE
+#   -DPROFILE_CYCLES   VR4300 cycle attribution (interp/aot/event/ppu)
 # Diagnostics cost real framerate, so they are a build knob rather than
-# always-on.  PROFILE_AOT (hot pages / call targets) costs a few percent;
-# PROFILE_REGIONS (per-instruction region + SWI histograms) measured -16%
-# on ares, so it is opt-in only.  Frame time, CPU/PPU/blit split and the
-# ARM/Thumb mix are always reported and cost nothing extra.
-#   make PROFILE_FLAGS=                        # fastest, no histograms
-#   make PROFILE_FLAGS="-DPROFILE_AOT -DPROFILE_REGIONS"
-PROFILE_FLAGS ?= -DPROFILE_AOT
+# always-on.  ALL of them are off by default -- PROFILE_AOT used to be on,
+# and it was costing 33% of the framerate (15.50 -> 23.26 FPS on ares with
+# byte-identical emulation: same instruction counts and same idle/detector
+# counts in every window).  It is only three counter updates per
+# interpreted instruction, far too little to explain that directly; the
+# cost is that touching those globals inside the interpreter's hot loop
+# wrecks register allocation and scheduling across the whole dispatch
+# switch.  Treat any always-on instrumentation in that loop as expensive
+# until measured otherwise.  PROFILE_REGIONS measured a further -16%.
+#
+# Frame time, the CPU/PPU/blit split, instruction counts and the ARM/Thumb
+# mix are always reported and cost nothing extra -- ares_bench.sh needs
+# only those, so benchmarking does not require any of these flags.
+#   make PROFILE_FLAGS="-DPROFILE_AOT"                 # hot pages/calls
+#   make PROFILE_FLAGS="-DPROFILE_CYCLES"              # where cycles go
+PROFILE_FLAGS ?=
 CFLAGS += $(PROFILE_FLAGS)
 CFLAGS += -I$(CURDIR) -I$(CURDIR)/n64
 CFLAGS += -w   # gpsp has many warnings incompatible with libdragon's -Werror
