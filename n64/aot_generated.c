@@ -2,6 +2,7 @@
 #include "../common.h"
 #include "../cpu.h"
 #include "../gba_memory.h"
+#include "aot_dispatch.h"
 
 extern u32 aot_read32(u32);
 extern u16 aot_read16(u32);
@@ -26126,11 +26127,594 @@ L082E10E2:
 }
 
 
-/* Dispatch: returns 1 if PC matched and ran AOT, 0 otherwise.
- * On a match, *cycles_used is set to the actual number of GBA
- * cycles the translated function consumed (accumulated per
- * instruction executed, including loop iterations) — the
- * caller deducts this instead of assuming a flat cost. */
+/* ---- PC dispatch tables (see emit_dispatch in tools/thumb2c.py) ---- */
+
+static const aot_fn_t aot_fns_0006[] = {
+    aot_gen_08006140,
+    aot_gen_080062E8,
+    aot_gen_08006368,
+    aot_gen_08006378,
+    aot_gen_08006478,
+    aot_gen_08006540,
+    aot_gen_08006560,
+    aot_gen_08006628,
+    aot_gen_08006648,
+    aot_gen_08006710,
+    aot_gen_08006730,
+    aot_gen_0800681C,
+    aot_gen_08006840,
+    aot_gen_08006908,
+    aot_gen_08006928,
+    aot_gen_08006974,
+    aot_gen_080069C0,
+    aot_gen_08006A0C,
+    aot_gen_08006A58,
+    aot_gen_08006B1C,
+    aot_gen_08006D1C,
+    aot_gen_08006D68,
+    aot_gen_08006DF4,
+    aot_gen_08006E48,
+    aot_gen_08006EB4,
+};
+static const u8 aot_slots_0006[2048] = {
+    [0x0A0] = 1,
+    [0x0B4] = 1,
+    [0x0BF] = 1,
+    [0x174] = 2,
+    [0x192] = 2,
+    [0x1B4] = 3,
+    [0x1B8] = 3,
+    [0x1BC] = 4,
+    [0x23C] = 5,
+    [0x24E] = 5,
+    [0x255] = 5,
+    [0x272] = 5,
+    [0x278] = 5,
+    [0x284] = 5,
+    [0x28A] = 5,
+    [0x290] = 5,
+    [0x296] = 5,
+    [0x2A0] = 6,
+    [0x2B0] = 7,
+    [0x2C3] = 7,
+    [0x2CA] = 7,
+    [0x2E6] = 7,
+    [0x2EC] = 7,
+    [0x2F8] = 7,
+    [0x2FE] = 7,
+    [0x304] = 7,
+    [0x30A] = 7,
+    [0x314] = 8,
+    [0x324] = 9,
+    [0x336] = 9,
+    [0x33D] = 9,
+    [0x35A] = 9,
+    [0x360] = 9,
+    [0x36C] = 9,
+    [0x372] = 9,
+    [0x378] = 9,
+    [0x37E] = 9,
+    [0x388] = 10,
+    [0x398] = 11,
+    [0x3AA] = 11,
+    [0x3B0] = 11,
+    [0x3B7] = 11,
+    [0x3BE] = 11,
+    [0x3E0] = 11,
+    [0x3E6] = 11,
+    [0x3F2] = 11,
+    [0x3F8] = 11,
+    [0x3FE] = 11,
+    [0x404] = 11,
+    [0x40E] = 12,
+    [0x420] = 13,
+    [0x433] = 13,
+    [0x43A] = 13,
+    [0x456] = 13,
+    [0x45C] = 13,
+    [0x468] = 13,
+    [0x46E] = 13,
+    [0x474] = 13,
+    [0x47A] = 13,
+    [0x484] = 14,
+    [0x494] = 15,
+    [0x4A4] = 15,
+    [0x4AC] = 15,
+    [0x4BA] = 16,
+    [0x4BF] = 16,
+    [0x4C1] = 16,
+    [0x4C3] = 16,
+    [0x4C5] = 16,
+    [0x4C7] = 16,
+    [0x4D0] = 16,
+    [0x4E0] = 17,
+    [0x4F3] = 17,
+    [0x4FB] = 17,
+    [0x506] = 18,
+    [0x509] = 18,
+    [0x50B] = 18,
+    [0x50D] = 18,
+    [0x518] = 18,
+    [0x51A] = 18,
+    [0x52C] = 19,
+    [0x58E] = 20,
+    [0x68E] = 21,
+    [0x6B4] = 22,
+    [0x6CC] = 22,
+    [0x6FA] = 23,
+    [0x714] = 23,
+    [0x724] = 24,
+    [0x746] = 24,
+    [0x75A] = 25,
+    [0x762] = 25,
+};
+
+static const aot_fn_t aot_fns_0007[] = {
+    aot_gen_08007054,
+    aot_gen_080070E8,
+    aot_gen_08007150,
+    aot_gen_08007188,
+    aot_gen_080071B8,
+    aot_gen_080071F8,
+    aot_gen_08007224,
+    aot_gen_08007244,
+    aot_gen_08007258,
+    aot_gen_0800729C,
+    aot_gen_080073B8,
+    aot_gen_0800742C,
+    aot_gen_08007488,
+    aot_gen_080074EC,
+    aot_gen_0800753C,
+    aot_gen_08007564,
+    aot_gen_0800758C,
+    aot_gen_080075C8,
+    aot_gen_080075E4,
+    aot_gen_080075F4,
+    aot_gen_08007620,
+    aot_gen_08007640,
+    aot_gen_08007778,
+    aot_gen_080079A4,
+    aot_gen_080079C4,
+    aot_gen_080079FC,
+    aot_gen_08007A1C,
+    aot_gen_08007A90,
+    aot_gen_08007B24,
+    aot_gen_08007BD8,
+    aot_gen_08007C0C,
+    aot_gen_08007C40,
+    aot_gen_08007C7C,
+    aot_gen_08007CAC,
+    aot_gen_08007D18,
+    aot_gen_08007D64,
+    aot_gen_08007DA0,
+    aot_gen_08007DF8,
+    aot_gen_08007E28,
+    aot_gen_08007E54,
+    aot_gen_08007EF0,
+    aot_gen_08007FF4,
+};
+static const u8 aot_slots_0007[2048] = {
+    [0x02A] = 1,
+    [0x04E] = 1,
+    [0x059] = 1,
+    [0x060] = 1,
+    [0x074] = 2,
+    [0x0A2] = 2,
+    [0x0A8] = 3,
+    [0x0C4] = 4,
+    [0x0D4] = 4,
+    [0x0DC] = 5,
+    [0x0FC] = 6,
+    [0x112] = 7,
+    [0x122] = 8,
+    [0x127] = 8,
+    [0x12C] = 9,
+    [0x14E] = 10,
+    [0x1DC] = 11,
+    [0x216] = 12,
+    [0x22E] = 12,
+    [0x244] = 13,
+    [0x276] = 14,
+    [0x29E] = 15,
+    [0x2B2] = 16,
+    [0x2C6] = 17,
+    [0x2CF] = 17,
+    [0x2DD] = 17,
+    [0x2E4] = 18,
+    [0x2ED] = 18,
+    [0x2F2] = 19,
+    [0x2F7] = 19,
+    [0x2FA] = 20,
+    [0x308] = 20,
+    [0x310] = 21,
+    [0x314] = 21,
+    [0x317] = 21,
+    [0x31A] = 21,
+    [0x31D] = 21,
+    [0x320] = 22,
+    [0x32D] = 22,
+    [0x33B] = 22,
+    [0x3BC] = 23,
+    [0x3C7] = 23,
+    [0x3E3] = 23,
+    [0x407] = 23,
+    [0x4D2] = 24,
+    [0x4DB] = 24,
+    [0x4DF] = 24,
+    [0x4E2] = 25,
+    [0x4F8] = 25,
+    [0x4FB] = 25,
+    [0x4FE] = 26,
+    [0x508] = 26,
+    [0x50B] = 26,
+    [0x50E] = 27,
+    [0x548] = 28,
+    [0x55C] = 28,
+    [0x562] = 28,
+    [0x568] = 28,
+    [0x576] = 28,
+    [0x589] = 28,
+    [0x592] = 29,
+    [0x59E] = 29,
+    [0x5AD] = 29,
+    [0x5D5] = 29,
+    [0x5E3] = 29,
+    [0x5EC] = 30,
+    [0x5F5] = 30,
+    [0x5FD] = 30,
+    [0x601] = 30,
+    [0x606] = 31,
+    [0x616] = 31,
+    [0x61E] = 31,
+    [0x620] = 32,
+    [0x636] = 32,
+    [0x639] = 32,
+    [0x63E] = 33,
+    [0x64D] = 33,
+    [0x650] = 33,
+    [0x656] = 34,
+    [0x68C] = 35,
+    [0x6A5] = 35,
+    [0x6A9] = 35,
+    [0x6B2] = 36,
+    [0x6CA] = 36,
+    [0x6D0] = 37,
+    [0x6DA] = 37,
+    [0x6DE] = 37,
+    [0x6FC] = 38,
+    [0x714] = 39,
+    [0x724] = 39,
+    [0x72A] = 40,
+    [0x74B] = 40,
+    [0x750] = 40,
+    [0x767] = 40,
+    [0x76C] = 40,
+    [0x778] = 41,
+    [0x7FA] = 42,
+};
+
+static const aot_fn_t aot_fns_0008[] = {
+    aot_gen_0800801C,
+    aot_gen_0800804C,
+    aot_gen_080080E4,
+    aot_gen_080080FC,
+    aot_gen_08008168,
+    aot_gen_080081C0,
+    aot_gen_080081DC,
+    aot_gen_08008258,
+    aot_gen_08008284,
+    aot_gen_080082B8,
+    aot_gen_080082F0,
+    aot_gen_08008324,
+    aot_gen_0800837C,
+    aot_gen_080083B0,
+    aot_gen_080083E8,
+    aot_gen_08008428,
+    aot_gen_08008478,
+    aot_gen_080084F8,
+    aot_gen_0800853C,
+    aot_gen_08008568,
+    aot_gen_080085E0,
+    aot_gen_08008620,
+    aot_gen_0800864C,
+    aot_gen_080086C4,
+    aot_gen_0800870C,
+    aot_gen_08008790,
+    aot_gen_080087BC,
+    aot_gen_08008804,
+    aot_gen_0800884C,
+    aot_gen_08008880,
+    aot_gen_080088EC,
+    aot_gen_08008B10,
+    aot_gen_08008B44,
+    aot_gen_08008B70,
+    aot_gen_08008BA0,
+    aot_gen_08008BC0,
+    aot_gen_08008BD8,
+    aot_gen_08008C08,
+    aot_gen_08008C24,
+    aot_gen_08008C44,
+    aot_gen_08008C68,
+    aot_gen_08008C94,
+    aot_gen_08008CC0,
+    aot_gen_08008D70,
+    aot_gen_08008E20,
+    aot_gen_08008EE0,
+    aot_gen_08008FCC,
+};
+static const u8 aot_slots_0008[2048] = {
+    [0x00E] = 1,
+    [0x026] = 2,
+    [0x044] = 2,
+    [0x04F] = 2,
+    [0x061] = 2,
+    [0x065] = 2,
+    [0x072] = 3,
+    [0x07A] = 3,
+    [0x07E] = 4,
+    [0x0B4] = 5,
+    [0x0C6] = 5,
+    [0x0CB] = 5,
+    [0x0CF] = 5,
+    [0x0E0] = 6,
+    [0x0EB] = 6,
+    [0x0EE] = 7,
+    [0x114] = 7,
+    [0x12C] = 8,
+    [0x132] = 8,
+    [0x137] = 8,
+    [0x142] = 9,
+    [0x148] = 9,
+    [0x156] = 9,
+    [0x15C] = 10,
+    [0x162] = 10,
+    [0x178] = 11,
+    [0x17E] = 11,
+    [0x18C] = 11,
+    [0x192] = 12,
+    [0x1BE] = 13,
+    [0x1C7] = 13,
+    [0x1CB] = 13,
+    [0x1D8] = 14,
+    [0x1F4] = 15,
+    [0x20E] = 15,
+    [0x214] = 16,
+    [0x218] = 16,
+    [0x225] = 16,
+    [0x238] = 16,
+    [0x23C] = 17,
+    [0x24E] = 17,
+    [0x25C] = 17,
+    [0x26E] = 17,
+    [0x272] = 17,
+    [0x27C] = 18,
+    [0x282] = 18,
+    [0x28D] = 18,
+    [0x295] = 18,
+    [0x29E] = 19,
+    [0x2A8] = 19,
+    [0x2B4] = 20,
+    [0x2BB] = 20,
+    [0x2F0] = 21,
+    [0x310] = 22,
+    [0x315] = 22,
+    [0x326] = 23,
+    [0x362] = 24,
+    [0x36F] = 24,
+    [0x386] = 25,
+    [0x3C8] = 26,
+    [0x3D7] = 26,
+    [0x3DE] = 27,
+    [0x3E7] = 27,
+    [0x402] = 28,
+    [0x426] = 29,
+    [0x42B] = 29,
+    [0x440] = 30,
+    [0x46E] = 30,
+    [0x476] = 31,
+    [0x588] = 32,
+    [0x5A2] = 33,
+    [0x5B8] = 34,
+    [0x5D0] = 35,
+    [0x5E0] = 36,
+    [0x5EA] = 36,
+    [0x5EC] = 37,
+    [0x604] = 38,
+    [0x610] = 38,
+    [0x612] = 39,
+    [0x622] = 40,
+    [0x634] = 41,
+    [0x64A] = 42,
+    [0x660] = 43,
+    [0x67B] = 43,
+    [0x6AD] = 43,
+    [0x6B8] = 44,
+    [0x6D3] = 44,
+    [0x705] = 44,
+    [0x710] = 45,
+    [0x734] = 45,
+    [0x73A] = 45,
+    [0x770] = 46,
+    [0x7E6] = 47,
+    [0x7EF] = 47,
+    [0x7F5] = 47,
+    [0x7F9] = 47,
+};
+
+static const aot_fn_t aot_fns_02DF[] = {
+    aot_gen_082DF06E,
+    aot_gen_082DF81C,
+    aot_gen_082DF88C,
+    aot_gen_082DF8DC,
+    aot_gen_082DFA6A,
+    aot_gen_082DFCC4,
+    aot_gen_082DFD38,
+    aot_gen_082DFFCC,
+};
+static const u8 aot_slots_02DF[2048] = {
+    [0x037] = 1,
+    [0x04E] = 1,
+    [0x052] = 1,
+    [0x40E] = 2,
+    [0x41D] = 2,
+    [0x446] = 3,
+    [0x452] = 3,
+    [0x46E] = 4,
+    [0x47C] = 4,
+    [0x535] = 5,
+    [0x53C] = 5,
+    [0x54E] = 5,
+    [0x576] = 5,
+    [0x580] = 5,
+    [0x5A1] = 5,
+    [0x5AF] = 5,
+    [0x60C] = 5,
+    [0x616] = 5,
+    [0x620] = 5,
+    [0x639] = 5,
+    [0x644] = 5,
+    [0x662] = 6,
+    [0x678] = 6,
+    [0x69C] = 7,
+    [0x73F] = 7,
+    [0x74F] = 7,
+    [0x753] = 7,
+    [0x766] = 7,
+    [0x782] = 7,
+    [0x78A] = 7,
+    [0x7E6] = 8,
+};
+
+static const aot_fn_t aot_fns_02E0[] = {
+    aot_gen_082DFFCC,
+    aot_gen_082E0070,
+    aot_gen_082E0124,
+    aot_gen_082E0130,
+    aot_gen_082E015C,
+    aot_gen_082E01A8,
+    aot_gen_082E01FC,
+    aot_gen_082E0230,
+    aot_gen_082E0264,
+    aot_gen_082E02A8,
+    aot_gen_082E02B4,
+    aot_gen_082E02F8,
+    aot_gen_082E0350,
+    aot_gen_082E0398,
+    aot_gen_082E04B4,
+    aot_gen_082E04C8,
+    aot_gen_082E04DC,
+    aot_gen_082E05D4,
+    aot_gen_082E0678,
+    aot_gen_082E0710,
+    aot_gen_082E0764,
+    aot_gen_082E07E0,
+    aot_gen_082E081C,
+    aot_gen_082E0894,
+    aot_gen_082E0978,
+    aot_gen_082E0A80,
+    aot_gen_082E0B34,
+    aot_gen_082E0C2C,
+    aot_gen_082E0CA8,
+};
+static const u8 aot_slots_02E0[2048] = {
+    [0x00C] = 1,
+    [0x011] = 1,
+    [0x038] = 2,
+    [0x041] = 2,
+    [0x044] = 2,
+    [0x047] = 2,
+    [0x04A] = 2,
+    [0x057] = 2,
+    [0x064] = 2,
+    [0x06F] = 2,
+    [0x092] = 3,
+    [0x095] = 3,
+    [0x098] = 4,
+    [0x0A8] = 4,
+    [0x0AE] = 5,
+    [0x0C2] = 5,
+    [0x0D2] = 5,
+    [0x0D4] = 6,
+    [0x0E8] = 6,
+    [0x0F6] = 6,
+    [0x0FC] = 6,
+    [0x0FE] = 7,
+    [0x111] = 7,
+    [0x118] = 8,
+    [0x12B] = 8,
+    [0x132] = 9,
+    [0x13D] = 9,
+    [0x146] = 9,
+    [0x154] = 10,
+    [0x157] = 10,
+    [0x15A] = 11,
+    [0x165] = 11,
+    [0x16E] = 11,
+    [0x17C] = 12,
+    [0x181] = 12,
+    [0x1A8] = 13,
+    [0x1BB] = 13,
+    [0x1CC] = 14,
+    [0x215] = 14,
+    [0x25A] = 15,
+    [0x25F] = 15,
+    [0x264] = 16,
+    [0x269] = 16,
+    [0x26E] = 17,
+    [0x2B0] = 17,
+    [0x2BF] = 17,
+    [0x2C4] = 17,
+    [0x2EA] = 18,
+    [0x2FF] = 18,
+    [0x307] = 18,
+    [0x30D] = 18,
+    [0x317] = 18,
+    [0x31B] = 18,
+    [0x33C] = 19,
+    [0x37A] = 19,
+    [0x37D] = 19,
+    [0x388] = 20,
+    [0x3A4] = 20,
+    [0x3B2] = 21,
+    [0x3DE] = 21,
+    [0x3F0] = 22,
+    [0x40E] = 23,
+    [0x423] = 23,
+    [0x44A] = 24,
+    [0x489] = 24,
+    [0x4A4] = 24,
+    [0x4B3] = 24,
+    [0x4BC] = 25,
+    [0x4D1] = 25,
+    [0x540] = 26,
+    [0x59A] = 27,
+    [0x616] = 28,
+    [0x654] = 29,
+    [0x6D3] = 29,
+    [0x745] = 29,
+    [0x774] = 29,
+};
+
+/* Flat 8192-entry page table: the mask bounds the index, so no
+ * compare is needed.  slots == NULL means the page has no AOT
+ * code.  Uncovered pages are the common case and cost one load. */
+const struct aot_page_ent aot_page_tab[8192] = {
+    [0x0006] = { aot_fns_0006, aot_slots_0006 },
+    [0x0007] = { aot_fns_0007, aot_slots_0007 },
+    [0x0008] = { aot_fns_0008, aot_slots_0008 },
+    [0x02DF] = { aot_fns_02DF, aot_slots_02DF },
+    [0x02E0] = { aot_fns_02E0, aot_slots_02E0 },
+};
+
+/* Out-of-line dispatch: returns 1 if PC matched and ran AOT, 0
+ * otherwise.  On a match, *cycles_used is set to the actual number
+ * of GBA cycles the translated function consumed (accumulated per
+ * instruction executed, including loop iterations) -- the caller
+ * deducts this instead of assuming a flat cost.
+ *
+ * cpu.cc inlines this lookup on the hot path; this entry point is
+ * kept for the native harness and for AOT_PC_MIN/MAX bisect builds,
+ * which need the gates below to apply. */
 int aot_generated_dispatch(u32 pc, u32 *cycles_used) {
 #ifdef AOT_PC_MIN
     if (pc < (u32)(AOT_PC_MIN)) return 0;
@@ -26138,433 +26722,13 @@ int aot_generated_dispatch(u32 pc, u32 *cycles_used) {
 #ifdef AOT_PC_MAX
     if (pc >= (u32)(AOT_PC_MAX)) return 0;
 #endif
-    switch (pc) {
-    case 0x08006140: *cycles_used = aot_gen_08006140(0x08006140u); return 1;
-    case 0x08006168: *cycles_used = aot_gen_08006140(0x08006168u); return 1;
-    case 0x0800617E: *cycles_used = aot_gen_08006140(0x0800617Eu); return 1;
-    case 0x080062E8: *cycles_used = aot_gen_080062E8(0x080062E8u); return 1;
-    case 0x08006324: *cycles_used = aot_gen_080062E8(0x08006324u); return 1;
-    case 0x08006368: *cycles_used = aot_gen_08006368(0x08006368u); return 1;
-    case 0x08006370: *cycles_used = aot_gen_08006368(0x08006370u); return 1;
-    case 0x08006378: *cycles_used = aot_gen_08006378(0x08006378u); return 1;
-    case 0x08006478: *cycles_used = aot_gen_08006478(0x08006478u); return 1;
-    case 0x0800649C: *cycles_used = aot_gen_08006478(0x0800649Cu); return 1;
-    case 0x080064AA: *cycles_used = aot_gen_08006478(0x080064AAu); return 1;
-    case 0x080064E4: *cycles_used = aot_gen_08006478(0x080064E4u); return 1;
-    case 0x080064F0: *cycles_used = aot_gen_08006478(0x080064F0u); return 1;
-    case 0x08006508: *cycles_used = aot_gen_08006478(0x08006508u); return 1;
-    case 0x08006514: *cycles_used = aot_gen_08006478(0x08006514u); return 1;
-    case 0x08006520: *cycles_used = aot_gen_08006478(0x08006520u); return 1;
-    case 0x0800652C: *cycles_used = aot_gen_08006478(0x0800652Cu); return 1;
-    case 0x08006540: *cycles_used = aot_gen_08006540(0x08006540u); return 1;
-    case 0x08006560: *cycles_used = aot_gen_08006560(0x08006560u); return 1;
-    case 0x08006586: *cycles_used = aot_gen_08006560(0x08006586u); return 1;
-    case 0x08006594: *cycles_used = aot_gen_08006560(0x08006594u); return 1;
-    case 0x080065CC: *cycles_used = aot_gen_08006560(0x080065CCu); return 1;
-    case 0x080065D8: *cycles_used = aot_gen_08006560(0x080065D8u); return 1;
-    case 0x080065F0: *cycles_used = aot_gen_08006560(0x080065F0u); return 1;
-    case 0x080065FC: *cycles_used = aot_gen_08006560(0x080065FCu); return 1;
-    case 0x08006608: *cycles_used = aot_gen_08006560(0x08006608u); return 1;
-    case 0x08006614: *cycles_used = aot_gen_08006560(0x08006614u); return 1;
-    case 0x08006628: *cycles_used = aot_gen_08006628(0x08006628u); return 1;
-    case 0x08006648: *cycles_used = aot_gen_08006648(0x08006648u); return 1;
-    case 0x0800666C: *cycles_used = aot_gen_08006648(0x0800666Cu); return 1;
-    case 0x0800667A: *cycles_used = aot_gen_08006648(0x0800667Au); return 1;
-    case 0x080066B4: *cycles_used = aot_gen_08006648(0x080066B4u); return 1;
-    case 0x080066C0: *cycles_used = aot_gen_08006648(0x080066C0u); return 1;
-    case 0x080066D8: *cycles_used = aot_gen_08006648(0x080066D8u); return 1;
-    case 0x080066E4: *cycles_used = aot_gen_08006648(0x080066E4u); return 1;
-    case 0x080066F0: *cycles_used = aot_gen_08006648(0x080066F0u); return 1;
-    case 0x080066FC: *cycles_used = aot_gen_08006648(0x080066FCu); return 1;
-    case 0x08006710: *cycles_used = aot_gen_08006710(0x08006710u); return 1;
-    case 0x08006730: *cycles_used = aot_gen_08006730(0x08006730u); return 1;
-    case 0x08006754: *cycles_used = aot_gen_08006730(0x08006754u); return 1;
-    case 0x08006760: *cycles_used = aot_gen_08006730(0x08006760u); return 1;
-    case 0x0800676E: *cycles_used = aot_gen_08006730(0x0800676Eu); return 1;
-    case 0x0800677C: *cycles_used = aot_gen_08006730(0x0800677Cu); return 1;
-    case 0x080067C0: *cycles_used = aot_gen_08006730(0x080067C0u); return 1;
-    case 0x080067CC: *cycles_used = aot_gen_08006730(0x080067CCu); return 1;
-    case 0x080067E4: *cycles_used = aot_gen_08006730(0x080067E4u); return 1;
-    case 0x080067F0: *cycles_used = aot_gen_08006730(0x080067F0u); return 1;
-    case 0x080067FC: *cycles_used = aot_gen_08006730(0x080067FCu); return 1;
-    case 0x08006808: *cycles_used = aot_gen_08006730(0x08006808u); return 1;
-    case 0x0800681C: *cycles_used = aot_gen_0800681C(0x0800681Cu); return 1;
-    case 0x08006840: *cycles_used = aot_gen_08006840(0x08006840u); return 1;
-    case 0x08006866: *cycles_used = aot_gen_08006840(0x08006866u); return 1;
-    case 0x08006874: *cycles_used = aot_gen_08006840(0x08006874u); return 1;
-    case 0x080068AC: *cycles_used = aot_gen_08006840(0x080068ACu); return 1;
-    case 0x080068B8: *cycles_used = aot_gen_08006840(0x080068B8u); return 1;
-    case 0x080068D0: *cycles_used = aot_gen_08006840(0x080068D0u); return 1;
-    case 0x080068DC: *cycles_used = aot_gen_08006840(0x080068DCu); return 1;
-    case 0x080068E8: *cycles_used = aot_gen_08006840(0x080068E8u); return 1;
-    case 0x080068F4: *cycles_used = aot_gen_08006840(0x080068F4u); return 1;
-    case 0x08006908: *cycles_used = aot_gen_08006908(0x08006908u); return 1;
-    case 0x08006928: *cycles_used = aot_gen_08006928(0x08006928u); return 1;
-    case 0x08006948: *cycles_used = aot_gen_08006928(0x08006948u); return 1;
-    case 0x08006958: *cycles_used = aot_gen_08006928(0x08006958u); return 1;
-    case 0x08006974: *cycles_used = aot_gen_08006974(0x08006974u); return 1;
-    case 0x0800697E: *cycles_used = aot_gen_08006974(0x0800697Eu); return 1;
-    case 0x08006982: *cycles_used = aot_gen_08006974(0x08006982u); return 1;
-    case 0x08006986: *cycles_used = aot_gen_08006974(0x08006986u); return 1;
-    case 0x0800698A: *cycles_used = aot_gen_08006974(0x0800698Au); return 1;
-    case 0x0800698E: *cycles_used = aot_gen_08006974(0x0800698Eu); return 1;
-    case 0x080069A0: *cycles_used = aot_gen_08006974(0x080069A0u); return 1;
-    case 0x080069C0: *cycles_used = aot_gen_080069C0(0x080069C0u); return 1;
-    case 0x080069E6: *cycles_used = aot_gen_080069C0(0x080069E6u); return 1;
-    case 0x080069F6: *cycles_used = aot_gen_080069C0(0x080069F6u); return 1;
-    case 0x08006A0C: *cycles_used = aot_gen_08006A0C(0x08006A0Cu); return 1;
-    case 0x08006A12: *cycles_used = aot_gen_08006A0C(0x08006A12u); return 1;
-    case 0x08006A16: *cycles_used = aot_gen_08006A0C(0x08006A16u); return 1;
-    case 0x08006A1A: *cycles_used = aot_gen_08006A0C(0x08006A1Au); return 1;
-    case 0x08006A30: *cycles_used = aot_gen_08006A0C(0x08006A30u); return 1;
-    case 0x08006A34: *cycles_used = aot_gen_08006A0C(0x08006A34u); return 1;
-    case 0x08006A58: *cycles_used = aot_gen_08006A58(0x08006A58u); return 1;
-    case 0x08006B1C: *cycles_used = aot_gen_08006B1C(0x08006B1Cu); return 1;
-    case 0x08006D1C: *cycles_used = aot_gen_08006D1C(0x08006D1Cu); return 1;
-    case 0x08006D68: *cycles_used = aot_gen_08006D68(0x08006D68u); return 1;
-    case 0x08006D98: *cycles_used = aot_gen_08006D68(0x08006D98u); return 1;
-    case 0x08006DF4: *cycles_used = aot_gen_08006DF4(0x08006DF4u); return 1;
-    case 0x08006E28: *cycles_used = aot_gen_08006DF4(0x08006E28u); return 1;
-    case 0x08006E48: *cycles_used = aot_gen_08006E48(0x08006E48u); return 1;
-    case 0x08006E8C: *cycles_used = aot_gen_08006E48(0x08006E8Cu); return 1;
-    case 0x08006EB4: *cycles_used = aot_gen_08006EB4(0x08006EB4u); return 1;
-    case 0x08006EC4: *cycles_used = aot_gen_08006EB4(0x08006EC4u); return 1;
-    case 0x08007054: *cycles_used = aot_gen_08007054(0x08007054u); return 1;
-    case 0x0800709C: *cycles_used = aot_gen_08007054(0x0800709Cu); return 1;
-    case 0x080070B2: *cycles_used = aot_gen_08007054(0x080070B2u); return 1;
-    case 0x080070C0: *cycles_used = aot_gen_08007054(0x080070C0u); return 1;
-    case 0x080070E8: *cycles_used = aot_gen_080070E8(0x080070E8u); return 1;
-    case 0x08007144: *cycles_used = aot_gen_080070E8(0x08007144u); return 1;
-    case 0x08007150: *cycles_used = aot_gen_08007150(0x08007150u); return 1;
-    case 0x08007188: *cycles_used = aot_gen_08007188(0x08007188u); return 1;
-    case 0x080071A8: *cycles_used = aot_gen_08007188(0x080071A8u); return 1;
-    case 0x080071B8: *cycles_used = aot_gen_080071B8(0x080071B8u); return 1;
-    case 0x080071F8: *cycles_used = aot_gen_080071F8(0x080071F8u); return 1;
-    case 0x08007224: *cycles_used = aot_gen_08007224(0x08007224u); return 1;
-    case 0x08007244: *cycles_used = aot_gen_08007244(0x08007244u); return 1;
-    case 0x0800724E: *cycles_used = aot_gen_08007244(0x0800724Eu); return 1;
-    case 0x08007258: *cycles_used = aot_gen_08007258(0x08007258u); return 1;
-    case 0x0800729C: *cycles_used = aot_gen_0800729C(0x0800729Cu); return 1;
-    case 0x080073B8: *cycles_used = aot_gen_080073B8(0x080073B8u); return 1;
-    case 0x0800742C: *cycles_used = aot_gen_0800742C(0x0800742Cu); return 1;
-    case 0x0800745C: *cycles_used = aot_gen_0800742C(0x0800745Cu); return 1;
-    case 0x08007488: *cycles_used = aot_gen_08007488(0x08007488u); return 1;
-    case 0x080074EC: *cycles_used = aot_gen_080074EC(0x080074ECu); return 1;
-    case 0x0800753C: *cycles_used = aot_gen_0800753C(0x0800753Cu); return 1;
-    case 0x08007564: *cycles_used = aot_gen_08007564(0x08007564u); return 1;
-    case 0x0800758C: *cycles_used = aot_gen_0800758C(0x0800758Cu); return 1;
-    case 0x0800759E: *cycles_used = aot_gen_0800758C(0x0800759Eu); return 1;
-    case 0x080075BA: *cycles_used = aot_gen_0800758C(0x080075BAu); return 1;
-    case 0x080075C8: *cycles_used = aot_gen_080075C8(0x080075C8u); return 1;
-    case 0x080075DA: *cycles_used = aot_gen_080075C8(0x080075DAu); return 1;
-    case 0x080075E4: *cycles_used = aot_gen_080075E4(0x080075E4u); return 1;
-    case 0x080075EE: *cycles_used = aot_gen_080075E4(0x080075EEu); return 1;
-    case 0x080075F4: *cycles_used = aot_gen_080075F4(0x080075F4u); return 1;
-    case 0x08007610: *cycles_used = aot_gen_080075F4(0x08007610u); return 1;
-    case 0x08007620: *cycles_used = aot_gen_08007620(0x08007620u); return 1;
-    case 0x08007628: *cycles_used = aot_gen_08007620(0x08007628u); return 1;
-    case 0x0800762E: *cycles_used = aot_gen_08007620(0x0800762Eu); return 1;
-    case 0x08007634: *cycles_used = aot_gen_08007620(0x08007634u); return 1;
-    case 0x0800763A: *cycles_used = aot_gen_08007620(0x0800763Au); return 1;
-    case 0x08007640: *cycles_used = aot_gen_08007640(0x08007640u); return 1;
-    case 0x0800765A: *cycles_used = aot_gen_08007640(0x0800765Au); return 1;
-    case 0x08007676: *cycles_used = aot_gen_08007640(0x08007676u); return 1;
-    case 0x08007778: *cycles_used = aot_gen_08007778(0x08007778u); return 1;
-    case 0x0800778E: *cycles_used = aot_gen_08007778(0x0800778Eu); return 1;
-    case 0x080077C6: *cycles_used = aot_gen_08007778(0x080077C6u); return 1;
-    case 0x0800780E: *cycles_used = aot_gen_08007778(0x0800780Eu); return 1;
-    case 0x080079A4: *cycles_used = aot_gen_080079A4(0x080079A4u); return 1;
-    case 0x080079B6: *cycles_used = aot_gen_080079A4(0x080079B6u); return 1;
-    case 0x080079BE: *cycles_used = aot_gen_080079A4(0x080079BEu); return 1;
-    case 0x080079C4: *cycles_used = aot_gen_080079C4(0x080079C4u); return 1;
-    case 0x080079F0: *cycles_used = aot_gen_080079C4(0x080079F0u); return 1;
-    case 0x080079F6: *cycles_used = aot_gen_080079C4(0x080079F6u); return 1;
-    case 0x080079FC: *cycles_used = aot_gen_080079FC(0x080079FCu); return 1;
-    case 0x08007A10: *cycles_used = aot_gen_080079FC(0x08007A10u); return 1;
-    case 0x08007A16: *cycles_used = aot_gen_080079FC(0x08007A16u); return 1;
-    case 0x08007A1C: *cycles_used = aot_gen_08007A1C(0x08007A1Cu); return 1;
-    case 0x08007A90: *cycles_used = aot_gen_08007A90(0x08007A90u); return 1;
-    case 0x08007AB8: *cycles_used = aot_gen_08007A90(0x08007AB8u); return 1;
-    case 0x08007AC4: *cycles_used = aot_gen_08007A90(0x08007AC4u); return 1;
-    case 0x08007AD0: *cycles_used = aot_gen_08007A90(0x08007AD0u); return 1;
-    case 0x08007AEC: *cycles_used = aot_gen_08007A90(0x08007AECu); return 1;
-    case 0x08007B12: *cycles_used = aot_gen_08007A90(0x08007B12u); return 1;
-    case 0x08007B24: *cycles_used = aot_gen_08007B24(0x08007B24u); return 1;
-    case 0x08007B3C: *cycles_used = aot_gen_08007B24(0x08007B3Cu); return 1;
-    case 0x08007B5A: *cycles_used = aot_gen_08007B24(0x08007B5Au); return 1;
-    case 0x08007BAA: *cycles_used = aot_gen_08007B24(0x08007BAAu); return 1;
-    case 0x08007BC6: *cycles_used = aot_gen_08007B24(0x08007BC6u); return 1;
-    case 0x08007BD8: *cycles_used = aot_gen_08007BD8(0x08007BD8u); return 1;
-    case 0x08007BEA: *cycles_used = aot_gen_08007BD8(0x08007BEAu); return 1;
-    case 0x08007BFA: *cycles_used = aot_gen_08007BD8(0x08007BFAu); return 1;
-    case 0x08007C02: *cycles_used = aot_gen_08007BD8(0x08007C02u); return 1;
-    case 0x08007C0C: *cycles_used = aot_gen_08007C0C(0x08007C0Cu); return 1;
-    case 0x08007C2C: *cycles_used = aot_gen_08007C0C(0x08007C2Cu); return 1;
-    case 0x08007C3C: *cycles_used = aot_gen_08007C0C(0x08007C3Cu); return 1;
-    case 0x08007C40: *cycles_used = aot_gen_08007C40(0x08007C40u); return 1;
-    case 0x08007C6C: *cycles_used = aot_gen_08007C40(0x08007C6Cu); return 1;
-    case 0x08007C72: *cycles_used = aot_gen_08007C40(0x08007C72u); return 1;
-    case 0x08007C7C: *cycles_used = aot_gen_08007C7C(0x08007C7Cu); return 1;
-    case 0x08007C9A: *cycles_used = aot_gen_08007C7C(0x08007C9Au); return 1;
-    case 0x08007CA0: *cycles_used = aot_gen_08007C7C(0x08007CA0u); return 1;
-    case 0x08007CAC: *cycles_used = aot_gen_08007CAC(0x08007CACu); return 1;
-    case 0x08007D18: *cycles_used = aot_gen_08007D18(0x08007D18u); return 1;
-    case 0x08007D4A: *cycles_used = aot_gen_08007D18(0x08007D4Au); return 1;
-    case 0x08007D52: *cycles_used = aot_gen_08007D18(0x08007D52u); return 1;
-    case 0x08007D64: *cycles_used = aot_gen_08007D64(0x08007D64u); return 1;
-    case 0x08007D94: *cycles_used = aot_gen_08007D64(0x08007D94u); return 1;
-    case 0x08007DA0: *cycles_used = aot_gen_08007DA0(0x08007DA0u); return 1;
-    case 0x08007DB4: *cycles_used = aot_gen_08007DA0(0x08007DB4u); return 1;
-    case 0x08007DBC: *cycles_used = aot_gen_08007DA0(0x08007DBCu); return 1;
-    case 0x08007DF8: *cycles_used = aot_gen_08007DF8(0x08007DF8u); return 1;
-    case 0x08007E28: *cycles_used = aot_gen_08007E28(0x08007E28u); return 1;
-    case 0x08007E48: *cycles_used = aot_gen_08007E28(0x08007E48u); return 1;
-    case 0x08007E54: *cycles_used = aot_gen_08007E54(0x08007E54u); return 1;
-    case 0x08007E96: *cycles_used = aot_gen_08007E54(0x08007E96u); return 1;
-    case 0x08007EA0: *cycles_used = aot_gen_08007E54(0x08007EA0u); return 1;
-    case 0x08007ECE: *cycles_used = aot_gen_08007E54(0x08007ECEu); return 1;
-    case 0x08007ED8: *cycles_used = aot_gen_08007E54(0x08007ED8u); return 1;
-    case 0x08007EF0: *cycles_used = aot_gen_08007EF0(0x08007EF0u); return 1;
-    case 0x08007FF4: *cycles_used = aot_gen_08007FF4(0x08007FF4u); return 1;
-    case 0x0800801C: *cycles_used = aot_gen_0800801C(0x0800801Cu); return 1;
-    case 0x0800804C: *cycles_used = aot_gen_0800804C(0x0800804Cu); return 1;
-    case 0x08008088: *cycles_used = aot_gen_0800804C(0x08008088u); return 1;
-    case 0x0800809E: *cycles_used = aot_gen_0800804C(0x0800809Eu); return 1;
-    case 0x080080C2: *cycles_used = aot_gen_0800804C(0x080080C2u); return 1;
-    case 0x080080CA: *cycles_used = aot_gen_0800804C(0x080080CAu); return 1;
-    case 0x080080E4: *cycles_used = aot_gen_080080E4(0x080080E4u); return 1;
-    case 0x080080F4: *cycles_used = aot_gen_080080E4(0x080080F4u); return 1;
-    case 0x080080FC: *cycles_used = aot_gen_080080FC(0x080080FCu); return 1;
-    case 0x08008168: *cycles_used = aot_gen_08008168(0x08008168u); return 1;
-    case 0x0800818C: *cycles_used = aot_gen_08008168(0x0800818Cu); return 1;
-    case 0x08008196: *cycles_used = aot_gen_08008168(0x08008196u); return 1;
-    case 0x0800819E: *cycles_used = aot_gen_08008168(0x0800819Eu); return 1;
-    case 0x080081C0: *cycles_used = aot_gen_080081C0(0x080081C0u); return 1;
-    case 0x080081D6: *cycles_used = aot_gen_080081C0(0x080081D6u); return 1;
-    case 0x080081DC: *cycles_used = aot_gen_080081DC(0x080081DCu); return 1;
-    case 0x08008228: *cycles_used = aot_gen_080081DC(0x08008228u); return 1;
-    case 0x08008258: *cycles_used = aot_gen_08008258(0x08008258u); return 1;
-    case 0x08008264: *cycles_used = aot_gen_08008258(0x08008264u); return 1;
-    case 0x0800826E: *cycles_used = aot_gen_08008258(0x0800826Eu); return 1;
-    case 0x08008284: *cycles_used = aot_gen_08008284(0x08008284u); return 1;
-    case 0x08008290: *cycles_used = aot_gen_08008284(0x08008290u); return 1;
-    case 0x080082AC: *cycles_used = aot_gen_08008284(0x080082ACu); return 1;
-    case 0x080082B8: *cycles_used = aot_gen_080082B8(0x080082B8u); return 1;
-    case 0x080082C4: *cycles_used = aot_gen_080082B8(0x080082C4u); return 1;
-    case 0x080082F0: *cycles_used = aot_gen_080082F0(0x080082F0u); return 1;
-    case 0x080082FC: *cycles_used = aot_gen_080082F0(0x080082FCu); return 1;
-    case 0x08008318: *cycles_used = aot_gen_080082F0(0x08008318u); return 1;
-    case 0x08008324: *cycles_used = aot_gen_08008324(0x08008324u); return 1;
-    case 0x0800837C: *cycles_used = aot_gen_0800837C(0x0800837Cu); return 1;
-    case 0x0800838E: *cycles_used = aot_gen_0800837C(0x0800838Eu); return 1;
-    case 0x08008396: *cycles_used = aot_gen_0800837C(0x08008396u); return 1;
-    case 0x080083B0: *cycles_used = aot_gen_080083B0(0x080083B0u); return 1;
-    case 0x080083E8: *cycles_used = aot_gen_080083E8(0x080083E8u); return 1;
-    case 0x0800841C: *cycles_used = aot_gen_080083E8(0x0800841Cu); return 1;
-    case 0x08008428: *cycles_used = aot_gen_08008428(0x08008428u); return 1;
-    case 0x08008430: *cycles_used = aot_gen_08008428(0x08008430u); return 1;
-    case 0x0800844A: *cycles_used = aot_gen_08008428(0x0800844Au); return 1;
-    case 0x08008470: *cycles_used = aot_gen_08008428(0x08008470u); return 1;
-    case 0x08008478: *cycles_used = aot_gen_08008478(0x08008478u); return 1;
-    case 0x0800849C: *cycles_used = aot_gen_08008478(0x0800849Cu); return 1;
-    case 0x080084B8: *cycles_used = aot_gen_08008478(0x080084B8u); return 1;
-    case 0x080084DC: *cycles_used = aot_gen_08008478(0x080084DCu); return 1;
-    case 0x080084E4: *cycles_used = aot_gen_08008478(0x080084E4u); return 1;
-    case 0x080084F8: *cycles_used = aot_gen_080084F8(0x080084F8u); return 1;
-    case 0x08008504: *cycles_used = aot_gen_080084F8(0x08008504u); return 1;
-    case 0x0800851A: *cycles_used = aot_gen_080084F8(0x0800851Au); return 1;
-    case 0x0800852A: *cycles_used = aot_gen_080084F8(0x0800852Au); return 1;
-    case 0x0800853C: *cycles_used = aot_gen_0800853C(0x0800853Cu); return 1;
-    case 0x08008550: *cycles_used = aot_gen_0800853C(0x08008550u); return 1;
-    case 0x08008568: *cycles_used = aot_gen_08008568(0x08008568u); return 1;
-    case 0x08008576: *cycles_used = aot_gen_08008568(0x08008576u); return 1;
-    case 0x080085E0: *cycles_used = aot_gen_080085E0(0x080085E0u); return 1;
-    case 0x08008620: *cycles_used = aot_gen_08008620(0x08008620u); return 1;
-    case 0x0800862A: *cycles_used = aot_gen_08008620(0x0800862Au); return 1;
-    case 0x0800864C: *cycles_used = aot_gen_0800864C(0x0800864Cu); return 1;
-    case 0x080086C4: *cycles_used = aot_gen_080086C4(0x080086C4u); return 1;
-    case 0x080086DE: *cycles_used = aot_gen_080086C4(0x080086DEu); return 1;
-    case 0x0800870C: *cycles_used = aot_gen_0800870C(0x0800870Cu); return 1;
-    case 0x08008790: *cycles_used = aot_gen_08008790(0x08008790u); return 1;
-    case 0x080087AE: *cycles_used = aot_gen_08008790(0x080087AEu); return 1;
-    case 0x080087BC: *cycles_used = aot_gen_080087BC(0x080087BCu); return 1;
-    case 0x080087CE: *cycles_used = aot_gen_080087BC(0x080087CEu); return 1;
-    case 0x08008804: *cycles_used = aot_gen_08008804(0x08008804u); return 1;
-    case 0x0800884C: *cycles_used = aot_gen_0800884C(0x0800884Cu); return 1;
-    case 0x08008856: *cycles_used = aot_gen_0800884C(0x08008856u); return 1;
-    case 0x08008880: *cycles_used = aot_gen_08008880(0x08008880u); return 1;
-    case 0x080088DC: *cycles_used = aot_gen_08008880(0x080088DCu); return 1;
-    case 0x080088EC: *cycles_used = aot_gen_080088EC(0x080088ECu); return 1;
-    case 0x08008B10: *cycles_used = aot_gen_08008B10(0x08008B10u); return 1;
-    case 0x08008B44: *cycles_used = aot_gen_08008B44(0x08008B44u); return 1;
-    case 0x08008B70: *cycles_used = aot_gen_08008B70(0x08008B70u); return 1;
-    case 0x08008BA0: *cycles_used = aot_gen_08008BA0(0x08008BA0u); return 1;
-    case 0x08008BC0: *cycles_used = aot_gen_08008BC0(0x08008BC0u); return 1;
-    case 0x08008BD4: *cycles_used = aot_gen_08008BC0(0x08008BD4u); return 1;
-    case 0x08008BD8: *cycles_used = aot_gen_08008BD8(0x08008BD8u); return 1;
-    case 0x08008C08: *cycles_used = aot_gen_08008C08(0x08008C08u); return 1;
-    case 0x08008C20: *cycles_used = aot_gen_08008C08(0x08008C20u); return 1;
-    case 0x08008C24: *cycles_used = aot_gen_08008C24(0x08008C24u); return 1;
-    case 0x08008C44: *cycles_used = aot_gen_08008C44(0x08008C44u); return 1;
-    case 0x08008C68: *cycles_used = aot_gen_08008C68(0x08008C68u); return 1;
-    case 0x08008C94: *cycles_used = aot_gen_08008C94(0x08008C94u); return 1;
-    case 0x08008CC0: *cycles_used = aot_gen_08008CC0(0x08008CC0u); return 1;
-    case 0x08008CF6: *cycles_used = aot_gen_08008CC0(0x08008CF6u); return 1;
-    case 0x08008D5A: *cycles_used = aot_gen_08008CC0(0x08008D5Au); return 1;
-    case 0x08008D70: *cycles_used = aot_gen_08008D70(0x08008D70u); return 1;
-    case 0x08008DA6: *cycles_used = aot_gen_08008D70(0x08008DA6u); return 1;
-    case 0x08008E0A: *cycles_used = aot_gen_08008D70(0x08008E0Au); return 1;
-    case 0x08008E20: *cycles_used = aot_gen_08008E20(0x08008E20u); return 1;
-    case 0x08008E68: *cycles_used = aot_gen_08008E20(0x08008E68u); return 1;
-    case 0x08008E74: *cycles_used = aot_gen_08008E20(0x08008E74u); return 1;
-    case 0x08008EE0: *cycles_used = aot_gen_08008EE0(0x08008EE0u); return 1;
-    case 0x08008FCC: *cycles_used = aot_gen_08008FCC(0x08008FCCu); return 1;
-    case 0x08008FDE: *cycles_used = aot_gen_08008FCC(0x08008FDEu); return 1;
-    case 0x08008FEA: *cycles_used = aot_gen_08008FCC(0x08008FEAu); return 1;
-    case 0x08008FF2: *cycles_used = aot_gen_08008FCC(0x08008FF2u); return 1;
-    case 0x082DF06E: *cycles_used = aot_gen_082DF06E(0x082DF06Eu); return 1;
-    case 0x082DF09C: *cycles_used = aot_gen_082DF06E(0x082DF09Cu); return 1;
-    case 0x082DF0A4: *cycles_used = aot_gen_082DF06E(0x082DF0A4u); return 1;
-    case 0x082DF81C: *cycles_used = aot_gen_082DF81C(0x082DF81Cu); return 1;
-    case 0x082DF83A: *cycles_used = aot_gen_082DF81C(0x082DF83Au); return 1;
-    case 0x082DF88C: *cycles_used = aot_gen_082DF88C(0x082DF88Cu); return 1;
-    case 0x082DF8A4: *cycles_used = aot_gen_082DF88C(0x082DF8A4u); return 1;
-    case 0x082DF8DC: *cycles_used = aot_gen_082DF8DC(0x082DF8DCu); return 1;
-    case 0x082DF8F8: *cycles_used = aot_gen_082DF8DC(0x082DF8F8u); return 1;
-    case 0x082DFA6A: *cycles_used = aot_gen_082DFA6A(0x082DFA6Au); return 1;
-    case 0x082DFA78: *cycles_used = aot_gen_082DFA6A(0x082DFA78u); return 1;
-    case 0x082DFA9C: *cycles_used = aot_gen_082DFA6A(0x082DFA9Cu); return 1;
-    case 0x082DFAEC: *cycles_used = aot_gen_082DFA6A(0x082DFAECu); return 1;
-    case 0x082DFB00: *cycles_used = aot_gen_082DFA6A(0x082DFB00u); return 1;
-    case 0x082DFB42: *cycles_used = aot_gen_082DFA6A(0x082DFB42u); return 1;
-    case 0x082DFB5E: *cycles_used = aot_gen_082DFA6A(0x082DFB5Eu); return 1;
-    case 0x082DFC18: *cycles_used = aot_gen_082DFA6A(0x082DFC18u); return 1;
-    case 0x082DFC2C: *cycles_used = aot_gen_082DFA6A(0x082DFC2Cu); return 1;
-    case 0x082DFC40: *cycles_used = aot_gen_082DFA6A(0x082DFC40u); return 1;
-    case 0x082DFC72: *cycles_used = aot_gen_082DFA6A(0x082DFC72u); return 1;
-    case 0x082DFC88: *cycles_used = aot_gen_082DFA6A(0x082DFC88u); return 1;
-    case 0x082DFCC4: *cycles_used = aot_gen_082DFCC4(0x082DFCC4u); return 1;
-    case 0x082DFCF0: *cycles_used = aot_gen_082DFCC4(0x082DFCF0u); return 1;
-    case 0x082DFD38: *cycles_used = aot_gen_082DFD38(0x082DFD38u); return 1;
-    case 0x082DFE7E: *cycles_used = aot_gen_082DFD38(0x082DFE7Eu); return 1;
-    case 0x082DFE9E: *cycles_used = aot_gen_082DFD38(0x082DFE9Eu); return 1;
-    case 0x082DFEA6: *cycles_used = aot_gen_082DFD38(0x082DFEA6u); return 1;
-    case 0x082DFECC: *cycles_used = aot_gen_082DFD38(0x082DFECCu); return 1;
-    case 0x082DFF04: *cycles_used = aot_gen_082DFD38(0x082DFF04u); return 1;
-    case 0x082DFF14: *cycles_used = aot_gen_082DFD38(0x082DFF14u); return 1;
-    case 0x082DFFCC: *cycles_used = aot_gen_082DFFCC(0x082DFFCCu); return 1;
-    case 0x082E0018: *cycles_used = aot_gen_082DFFCC(0x082E0018u); return 1;
-    case 0x082E0022: *cycles_used = aot_gen_082DFFCC(0x082E0022u); return 1;
-    case 0x082E0070: *cycles_used = aot_gen_082E0070(0x082E0070u); return 1;
-    case 0x082E0082: *cycles_used = aot_gen_082E0070(0x082E0082u); return 1;
-    case 0x082E0088: *cycles_used = aot_gen_082E0070(0x082E0088u); return 1;
-    case 0x082E008E: *cycles_used = aot_gen_082E0070(0x082E008Eu); return 1;
-    case 0x082E0094: *cycles_used = aot_gen_082E0070(0x082E0094u); return 1;
-    case 0x082E00AE: *cycles_used = aot_gen_082E0070(0x082E00AEu); return 1;
-    case 0x082E00C8: *cycles_used = aot_gen_082E0070(0x082E00C8u); return 1;
-    case 0x082E00DE: *cycles_used = aot_gen_082E0070(0x082E00DEu); return 1;
-    case 0x082E0124: *cycles_used = aot_gen_082E0124(0x082E0124u); return 1;
-    case 0x082E012A: *cycles_used = aot_gen_082E0124(0x082E012Au); return 1;
-    case 0x082E0130: *cycles_used = aot_gen_082E0130(0x082E0130u); return 1;
-    case 0x082E0150: *cycles_used = aot_gen_082E0130(0x082E0150u); return 1;
-    case 0x082E015C: *cycles_used = aot_gen_082E015C(0x082E015Cu); return 1;
-    case 0x082E0184: *cycles_used = aot_gen_082E015C(0x082E0184u); return 1;
-    case 0x082E01A4: *cycles_used = aot_gen_082E015C(0x082E01A4u); return 1;
-    case 0x082E01A8: *cycles_used = aot_gen_082E01A8(0x082E01A8u); return 1;
-    case 0x082E01D0: *cycles_used = aot_gen_082E01A8(0x082E01D0u); return 1;
-    case 0x082E01EC: *cycles_used = aot_gen_082E01A8(0x082E01ECu); return 1;
-    case 0x082E01F8: *cycles_used = aot_gen_082E01A8(0x082E01F8u); return 1;
-    case 0x082E01FC: *cycles_used = aot_gen_082E01FC(0x082E01FCu); return 1;
-    case 0x082E0222: *cycles_used = aot_gen_082E01FC(0x082E0222u); return 1;
-    case 0x082E0230: *cycles_used = aot_gen_082E0230(0x082E0230u); return 1;
-    case 0x082E0256: *cycles_used = aot_gen_082E0230(0x082E0256u); return 1;
-    case 0x082E0264: *cycles_used = aot_gen_082E0264(0x082E0264u); return 1;
-    case 0x082E027A: *cycles_used = aot_gen_082E0264(0x082E027Au); return 1;
-    case 0x082E028C: *cycles_used = aot_gen_082E0264(0x082E028Cu); return 1;
-    case 0x082E02A8: *cycles_used = aot_gen_082E02A8(0x082E02A8u); return 1;
-    case 0x082E02AE: *cycles_used = aot_gen_082E02A8(0x082E02AEu); return 1;
-    case 0x082E02B4: *cycles_used = aot_gen_082E02B4(0x082E02B4u); return 1;
-    case 0x082E02CA: *cycles_used = aot_gen_082E02B4(0x082E02CAu); return 1;
-    case 0x082E02DC: *cycles_used = aot_gen_082E02B4(0x082E02DCu); return 1;
-    case 0x082E02F8: *cycles_used = aot_gen_082E02F8(0x082E02F8u); return 1;
-    case 0x082E0302: *cycles_used = aot_gen_082E02F8(0x082E0302u); return 1;
-    case 0x082E0350: *cycles_used = aot_gen_082E0350(0x082E0350u); return 1;
-    case 0x082E0376: *cycles_used = aot_gen_082E0350(0x082E0376u); return 1;
-    case 0x082E0398: *cycles_used = aot_gen_082E0398(0x082E0398u); return 1;
-    case 0x082E042A: *cycles_used = aot_gen_082E0398(0x082E042Au); return 1;
-    case 0x082E04B4: *cycles_used = aot_gen_082E04B4(0x082E04B4u); return 1;
-    case 0x082E04BE: *cycles_used = aot_gen_082E04B4(0x082E04BEu); return 1;
-    case 0x082E04C8: *cycles_used = aot_gen_082E04C8(0x082E04C8u); return 1;
-    case 0x082E04D2: *cycles_used = aot_gen_082E04C8(0x082E04D2u); return 1;
-    case 0x082E04DC: *cycles_used = aot_gen_082E04DC(0x082E04DCu); return 1;
-    case 0x082E0560: *cycles_used = aot_gen_082E04DC(0x082E0560u); return 1;
-    case 0x082E057E: *cycles_used = aot_gen_082E04DC(0x082E057Eu); return 1;
-    case 0x082E0588: *cycles_used = aot_gen_082E04DC(0x082E0588u); return 1;
-    case 0x082E05D4: *cycles_used = aot_gen_082E05D4(0x082E05D4u); return 1;
-    case 0x082E05FE: *cycles_used = aot_gen_082E05D4(0x082E05FEu); return 1;
-    case 0x082E060E: *cycles_used = aot_gen_082E05D4(0x082E060Eu); return 1;
-    case 0x082E061A: *cycles_used = aot_gen_082E05D4(0x082E061Au); return 1;
-    case 0x082E062E: *cycles_used = aot_gen_082E05D4(0x082E062Eu); return 1;
-    case 0x082E0636: *cycles_used = aot_gen_082E05D4(0x082E0636u); return 1;
-    case 0x082E0678: *cycles_used = aot_gen_082E0678(0x082E0678u); return 1;
-    case 0x082E06F4: *cycles_used = aot_gen_082E0678(0x082E06F4u); return 1;
-    case 0x082E06FA: *cycles_used = aot_gen_082E0678(0x082E06FAu); return 1;
-    case 0x082E0710: *cycles_used = aot_gen_082E0710(0x082E0710u); return 1;
-    case 0x082E0748: *cycles_used = aot_gen_082E0710(0x082E0748u); return 1;
-    case 0x082E0764: *cycles_used = aot_gen_082E0764(0x082E0764u); return 1;
-    case 0x082E07BC: *cycles_used = aot_gen_082E0764(0x082E07BCu); return 1;
-    case 0x082E07E0: *cycles_used = aot_gen_082E07E0(0x082E07E0u); return 1;
-    case 0x082E081C: *cycles_used = aot_gen_082E081C(0x082E081Cu); return 1;
-    case 0x082E0846: *cycles_used = aot_gen_082E081C(0x082E0846u); return 1;
-    case 0x082E0894: *cycles_used = aot_gen_082E0894(0x082E0894u); return 1;
-    case 0x082E0912: *cycles_used = aot_gen_082E0894(0x082E0912u); return 1;
-    case 0x082E0948: *cycles_used = aot_gen_082E0894(0x082E0948u); return 1;
-    case 0x082E0966: *cycles_used = aot_gen_082E0894(0x082E0966u); return 1;
-    case 0x082E0978: *cycles_used = aot_gen_082E0978(0x082E0978u); return 1;
-    case 0x082E09A2: *cycles_used = aot_gen_082E0978(0x082E09A2u); return 1;
-    case 0x082E0A80: *cycles_used = aot_gen_082E0A80(0x082E0A80u); return 1;
-    case 0x082E0B34: *cycles_used = aot_gen_082E0B34(0x082E0B34u); return 1;
-    case 0x082E0C2C: *cycles_used = aot_gen_082E0C2C(0x082E0C2Cu); return 1;
-    case 0x082E0CA8: *cycles_used = aot_gen_082E0CA8(0x082E0CA8u); return 1;
-    case 0x082E0DA6: *cycles_used = aot_gen_082E0CA8(0x082E0DA6u); return 1;
-    case 0x082E0E8A: *cycles_used = aot_gen_082E0CA8(0x082E0E8Au); return 1;
-    case 0x082E0EE8: *cycles_used = aot_gen_082E0CA8(0x082E0EE8u); return 1;
-    default: return 0;
+    {
+        const struct aot_page_ent *p = &aot_page_tab[(pc >> 12) & 0x1FFF];
+        u32 slot;
+        if (!p->slots) return 0;
+        slot = p->slots[(pc & 0xFFFu) >> 1];
+        if (!slot) return 0;
+        *cycles_used = p->fns[slot - 1](pc);
+        return 1;
     }
 }
-
-/* Page-presence bitmap (4KB-page granularity) for fast reject in cpu.cc. */
-const u32 aot_page_bitmap[256] = {
-    0x000001C0u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x80000000u, 0x00000001u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-};

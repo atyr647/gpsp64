@@ -28,7 +28,9 @@ extern "C" {
   extern "C" void aot_08005ED8_entry(void);
   extern "C" int  aot_generated_dispatch(u32 pc, u32 *cycles_used);
   extern "C" int  bios_hle_swi(u32 swi_num, u32 *cycles);
-  extern "C" const u32 aot_page_bitmap[256];
+  extern "C" {
+    #include "n64/aot_dispatch.h"
+  }
 
   /* Always-on lightweight perf counters (one increment each, no array store) */
   u32 prof_arm_insns = 0;
@@ -3270,15 +3272,36 @@ thumb_loop:
         * on ares: 6.9 -> 3.3 FPS when this page was AOT'd. */
        if (__builtin_expect((reg[REG_PC] >> 12) != (idle_loop_target_pc >> 12), 1))
        {
-         u32 _pidx = (reg[REG_PC] >> 12) & 0x1FFF;
-         if (__builtin_expect(
-             (aot_page_bitmap[_pidx >> 5] >> (_pidx & 31)) & 1u, 0)) {
-#ifdef AOT_TRACE
-           u32 _pc_before = reg[REG_PC];
-#endif
+         /* Two-level table lookup, inlined here because it runs once per
+          * interpreted Thumb instruction.  Page entry first (uncovered
+          * pages -- the overwhelming majority -- cost a single load and a
+          * not-taken branch), then the per-halfword slot map.  The old
+          * `switch (pc)` over ~600 sparse labels compiled to a ~10-deep
+          * binary search of unpredictable branches, and the AOT'd pages
+          * are exactly the pages the interpreter runs on most, so that
+          * search was being paid on most instructions.  See
+          * emit_dispatch() in tools/thumb2c.py for the table layout. */
+#if defined(AOT_PC_MIN) || defined(AOT_PC_MAX)
+         /* Bisect build: route through the out-of-line entry point so the
+          * -DAOT_PC_MIN/-DAOT_PC_MAX gates apply. */
+         {
            u32 _aot_cyc = 0;
            if (aot_generated_dispatch(reg[REG_PC], &_aot_cyc)) {
+             #ifdef PROFILE_AOT
+             prof_aot_hits++; prof_aot_gba_cycles += _aot_cyc;
+             #endif
+             cycles_remaining -= (s32)_aot_cyc;
+             continue;
+           }
+         }
+#else
+         const struct aot_page_ent *_pg =
+             &aot_page_tab[(reg[REG_PC] >> 12) & 0x1FFF];
+         if (__builtin_expect(_pg->slots != NULL, 0)) {
+           u32 _slot = _pg->slots[(reg[REG_PC] & 0xFFFu) >> 1];
+           if (__builtin_expect(_slot != 0, 0)) {
 #ifdef AOT_TRACE
+             u32 _pc_before = reg[REG_PC];
              static u32 _last_pc = 0;
              static int _trace_n = 0;
              if (_pc_before != _last_pc && _trace_n < 400) {
@@ -3287,6 +3310,7 @@ thumb_loop:
                _trace_n++;
              }
 #endif
+             u32 _aot_cyc = _pg->fns[_slot - 1](reg[REG_PC]);
              #ifdef PROFILE_AOT
              prof_aot_hits++; prof_aot_gba_cycles += _aot_cyc;
              #endif
@@ -3294,6 +3318,7 @@ thumb_loop:
              continue;
            }
          }
+#endif
        }
        #endif
        #endif

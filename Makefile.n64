@@ -157,7 +157,7 @@ n64/aot_generated.c: $(AOT_TARGETS) $(AOT_TOOLS)
 	    touch $@; \
 	  else \
 	    echo "    [AOT] no ROM found; emitting empty stub (build will be SLOW)"; \
-	    printf '#include "../common.h"\nint aot_generated_dispatch(u32 pc, u32 *cycles_used){(void)pc;(void)cycles_used;return 0;}\nconst u32 aot_page_bitmap[256]={0};\n' > $@; \
+	    printf '#include "../common.h"\n#include "aot_dispatch.h"\nint aot_generated_dispatch(u32 pc, u32 *cycles_used){(void)pc;(void)cycles_used;return 0;}\nconst struct aot_page_ent aot_page_tab[8192];\n' > $@; \
 	  fi; \
 	else \
 	  echo "    [AOT] scanning $$ROM"; \
