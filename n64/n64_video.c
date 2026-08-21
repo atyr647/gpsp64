@@ -80,6 +80,41 @@ void n64_video_render_frame(void)
     return;
   }
 
+#ifdef N64_FUSED_BLIT
+  /* Convert straight into the framebuffer, skipping rgba_buf entirely.
+   *
+   * The intermediate cost more than the arithmetic: rgba_buf is 75 KB of
+   * *cached* streaming writes, so every line is a write-allocate miss (read
+   * 16 bytes from RDRAM only to overwrite them) plus a later writeback.
+   * Measured with a D-cache miss histogram in ares, rgba_buf (bucket 0x3c)
+   * was 15% of all misses with rendering on and 2% with it mostly off.
+   * The framebuffer, by contrast, is at 0xA0______ -- KSEG1, uncached --
+   * so writing it directly costs no D-cache traffic at all.
+   *
+   * This also removes the RDP dependency for the common path, which matters
+   * under ares (no RDP backend: rdpq_tex_blit silently no-ops).
+   */
+  {
+    if (initial_clear_remaining > 0) {
+      memset(disp->buffer, 0, disp->stride * N64_SCREEN_HEIGHT);
+      initial_clear_remaining--;
+    }
+    const u32 *src = (const u32 *)gba_screen_pixels;
+    u8 *dstrow = (u8 *)disp->buffer + GBA_OFFSET_Y * disp->stride
+                 + GBA_OFFSET_X * 2;
+    const int pairs_per_row = GBA_SCREEN_WIDTH / 2;
+    for (int y = 0; y < GBA_SCREEN_HEIGHT; y++) {
+      u32 *d = (u32 *)dstrow;
+      for (int i = 0; i < pairs_per_row; i++)
+        d[i] = xbgr_pair_to_rgba_pair(src[i]);
+      src    += pairs_per_row;
+      dstrow += disp->stride;
+    }
+    display_show(disp);
+    return;
+  }
+#endif
+
   /* Convert XBGR1555 -> RGBA5551, two pixels per iteration.
    * 38400 total pixels = 19200 pairs. */
   const u32 *src = (const u32 *)gba_screen_pixels;
