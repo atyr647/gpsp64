@@ -253,8 +253,18 @@ void platform_cache_sync(void *baseaddr, void *endptr);
 #elif defined(N64)
   #include "n64/n64_cache.h"
   void platform_cache_sync(void *baseaddr, void *endptr) {
+  #ifdef N64_JIT_NO_CACHE_OPS
+    /* DIAGNOSTIC ONLY -- deliberately incorrect.  Stale I-cache lines can
+       then be executed.  Used to measure how much of the dynarec's cost is
+       cache maintenance: the interpreter never issues a single `cache`
+       instruction, so if the JIT's slowness is dominated by them it may be
+       an artifact of how the host emulator handles cache ops rather than
+       anything real hardware would pay. */
+    (void)baseaddr; (void)endptr;
+  #else
     unsigned int len = (unsigned int)((char*)endptr - (char*)baseaddr) + 64;
     n64_flush_cache(baseaddr, len);
+  #endif
   }
 #elif defined(MIPS_ARCH)
   void platform_cache_sync(void *baseaddr, void *endptr) {
@@ -292,8 +302,10 @@ void translate_icache_sync() {
        never completing a frame.  Newly emitted code still gets both the
        ranged sync above and this invalidate, so the safety property is
        unchanged. */
+#ifndef N64_JIT_NO_CACHE_OPS
     if (emitted)
     inst_cache_invalidate_all();
+#endif
     #ifdef N64_JIT_PARANOID_CACHE
     /* Diagnostic: also write back the whole D-cache before invalidating.
        The VR4300 has no cache coherency, and generated code is written
