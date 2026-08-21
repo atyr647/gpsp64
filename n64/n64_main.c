@@ -281,6 +281,21 @@ int main(void)
           u32 cyc_per_insn = total_insns ? (u32)((u64)prof_total * 2 / total_insns) : 0;
           u32 arm_pct = total_insns ? (prof_arm_insns   * 100) / total_insns : 0;
           u32 thm_pct = total_insns ? (prof_thumb_insns * 100) / total_insns : 0;
+          /* Raw counters so the accounting can be checked end to end.
+             Two methods disagreed on what rendering costs: a frameskip
+             ablation said render+blit ~34 ms/frame while these counters
+             implied ~15 ms.  prof_total is the whole frame, prof_emu is
+             run_frame(), prof_blit is n64_video_render_frame(), and
+             prof_ppu_ticks (inside update_gba) should be the scanline
+             rendering within prof_emu.  If emu+blit falls short of total,
+             the missing time is in the frame loop itself -- input polling,
+             or display_get()/display_show() blocking on vsync. */
+          debugf("PROF:  raw: total=%lu emu=%lu blit=%lu ppu=%lu"
+                 " | emu+blit=%lu (%lu%% of total)\n",
+                 (unsigned long)prof_total, (unsigned long)prof_emu,
+                 (unsigned long)prof_blit, (unsigned long)prof_ppu_ticks,
+                 (unsigned long)(prof_emu + prof_blit),
+                 (unsigned long)(prof_total ? ((u64)(prof_emu + prof_blit) * 100) / prof_total : 0));
           debugf("PROF: CPU%lu%% PPU%lu%% Blt%lu%% %lums/f | %luK insns %luKIPS ~%lu cyc/i"
                  " | ARM%lu%%/Thm%lu%% idle %lu rt %lu\n",
                  (unsigned long)cpu_pct,
