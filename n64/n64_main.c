@@ -382,6 +382,12 @@ int main(void)
                    (unsigned long)(prof_ppu2_layers[3]*100/c),
                    (unsigned long)(prof_ppu2_layers[4]*100/c),
                    (unsigned long)(prof_ppu2_objblend*100/c));
+            { extern u32 prof_ppu2_4bpp, prof_ppu2_8bpp;
+              u32 bt = prof_ppu2_4bpp + prof_ppu2_8bpp;
+              debugf("PROF:  ppu2: tiled layer draws 4bpp=%lu 8bpp=%lu (%lu%% 4bpp)\n",
+                     (unsigned long)prof_ppu2_4bpp, (unsigned long)prof_ppu2_8bpp,
+                     (unsigned long)(bt ? prof_ppu2_4bpp*100/bt : 0));
+              prof_ppu2_4bpp = prof_ppu2_8bpp = 0; }
             for (int _i = 0; _i < 4; _i++) prof_ppu2_effect[_i] = 0;
             for (int _i = 0; _i < 8; _i++) { prof_ppu2_mode[_i] = 0; prof_ppu2_layers[_i] = 0; }
             prof_ppu2_objblend = prof_ppu2_calls = 0;
@@ -401,6 +407,16 @@ int main(void)
           extern u32 prof_ppu_sort_calls, prof_ppu_blank_calls;
           {
             u32 ppu = prof_ppu_ticks ? prof_ppu_ticks : 1;
+            /* Raw ticks too: the percentages did not add up (render read 91%
+               in one window and 4% in others with everything else at 0-3%),
+               so print the numerator and denominator and find out why. */
+            debugf("PROF:  ppuraw: total=%lu sort=%lu lo=%lu render=%lu blank=%lu aff=%lu\n",
+                   (unsigned long)prof_ppu_ticks,
+                   (unsigned long)prof_ppu_obj_sort_ticks,
+                   (unsigned long)prof_ppu_layer_order_ticks,
+                   (unsigned long)prof_ppu_render_ticks,
+                   (unsigned long)prof_ppu_blank_ticks,
+                   (unsigned long)prof_ppu_affine_ticks);
             debugf("PROF:  ppu: sort%lu%% lo%lu%% render%lu%% blank%lu%% aff%lu%% | sorts=%lu blanks=%lu\n",
                    (unsigned long)((prof_ppu_obj_sort_ticks    * 100) / ppu),
                    (unsigned long)((prof_ppu_layer_order_ticks * 100) / ppu),

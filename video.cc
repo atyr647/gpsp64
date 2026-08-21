@@ -310,6 +310,15 @@ static void render_scanline_text_fast(u32 layer,
   u32 bg_control = read_ioreg(REG_BGxCNT(layer));
   u16 vcount = read_ioreg(REG_VCOUNT);
   u32 map_size = (bg_control >> 14) & 0x03;
+#if defined(N64) && defined(PROFILE_PPU2)
+  /* Go/no-go gate for an RSP renderer: per-pixel palette lookup does not
+     vectorise (the RSP vector unit has no gather).  A 16-entry 4bpp palette
+     can be resolved with a vmrg select tree at ~2 ops/pixel; a 256-entry
+     8bpp palette cannot, and would have to stay scalar -- which removes most
+     of the reason to use the RSP at all. */
+  { extern u32 prof_ppu2_4bpp, prof_ppu2_8bpp;
+    if (is8bpp) prof_ppu2_8bpp++; else prof_ppu2_4bpp++; }
+#endif
   u32 map_width = map_widths[map_size];
   u32 hoffset = (start + read_ioreg(REG_BGxHOFS(layer))) % 512;
   u32 voffset = (vcount + read_ioreg(REG_BGxVOFS(layer))) % 512;
@@ -1944,6 +1953,7 @@ u32 prof_ppu2_effect[4]  = {0};   /* NONE / BRIGHT / DARK / BLEND */
 u32 prof_ppu2_mode[8]    = {0};
 u32 prof_ppu2_layers[8]  = {0};
 u32 prof_ppu2_objblend   = 0;
+u32 prof_ppu2_4bpp = 0, prof_ppu2_8bpp = 0;
 u32 prof_ppu2_calls      = 0;
 #endif
 
