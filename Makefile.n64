@@ -32,6 +32,14 @@ CFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH
 CFLAGS += -DTINY_TRANSLATION_CACHE
 CFLAGS += -DROM_BUFFER_SIZE=2
 CFLAGS += -DUSE_XBGR1555_FORMAT
+# Blit/screen-buffer cache behaviour.  Both measured on ares at frameskip 0:
+#   fused blit        21.28 -> 21.51 fps, -22% D-cache misses
+#   + uncached screen 21.51 -> 25.32 fps, -46% misses, -49% writebacks
+# The GBA screen buffer and rgba_buf were each 75 KB of *cached* streaming
+# writes, so every line cost a write-allocate miss (fetch 16 bytes from
+# RDRAM only to overwrite them) plus a writeback.  Together they were ~65%
+# of all D-cache misses while rendering.
+CFLAGS += -DN64_FUSED_BLIT -DN64_UNCACHED_SCREEN
 # DIAGNOSTIC flags (off by default; re-enable for profiling passes):
 #   -DPROFILE_OPCODES  per-insn opcode histogram (~5 cyc/insn overhead)
 #   -DPROFILE_PPU      PPU sub-category timers (~few MFC0/scanline)
