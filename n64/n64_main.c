@@ -268,9 +268,14 @@ int main(void)
         #define PROF_FRAMES 60
         #endif
         if (prof_frames == PROF_FRAMES) {
-          u32 emu_pct = (prof_emu * 100) / prof_total;
-          u32 blit_pct = (prof_blit * 100) / prof_total;
-          u32 ppu_pct = prof_emu ? (prof_ppu_ticks * 100) / prof_emu : 0;
+          u32 emu_pct = (u32)(((u64)prof_emu * 100) / prof_total);
+          u32 blit_pct = (u32)(((u64)prof_blit * 100) / prof_total);
+          /* u64: prof_ppu_ticks reaches ~7.7e7 per window and *100 overflows u32,
+             which reported rendering as 21% of emulation when the raw
+             counters say 54%.  That single wrapped multiply is what made
+             the frameskip ablation and the counters appear to disagree by
+             ~19 ms/frame. */
+          u32 ppu_pct = prof_emu ? (u32)(((u64)prof_ppu_ticks * 100) / prof_emu) : 0;
           u32 cpu_pct = 100 - ppu_pct;  /* CPU = emulation minus PPU */
           u32 ms_per_frame = prof_total / (46875 * PROF_FRAMES);
           extern u32 prof_arm_insns, prof_thumb_insns;
