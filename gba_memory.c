@@ -1602,33 +1602,24 @@ static void load_game_config_over(const char *gamecode)
 
      printf("gamepak code match for : %s\n", gbaover[i].gamepak_code);
 
-     if (gbaover[i].idle_loop_target_pc != 0) {
+     if (gbaover[i].idle_loop_target_pc != 0)
         idle_loop_target_pc = gbaover[i].idle_loop_target_pc;
-#ifdef HAVE_DYNAREC
-        /* The dynarec only updates the cycle counter at block boundaries,
-           so a translated block whose internal loop *is* the game's idle
-           loop never decrements cycles, never reaches update_gba and never
-           returns -- the emulator hangs on the first JIT frame.  A
-           translation gate forces the block to end at that PC.  Emerald's
-           gba_over.h entry supplies an idle_loop_target_pc but leaves all
-           three translation_gate_target slots at 0, so without this the
-           gate never exists.  Same hazard the AOT translator hit: a
-           generated function that swallows the idle loop starves whatever
-           is supposed to break out of it. */
-        {
-           unsigned g;
-           bool present = false;
-           for (g = 0; g < translation_gate_targets; g++)
-              if (translation_gate_target_pc[g] == idle_loop_target_pc)
-                 present = true;
-           if (!present && translation_gate_targets < MAX_TRANSLATION_GATES) {
-              translation_gate_target_pc[translation_gate_targets] =
-                 idle_loop_target_pc;
-              translation_gate_targets++;
-           }
-        }
-#endif
-     }
+
+     /* Do NOT register idle_loop_target_pc as a translation gate.  It is
+        tempting -- a block that swallows the idle loop would spin -- but
+        the dynarec already handles this itself: generate_branch_no_cycle_update
+        checks `pc == idle_loop_target_pc` and, when it matches, zeroes
+        reg_cycles and calls mips_update_gba, which is exactly the
+        interpreter's idle skip.  For Emerald the conditional branch that
+        closes the loop sits precisely at 0x080008CE:
+            080008c6  ldrh r1,[r2,#0x1c]
+            ...
+            080008ce  beq  0x80008c6     <- == idle_loop_target_pc
+        A translation gate does `goto block_end`, ending the block *before*
+        that branch, so the branch is never translated with the idle path
+        and the block exits through generate_translation_gate instead --
+        no cycle update, no idle skip.  Adding the gate therefore disables
+        the very optimisation it was meant to provide. */
 
      if (gbaover[i].flags & FLAGS_FLASH_128KB) {
        flash_device_id = FLASH_DEVICE_MACRONIX_128KB;
