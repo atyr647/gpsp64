@@ -32,9 +32,13 @@ CFLAGS += -DN64 -DHAVE_DYNAREC -DMIPS_ARCH
 CFLAGS += -DTINY_TRANSLATION_CACHE
 CFLAGS += -DROM_BUFFER_SIZE=2
 CFLAGS += -DUSE_XBGR1555_FORMAT
-# Blit/screen-buffer cache behaviour.  Both measured on ares at frameskip 0:
-#   fused blit        21.28 -> 21.51 fps, -22% D-cache misses
-#   + uncached screen 21.51 -> 25.32 fps, -46% misses, -49% writebacks
+# Blit/screen-buffer cache behaviour.  Controlled at 14 windows, frameskip 1:
+#   old (cached blit + rgba_buf)          23.81 fps  42.0 ms
+#   fused blit + uncached screen          25.00 fps  40.0 ms   (+5.0%)
+# An earlier 4-window run showed +17.7%; short window counts over-weight
+# boot frames where the blit is a larger share, so quote the 14-window
+# figure.  Fitting frame_time = base + render/(interval+1) gives render
+# 43 -> 34 ms (-21%), base ~23 ms.  Set N64_BLIT_OPT= to build without.
 # The GBA screen buffer and rgba_buf were each 75 KB of *cached* streaming
 # writes, so every line cost a write-allocate miss (fetch 16 bytes from
 # RDRAM only to overwrite them) plus a writeback.  Together they were ~65%
