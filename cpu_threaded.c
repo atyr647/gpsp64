@@ -2565,21 +2565,16 @@ inline static ramtag_type* get_ram_tag(u16 tagval) {
   #define N64_JIT_TRACE_BLOCK(ty, pc) do {} while (0)
 #endif
 
+/* The N64_JIT_TRACE probes sit at the translate_block calls, NOT at the top
+   of block_lookup_translate: that function runs on every lookup including
+   cache hits, so a probe there logs how often a block is *called*, which is
+   misleading when you are trying to see what was last *translated*. */
 #define block_lookup_translate_builder(type)                                  \
 u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
 {                                                                             \
   u8 pcregion = (pc >> 24);                                                   \
   u16 *location;                                                              \
   u32 block_tag;                                                              \
-                                                                              \
-  /* -DN64_JIT_TRACE: log every block the JIT translates.  Each block is      \
-   * translated once, so the volume is bounded by distinct blocks rather      \
-   * than by execution count, which makes this usable for finding what the    \
-   * JIT was working on just before it derails.  A watchdog in C cannot do    \
-   * that job: once the JIT has corrupted $sp, calling any C function faults  \
-   * on its own prologue push, and under ares the CPU freezes with no way to  \
-   * report anything afterwards. */                                           \
-  N64_JIT_TRACE_BLOCK(#type, pc);                                             \
                                                                               \
   block_lookup_address_pc_##type();                                           \
                                                                               \
@@ -2605,6 +2600,7 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
         bool result;                                                          \
         u8 *blkptr = ram_translation_ptr + block_prologue_size;               \
         trentry->offset_##type = blkptr - ram_translation_cache;              \
+        N64_JIT_TRACE_BLOCK(#type " ram", pc);                                \
         result = translate_block_##type(pc, true);                            \
                                                                               \
         if (result)                                                           \
@@ -2645,6 +2641,7 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
         *blk_offset_addr = (u32)(rom_translation_ptr - rom_translation_cache);\
         rom_translation_ptr += sizeof(hashhdr_type);                          \
         blkptr = rom_translation_ptr + block_prologue_size;                   \
+        N64_JIT_TRACE_BLOCK(#type " rom", pc);                                \
         result = translate_block_##type(pc, false);                           \
                                                                               \
         if (result) {                                                         \
