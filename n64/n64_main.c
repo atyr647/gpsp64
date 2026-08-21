@@ -406,7 +406,11 @@ int main(void)
           extern u32 prof_ppu_affine_ticks;
           extern u32 prof_ppu_sort_calls, prof_ppu_blank_calls;
           {
-            u32 ppu = prof_ppu_ticks ? prof_ppu_ticks : 1;
+            /* u64 for the ratio: prof_ppu_render_ticks reaches ~6e7 per
+               window, and x100 overflows u32 (max 4.29e9).  That overflow is
+               what produced the nonsense 4%/14%/29% render figures; the raw
+               counts below show render is consistently ~93%. */
+            u64 ppu = prof_ppu_ticks ? prof_ppu_ticks : 1;
             /* Raw ticks too: the percentages did not add up (render read 91%
                in one window and 4% in others with everything else at 0-3%),
                so print the numerator and denominator and find out why. */
@@ -418,11 +422,11 @@ int main(void)
                    (unsigned long)prof_ppu_blank_ticks,
                    (unsigned long)prof_ppu_affine_ticks);
             debugf("PROF:  ppu: sort%lu%% lo%lu%% render%lu%% blank%lu%% aff%lu%% | sorts=%lu blanks=%lu\n",
-                   (unsigned long)((prof_ppu_obj_sort_ticks    * 100) / ppu),
-                   (unsigned long)((prof_ppu_layer_order_ticks * 100) / ppu),
-                   (unsigned long)((prof_ppu_render_ticks      * 100) / ppu),
-                   (unsigned long)((prof_ppu_blank_ticks       * 100) / ppu),
-                   (unsigned long)((prof_ppu_affine_ticks      * 100) / ppu),
+                   (unsigned long)(((u64)prof_ppu_obj_sort_ticks * 100) / ppu),
+                   (unsigned long)(((u64)prof_ppu_layer_order_ticks * 100) / ppu),
+                   (unsigned long)(((u64)prof_ppu_render_ticks * 100) / ppu),
+                   (unsigned long)(((u64)prof_ppu_blank_ticks * 100) / ppu),
+                   (unsigned long)(((u64)prof_ppu_affine_ticks * 100) / ppu),
                    (unsigned long)prof_ppu_sort_calls,
                    (unsigned long)prof_ppu_blank_calls);
           }
