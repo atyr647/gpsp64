@@ -235,12 +235,23 @@ int main(void)
         prof_frames++;
 
         /* Print profiling every 60 frames */
-        if (prof_frames == 60) {
+        /* PROF window length.  60 emulated frames by default; override with
+           -DPROF_FRAMES=N.  This matters for measuring the dynarec: the FPS
+           reported here comes from the VR4300 COUNT register, i.e. *emulated*
+           N64 time, so it is unaffected by how slowly the host emulator runs.
+           But a guest JIT makes ares crawl in wall-clock (it keeps discarding
+           its own recompilation of code we write and execute), so 60 emulated
+           frames can take hours of real time.  A shorter window still yields
+           a valid, directly comparable number. */
+        #ifndef PROF_FRAMES
+        #define PROF_FRAMES 60
+        #endif
+        if (prof_frames == PROF_FRAMES) {
           u32 emu_pct = (prof_emu * 100) / prof_total;
           u32 blit_pct = (prof_blit * 100) / prof_total;
           u32 ppu_pct = prof_emu ? (prof_ppu_ticks * 100) / prof_emu : 0;
           u32 cpu_pct = 100 - ppu_pct;  /* CPU = emulation minus PPU */
-          u32 ms_per_frame = prof_total / (46875 * 60);
+          u32 ms_per_frame = prof_total / (46875 * PROF_FRAMES);
           extern u32 prof_arm_insns, prof_thumb_insns;
           extern u32 prof_idle_hits, prof_idle_detect_fires;
           u32 total_insns = prof_arm_insns + prof_thumb_insns;
@@ -282,7 +293,7 @@ int main(void)
                    (unsigned long)((u64)prof_aot_ticks * 100 / e),
                    (unsigned long)((u64)upd_ex_ppu   * 100 / e),
                    (unsigned long)((u64)prof_ppu_ticks * 100 / e),
-                   (unsigned long)(prof_update_calls / 60),
+                   (unsigned long)(prof_update_calls / PROF_FRAMES),
                    (unsigned long)prof_aot_hits,
                    (unsigned long)(prof_aot_gba_cycles / 1000));
             prof_update_ticks = prof_update_calls = prof_aot_ticks = 0;
