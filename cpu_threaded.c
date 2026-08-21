@@ -2557,12 +2557,28 @@ inline static ramtag_type* get_ram_tag(u16 tagval) {
   pc &= ~0x01                                                                 \
 
 
+#if defined(N64) && defined(N64_JIT_TRACE)
+  #define N64_JIT_TRACE_BLOCK(ty, pc) \
+    debugf("JITX %s %08lx\n", (ty), (unsigned long)(pc))
+#else
+  #define N64_JIT_TRACE_BLOCK(ty, pc) do {} while (0)
+#endif
+
 #define block_lookup_translate_builder(type)                                  \
 u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
 {                                                                             \
   u8 pcregion = (pc >> 24);                                                   \
   u16 *location;                                                              \
   u32 block_tag;                                                              \
+                                                                              \
+  /* -DN64_JIT_TRACE: log every block the JIT translates.  Each block is      \
+   * translated once, so the volume is bounded by distinct blocks rather      \
+   * than by execution count, which makes this usable for finding what the    \
+   * JIT was working on just before it derails.  A watchdog in C cannot do    \
+   * that job: once the JIT has corrupted $sp, calling any C function faults  \
+   * on its own prologue push, and under ares the CPU freezes with no way to  \
+   * report anything afterwards. */                                           \
+  N64_JIT_TRACE_BLOCK(#type, pc);                                             \
                                                                               \
   block_lookup_address_pc_##type();                                           \
                                                                               \
