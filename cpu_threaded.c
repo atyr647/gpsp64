@@ -2602,6 +2602,19 @@ inline static ramtag_type* get_ram_tag(u16 tagval) {
         fprintf(stderr, "JITSP %s %08lx +%u: %08lx writes $sp\n", ty,
                 (unsigned long)pc, (unsigned)((u8 *)p - from),
                 (unsigned long)w);
+      /* Also flag any lui that materialises a KSEG1 (uncached) base.  The
+         freeze shows reg_temp and reg_a0 -- the stubs' address-computation
+         scratch -- holding 0xA5000180 / 0xA50003A0, i.e. 0xA0000000 ORed
+         onto a raw GBA address.  Nothing in this port should ever build a
+         KSEG1 pointer, so any such constant is the address computation
+         going wrong. */
+      if (op == 0x0F) {
+        u32 imm = w & 0xFFFF;
+        if (imm >= 0xA000 && imm <= 0xBFFF)
+          fprintf(stderr, "JITK1 %s %08lx +%u: %08lx lui $%u,0x%04lx (KSEG1)\n",
+                  ty, (unsigned long)pc, (unsigned)((u8 *)p - from),
+                  (unsigned long)w, (unsigned)rt, (unsigned long)imm);
+      }
     }
   }
   #define N64_JIT_SCAN_SP(ty, pc, from, to) n64_jit_scan_sp(ty, pc, from, to)
