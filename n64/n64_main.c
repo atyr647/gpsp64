@@ -409,6 +409,19 @@ int main(void)
           memset(prof_arm_hist,   0, sizeof(prof_arm_hist));
 #endif
 
+#ifdef PROFILE_RASTER
+          { extern u32 prof_raster_dirty_lines, prof_raster_frames, prof_raster_worst;
+            u32 fr = prof_raster_frames ? prof_raster_frames : 1;
+            extern u32 prof_raster_mem_dirty;
+            debugf("PROF:  raster: %lu frames, %lu dirty lines, worst %lu/160 | vram+pal+oam changed mid-frame in %lu frames\n",
+                   (unsigned long)prof_raster_frames,
+                   (unsigned long)prof_raster_dirty_lines,
+                   (unsigned long)prof_raster_worst,
+                   (unsigned long)prof_raster_mem_dirty);
+            prof_raster_mem_dirty = 0;
+            prof_raster_dirty_lines = prof_raster_frames = prof_raster_worst = 0; }
+#endif
+
 #ifdef PROFILE_PPU2
           {
             extern u32 prof_ppu2_effect[4], prof_ppu2_mode[8];

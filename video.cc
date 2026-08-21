@@ -2335,6 +2335,76 @@ static const u8 active_layers[] = {
   0,
 };
 
+#if defined(N64) && defined(PROFILE_RASTER)
+/* Does this game change rendering state mid-frame?
+ *
+ * This gates the largest remaining lever.  Async rendering -- RSP draws
+ * frame N-1 while the CPU emulates frame N -- needs the state the renderer
+ * reads to be snapshotted at a frame boundary.  That is only sound if the
+ * game does not reprogram scroll/window/blend registers per scanline
+ * (classic raster effects).  Count, per frame, how many scanlines see any
+ * of those registers differ from their value at vcount 0. */
+u32 prof_raster_dirty_lines = 0;
+u32 prof_raster_frames = 0;
+u32 prof_raster_worst = 0;
+static u16 raster_snap[24];
+static u32 raster_lines_this_frame = 0;
+
+static const u16 raster_regs[] = {
+  0x00,                                     /* DISPCNT */
+  0x08,0x0A,0x0C,0x0E,                      /* BGxCNT */
+  0x10,0x12,0x14,0x16,0x18,0x1A,0x1C,0x1E,  /* BGx H/V OFS */
+  0x40,0x42,0x44,0x46,                      /* WIN H/V */
+  0x48,0x4A,                                /* WININ/WINOUT */
+  0x4C,                                     /* MOSAIC */
+  0x50,0x52,0x54                            /* BLDCNT/ALPHA/Y */
+};
+#define RASTER_NREG (sizeof(raster_regs)/sizeof(raster_regs[0]))
+
+/* The registers are only half of it: the renderer also reads VRAM, palette
+   and OAM, and games often update those by DMA during hblank.  Hash them at
+   the top and bottom of the visible area; if the hash moves, the frame was
+   still being written while it was being drawn, and a frame-boundary
+   snapshot would render a mixture.  Hashing 98 KB costs ~0.26 ms, which is
+   fine for a diagnostic and is not shipped. */
+u32 prof_raster_mem_dirty = 0;
+static u32 raster_memhash;
+
+static u32 raster_hash_mem(void)
+{
+  const u32 *p; u32 i, h = 0;
+  p = (const u32 *)vram_raw;          for (i = 0; i < 0x18000/4; i++) h = h*31u + p[i];
+  p = (const u32 *)palette_ram_raw;   for (i = 0; i < 0x400/4;   i++) h = h*31u + p[i];
+  p = (const u32 *)oam_ram_raw;       for (i = 0; i < 0x400/4;   i++) h = h*31u + p[i];
+  return h;
+}
+
+static void raster_check(u32 vcount)
+{
+  u32 i;
+  if (vcount == 159) {
+    if (raster_hash_mem() != raster_memhash) prof_raster_mem_dirty++;
+  }
+  if (vcount == 0) {
+    raster_memhash = raster_hash_mem();
+    for (i = 0; i < RASTER_NREG; i++)
+      raster_snap[i] = read_ioreg(raster_regs[i] / 2);
+    if (raster_lines_this_frame > prof_raster_worst)
+      prof_raster_worst = raster_lines_this_frame;
+    prof_raster_dirty_lines += raster_lines_this_frame;
+    raster_lines_this_frame = 0;
+    prof_raster_frames++;
+    return;
+  }
+  for (i = 0; i < RASTER_NREG; i++) {
+    if (read_ioreg(raster_regs[i] / 2) != raster_snap[i]) {
+      raster_lines_this_frame++;
+      return;
+    }
+  }
+}
+#endif
+
 void update_scanline(void)
 {
   u32 pitch = get_screen_pitch();
@@ -2343,6 +2413,9 @@ void update_scanline(void)
   u16 *screen_offset = get_screen_pixels() + (vcount * pitch);
   u32 video_mode = dispcnt & 0x07;
 
+#if defined(N64) && defined(PROFILE_RASTER)
+  raster_check(vcount);
+#endif
   if(skip_next_frame)
     return;
 
