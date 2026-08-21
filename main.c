@@ -143,6 +143,16 @@ u32 function_cc update_gba(int remaining_cycles)
   u32 _upd_t0 = PROF_TICK();
   prof_update_calls++;
 #endif
+#ifdef N64_TIME_TRACE
+  /* Is emulated time advancing at all?  If the JIT is merely slow, vcount
+     still cycles 0..227 and frame_counter climbs.  If it is spinning
+     without ever reaching a hardware event, both sit still. */
+  { static u32 _n = 0;
+    if ((++_n % 20000) == 0)
+      fprintf(stderr, "TIME upd=%lu vcount=%lu frame=%lu ticks=%lu\n",
+              (unsigned long)_n, (unsigned long)read_ioreg(REG_VCOUNT),
+              (unsigned long)frame_counter, (unsigned long)cpu_ticks); }
+#endif
   u32 changed_pc = 0;
   u32 frame_complete = 0;
   irq_type irq_raised = IRQ_NONE;
