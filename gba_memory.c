@@ -1602,8 +1602,33 @@ static void load_game_config_over(const char *gamecode)
 
      printf("gamepak code match for : %s\n", gbaover[i].gamepak_code);
 
-     if (gbaover[i].idle_loop_target_pc != 0)
+     if (gbaover[i].idle_loop_target_pc != 0) {
         idle_loop_target_pc = gbaover[i].idle_loop_target_pc;
+#ifdef HAVE_DYNAREC
+        /* The dynarec only updates the cycle counter at block boundaries,
+           so a translated block whose internal loop *is* the game's idle
+           loop never decrements cycles, never reaches update_gba and never
+           returns -- the emulator hangs on the first JIT frame.  A
+           translation gate forces the block to end at that PC.  Emerald's
+           gba_over.h entry supplies an idle_loop_target_pc but leaves all
+           three translation_gate_target slots at 0, so without this the
+           gate never exists.  Same hazard the AOT translator hit: a
+           generated function that swallows the idle loop starves whatever
+           is supposed to break out of it. */
+        {
+           unsigned g;
+           bool present = false;
+           for (g = 0; g < translation_gate_targets; g++)
+              if (translation_gate_target_pc[g] == idle_loop_target_pc)
+                 present = true;
+           if (!present && translation_gate_targets < MAX_TRANSLATION_GATES) {
+              translation_gate_target_pc[translation_gate_targets] =
+                 idle_loop_target_pc;
+              translation_gate_targets++;
+           }
+        }
+#endif
+     }
 
      if (gbaover[i].flags & FLAGS_FLASH_128KB) {
        flash_device_id = FLASH_DEVICE_MACRONIX_128KB;
