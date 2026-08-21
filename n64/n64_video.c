@@ -44,6 +44,14 @@ void n64_video_init(void)
   /* memalign for 8-byte alignment so u32/u64 accesses are safe */
   rgba_buf = (u16 *)memalign(8,
               GBA_SCREEN_WIDTH * GBA_SCREEN_HEIGHT * sizeof(u16));
+  /* Report where the blit's big buffers actually live.  D-cache miss
+     histograms attributed most render-time misses to two anonymous regions
+     (64KB buckets 0x1c and 0x3c); these are heap allocations, so they have
+     no symbol in the map and cannot be identified from the ELF alone. */
+  debugf("[gpSP]: rgba_buf=%p (%d KB)\n", (void*)rgba_buf,
+         (GBA_SCREEN_WIDTH * GBA_SCREEN_HEIGHT * 2) / 1024);
+  { extern u16 *gba_screen_pixels; 
+    debugf("[gpSP]: gba_screen_pixels=%p\n", (void*)gba_screen_pixels); }
 }
 
 /* Per-pair format conversion: handles 2 pixels per 32-bit word.
@@ -62,6 +70,11 @@ static inline u32 xbgr_pair_to_rgba_pair(u32 p) {
 void n64_video_render_frame(void)
 {
   surface_t *disp = display_get();
+  { static int _once = 0;
+    if (!_once && disp) { _once = 1;
+      debugf("[gpSP]: framebuffer=%p stride=%d (%d KB each)\n",
+             (void*)disp->buffer, (int)disp->stride,
+             (int)(disp->stride * N64_SCREEN_HEIGHT / 1024)); } }
   if (!disp || !gba_screen_pixels || !rgba_buf) {
     if (disp) display_show(disp);
     return;
