@@ -54,8 +54,14 @@ static bool emulator_running = false;
  * throws away, and the PPU + blit are together ~50% of frame time, so it
  * does not.  Overridable so it can be A/B'd on ares. */
 static u32 frameskip_counter = 0;
+/* 0 = draw every frame.  Displayed rate is what the player actually sees,
+   and at interval 0 it equals the emulated rate, so the FPS this file
+   reports is the real number with no halving to remember.
+   Measured at 14 windows: interval 1 gives 25.00 emulated but only 12.50
+   displayed; interval 0 gives 17.54 of both.  Skipping buys emulated speed
+   and costs smoothness, and smoothness is the thing being optimised for. */
 #ifndef FRAMESKIP_INTERVAL
-#define FRAMESKIP_INTERVAL 1
+#define FRAMESKIP_INTERVAL 0
 #endif
 
 void error_msg(const char *text)
