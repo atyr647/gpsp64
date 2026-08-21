@@ -275,7 +275,16 @@ void platform_cache_sync(void *baseaddr, void *endptr);
   void platform_cache_sync(void *baseaddr, void *endptr) {}
 #endif
 
+#if defined(N64) && defined(N64_TIME_TRACE)
+u32 prof_icache_ticks = 0, prof_icache_calls = 0, prof_icache_work = 0;
+#define ICACHE_TICK() ({ u32 _t; __asm__ volatile("mfc0 %0, $9" : "=r"(_t)); _t; })
+#endif
+
 void translate_icache_sync() {
+#if defined(N64) && defined(N64_TIME_TRACE)
+    u32 _ic0 = ICACHE_TICK();
+    prof_icache_calls++;
+#endif
     bool emitted = false;
     // Cache emitted code can only grow
     if (last_rom_translation_ptr < rom_translation_ptr) {
@@ -305,6 +314,10 @@ void translate_icache_sync() {
 #ifndef N64_JIT_NO_CACHE_OPS
     if (emitted)
     inst_cache_invalidate_all();
+#endif
+#if defined(N64) && defined(N64_TIME_TRACE)
+    if (emitted) prof_icache_work++;
+    prof_icache_ticks += ICACHE_TICK() - _ic0;
 #endif
     #ifdef N64_JIT_PARANOID_CACHE
     /* Diagnostic: also write back the whole D-cache before invalidating.

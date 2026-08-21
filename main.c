@@ -149,9 +149,14 @@ u32 function_cc update_gba(int remaining_cycles)
      without ever reaching a hardware event, both sit still. */
   { static u32 _n = 0;
     if (++_n <= 8 || (_n % 500) == 0)
-      fprintf(stderr, "TIME upd=%lu vcount=%lu frame=%lu ticks=%lu\n",
+    { extern u32 prof_icache_ticks, prof_icache_calls, prof_icache_work;
+      fprintf(stderr, "TIME upd=%lu vcount=%lu frame=%lu ticks=%lu"
+                      " | icache calls=%lu work=%lu ticks=%luK\n",
               (unsigned long)_n, (unsigned long)read_ioreg(REG_VCOUNT),
-              (unsigned long)frame_counter, (unsigned long)cpu_ticks); }
+              (unsigned long)frame_counter, (unsigned long)cpu_ticks,
+              (unsigned long)prof_icache_calls,
+              (unsigned long)prof_icache_work,
+              (unsigned long)(prof_icache_ticks / 1000)); } }
 #endif
   u32 changed_pc = 0;
   u32 frame_complete = 0;
