@@ -26,7 +26,14 @@
 /* Global state required by the emulator core */
 u32 skip_next_frame = 0;
 u32 num_skipped_frames = 0;
-int dynarec_enable = 0;
+/* gpSP's MIPS dynarec.  Off by default: the backend is largely ported to
+ * VR4300 (MIPS III fallbacks for movz/movn/madd, no JAL patching, I-cache
+ * invalidation) but was abandoned mid-debug against a crash.  Build with
+ * -DN64_DYNAREC_DEFAULT=1 to work on it. */
+#ifndef N64_DYNAREC_DEFAULT
+#define N64_DYNAREC_DEFAULT 0
+#endif
+int dynarec_enable = N64_DYNAREC_DEFAULT;
 boot_mode selected_boot_mode = boot_game;
 int sprite_limit = 1;
 u32 netplay_num_clients = 0, netplay_client_id = 0;

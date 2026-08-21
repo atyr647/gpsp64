@@ -2960,15 +2960,27 @@ void clear_gamepak_stickybits(void);
 
 u32 execute_arm_translate(u32 cycles) {
 #ifdef N64
-  /* Gradually introduce JIT: interpreter for first 300 frames,
-     then switch to JIT. If garble appears at frame 300, JIT is the cause. */
+  /* Run the interpreter for the first N frames, then hand over to the
+     JIT, so a fault that appears exactly at the switchover is known to be
+     the JIT's and not the loader's.  Defaults to 0 (JIT from the first
+     frame); set -DN64_JIT_WARMUP_FRAMES=300 to bisect that way again.
+
+     This defaulted to 300 while the JIT was being debugged, which is a
+     trap for anyone measuring: a benchmark shorter than 300 frames runs
+     pure interpreter and reports a perfectly healthy result that says
+     nothing at all about the JIT. */
+  #ifndef N64_JIT_WARMUP_FRAMES
+  #define N64_JIT_WARMUP_FRAMES 0
+  #endif
+  #if N64_JIT_WARMUP_FRAMES > 0
   static u32 frame_count = 0;
   frame_count++;
-  if (frame_count < 300) {
+  if (frame_count < N64_JIT_WARMUP_FRAMES) {
     clear_gamepak_stickybits();
     execute_arm(cycles);
     return 0;
   }
+  #endif
 #endif
   {
     u32 rv = execute_arm_translate_internal(cycles, &reg[0]);

@@ -290,16 +290,57 @@ typedef enum
   #define mips_emit_maddu(rs, rt)                                             \
     mips_emit_special(maddu, rs, rt, 0, 0)
 #elif defined(N64)
-  /* MIPS III lacks madd/maddu (SPECIAL2 opcode class doesn't exist).
-     Emulate: multiply, then add HI:LO to the accumulator manually.
-     These are only used by SMLAL/UMLAL which do: HI:LO = Rd:Rn + Rm*Rs.
-     The caller sets HI:LO via mthi/mtlo before calling, so we just
-     need to do mult/multu — the add is handled in the caller. */
+  /* MIPS III lacks madd/maddu (SPECIAL2 does not exist until MIPS32), so
+     HI:LO += rs*rt has to be built by hand.
+
+     This is load-bearing.  The only callers are SMLAL/UMLAL via
+     arm_multiply_long_add_yes, which arrive here having just loaded the
+     accumulator into HI:LO with mtlo/mthi and which read the result back
+     out with mflo/mfhi immediately afterwards.  Emitting a bare
+     mult/multu here -- as this did previously, on the claim that "the add
+     is handled in the caller" -- overwrites HI:LO with the product and
+     drops the accumulate entirely, silently turning every SMLAL into
+     SMULL and every UMLAL into UMULL.  Nothing in the caller adds
+     anything back.
+
+     Read the accumulator out, multiply, then do the 64-bit add:
+        Slo = Alo + Plo ;  carry = Slo <u Plo ;  Shi = Ahi + Phi + carry
+     and hand the result back through HI:LO so the caller's mflo/mfhi
+     still see what they expect.
+
+     The nops are the R4000/VR4300 multiply-unit hazard: an MFHI/MFLO must
+     be separated by two or more instructions from a following write to
+     HI/LO (MULT, MULTU, MTHI, MTLO).  We emit raw encodings, so there is
+     no assembler inserting them for us.  The reverse direction (MTxx
+     followed by MFxx) is interlocked in hardware and needs no padding,
+     which is why the tail has none.
+
+     Scratch: reg_temp/reg_a0/reg_a1.  rdlo/rdhi/rm/rs are ARM r0-r14 for
+     any well-formed SMLAL (r15 is architecturally unpredictable here) and
+     map to reg_r0-reg_r14, so they cannot alias these; the flag tail in
+     arm_multiply_long_flags_yes already uses reg_a0 on the same
+     assumption. */
+  #define mips_emit_madd_acc(mulop, rs, rt)                                   \
+    mips_emit_mfhi(reg_a0);                    /* Ahi */                      \
+    mips_emit_mflo(reg_a1);                    /* Alo */                      \
+    mips_emit_nop();                           /* MF -> MULT hazard */        \
+    mips_emit_nop();                                                          \
+    mips_emit_##mulop(rs, rt);                 /* HI:LO = P */                \
+    mips_emit_mflo(reg_temp);                  /* Plo */                      \
+    mips_emit_addu(reg_a1, reg_a1, reg_temp);  /* Slo = Alo + Plo */          \
+    mips_emit_sltu(reg_temp, reg_a1, reg_temp);/* carry = Slo <u Plo */       \
+    mips_emit_addu(reg_a0, reg_a0, reg_temp);  /* Ahi + carry */              \
+    mips_emit_mfhi(reg_temp);                  /* Phi */                      \
+    mips_emit_addu(reg_a0, reg_a0, reg_temp);  /* Shi */                      \
+    mips_emit_nop();                           /* MF -> MT hazard */          \
+    mips_emit_mtlo(reg_a1);                                                   \
+    mips_emit_mthi(reg_a0)
+
   #define mips_emit_madd(rs, rt)                                              \
-    mips_emit_mult(rs, rt)
+    mips_emit_madd_acc(mult, rs, rt)
 
   #define mips_emit_maddu(rs, rt)                                             \
-    mips_emit_multu(rs, rt)
+    mips_emit_madd_acc(multu, rs, rt)
 #else
   #define mips_emit_madd(rs, rt)                                              \
     mips_emit_special2(madd, rs, rt, 0, 0)                                    \
