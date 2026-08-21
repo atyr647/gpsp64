@@ -53,6 +53,35 @@ CFLAGS += -DUSE_XBGR1555_FORMAT
 # only those, so benchmarking does not require any of these flags.
 #   make PROFILE_FLAGS="-DPROFILE_AOT"                 # hot pages/calls
 #   make PROFILE_FLAGS="-DPROFILE_CYCLES"              # where cycles go
+# Experimental dynarec:  make -f Makefile.n64 N64_JIT=1
+#
+# Status (measured on ares, this branch):
+#   * The JIT executes translated code and completes emulated frames --
+#     "JITFRAME 0 exit rv=800003bc" with -DN64_JIT_HEARTBEAT.
+#   * It is far too slow to be useful yet: a frame takes seconds, so a
+#     benchmark run times out before the 60 frames needed for one PROF
+#     window.
+#   * It only works when it owns execution from the first frame.
+#     -DN64_JIT_WARMUP_FRAMES=N (interpreter for N frames, then hand over)
+#     does NOT reach a frame-complete and should not be trusted for
+#     anything except bisecting; every "the JIT never returns" observation
+#     recorded during this work came from that path.
+#   * $gp: the dynarec keeps ARM r13 there, but this build emits
+#     gp-relative small-data accesses and libdragon's inthandler is itself
+#     gp-relative, so an interrupt landing in translated code sends the
+#     handler off to read its state from GBA IWRAM and it re-enters
+#     forever.  execute_arm_translate() defers interrupts around the
+#     translated-code window to dodge this.  That is a workaround, not a
+#     fix -- it also means VI interrupts are deferred for however long a
+#     JIT frame takes.  The real fix is -G0 (no gp-relative code, needs
+#     libdragon rebuilt) or freeing $gp in the register allocator.
+#
+# Useful diagnostics: -DN64_JIT_HEARTBEAT (frame enter/exit),
+# -DN64_JIT_TRACE (block translations, $sp/KSEG1 scanners).
+ifeq ($(N64_JIT),1)
+CFLAGS += -DN64_DYNAREC_DEFAULT=1
+endif
+
 PROFILE_FLAGS ?=
 CFLAGS += $(PROFILE_FLAGS)
 CFLAGS += -I$(CURDIR) -I$(CURDIR)/n64
