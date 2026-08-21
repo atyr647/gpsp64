@@ -26,6 +26,46 @@ Targets, at frameskip 0 (`frame = 21.5 + render`):
     render 11.5 ms -> 30.0 fps   every frame drawn
     render  0.0 ms -> 46.5 fps   hard ceiling; CPU emulation remains
 
+## PREMISE CORRECTED (read this first)
+
+This plan was written believing rendering was memory-bound, and its data-flow
+section is built around DMA'ing tiles into DMEM to eliminate cache misses.
+**That premise is false**, measured after the blit/screen-buffer fixes:
+
+    rendering        27.40 ms/frame
+      memory stall    4.15 ms  (15%)   misses 7554 + writebacks 2175 per frame
+      compute        23.25 ms  (85%)
+
+Measured by frameskip ablation on D-cache miss counts (frameskip 0 vs 9,
+360 emulated frames each, 40 cycles per miss in ares's model).  Eliminating
+*all* memory stall would buy 4 ms of 27.
+
+The work is simply large: 4 layers x 240 x 160 = 153,600 layer-pixels per
+frame at ~6 instructions each is ~920K instructions/frame, running at ~2.8
+cycles/instruction.  That is not pathological, it is one 93.75 MHz CPU doing
+a lot of arithmetic.
+
+So the RSP is still worth doing, but for the opposite reason: not to avoid
+misses, but because it is **a second execution unit running concurrently**.
+That changes what matters in the design below:
+
+  * The DMEM tile-caching scheme is still useful (it keeps the RSP fed
+    without RDRAM round-trips) but it is no longer the source of the win.
+  * The vector unit is now the whole point, so the 4bpp palette question is
+    central rather than incidental.  Confirmed 100% 4bpp, so the vmrg
+    select tree applies.
+  * Amdahl still binds: rendering is 27.4 ms of a 55 ms frame, so even a
+    perfect RSP renderer caps the frame at ~28 ms (~36 fps) until CPU
+    emulation improves.
+  * objblend/bright are active on most scanlines, so a ucode handling only
+    plain opaque tiles would fall back to C most of the time.
+
+Cheaper alternative to try first, given the workload is compute-bound:
+**skip redundant rendering**.  If nothing affecting the image changed since
+the previous frame, reuse it.  That attacks the 85% directly, costs no
+ucode, and on static screens (menus, dialogue, title) could skip nearly all
+of the 27.4 ms.
+
 ## Do the cheap thing first
 
 Rendering is currently ~105 VR4300 cycles per output pixel
