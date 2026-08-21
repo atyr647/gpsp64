@@ -2954,6 +2954,10 @@ void init_emitter(bool must_swap) {
   init_bios_hooks();
 }
 
+#ifdef N64
+#include <interrupt.h>
+#endif
+
 u32 execute_arm_translate_internal(u32 cycles, void *regptr);
 void execute_arm(u32 cycles);
 void clear_gamepak_stickybits(void);
@@ -2983,7 +2987,29 @@ u32 execute_arm_translate(u32 cycles) {
   #endif
 #endif
   {
-    u32 rv = execute_arm_translate_internal(cycles, &reg[0]);
+    u32 rv;
+#ifdef N64
+    /* The dynarec keeps ARM r13 in $gp.  This build has .sdata/.sbss and
+       ~2200 gp-relative accesses, and libdragon's inthandler is itself
+       gp-relative -- it does `sw sp,-31872(gp)` to stash the interrupted
+       stack pointer.  So an interrupt taken while translated code is
+       running finds $gp holding a GBA address (e.g. 0x03007e08), reads its
+       own nesting state from GBA IWRAM, never acknowledges the interrupt,
+       and re-enters immediately.  Each entry costs a 576-byte handler
+       frame, so $sp walks down until it leaves RDRAM and the RCP freezes
+       the CPU on an unmapped access.  Observed: 6.1M such $sp transitions,
+       all at inthandler, all -0x240.
+       Deferring interrupts across the translated-code window avoids it.
+       The JIT returns once per emulated frame, so interrupts are still
+       serviced every frame.  The real fix is to stop generating
+       gp-relative code (rebuild libdragon with -G0) or to free $gp in the
+       register allocator; this keeps the JIT testable meanwhile. */
+    disable_interrupts();
+    rv = execute_arm_translate_internal(cycles, &reg[0]);
+    enable_interrupts();
+#else
+    rv = execute_arm_translate_internal(cycles, &reg[0]);
+#endif
     return rv;
   }
 }
