@@ -76,6 +76,24 @@ CFLAGS += -DUSE_XBGR1555_FORMAT
 #     JIT frame takes.  The real fix is -G0 (no gp-relative code, needs
 #     libdragon rebuilt) or freeing $gp in the register allocator.
 #
+# Known standing cost, worth revisiting: commit bd2f569 disabled gpSP's
+# memory-access JAL patcher on N64 ("Completely disable patcher sw").
+# Normally a GBA load/store goes through a region dispatcher once and then
+# patches its own calling JAL so later executions jump straight to the right
+# handler; with that removed every memory access pays full dispatch forever,
+# and memory ops are a large fraction of all instructions.
+#
+# It was disabled to stop a crash at 0x04fffed8, attributed to "the D-cache
+# write interfering with I-cache".  That address is the same 0x04FFFxxx
+# RCP-unmapped signature this branch later traced to the $gp/inthandler
+# exception storm, which has nothing to do with the patcher: an interrupt
+# landing in translated code sends the handler off to read its state from
+# GBA IWRAM, and $sp walks down into RCP space.  So the patcher was very
+# likely innocent and can probably be restored now that interrupts are
+# deferred around translated code.  Restoring it does need real cache
+# maintenance on the patched word (Hit_Write_Back_Invalidate_D then
+# Hit_Invalidate_I), which the original code skipped.
+#
 # Useful diagnostics: -DN64_JIT_HEARTBEAT (frame enter/exit),
 # -DN64_JIT_TRACE (block translations, $sp/KSEG1 scanners).
 ifeq ($(N64_JIT),1)
