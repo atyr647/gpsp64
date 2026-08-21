@@ -2558,8 +2558,9 @@ inline static ramtag_type* get_ram_tag(u16 tagval) {
 
 
 #if defined(N64) && defined(N64_JIT_TRACE)
+  #include <stdio.h>
   #define N64_JIT_TRACE_BLOCK(ty, pc) \
-    debugf("JITX %s %08lx\n", (ty), (unsigned long)(pc))
+    fprintf(stderr, "JITX %s %08lx\n", (ty), (unsigned long)(pc))
 #else
   #define N64_JIT_TRACE_BLOCK(ty, pc) do {} while (0)
 #endif
