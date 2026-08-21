@@ -278,6 +278,17 @@ void translate_icache_sync() {
     #ifdef N64
     /* Brute-force: invalidate entire I-cache to ensure no stale code */
     inst_cache_invalidate_all();
+    #ifdef N64_JIT_PARANOID_CACHE
+    /* Diagnostic: also write back the whole D-cache before invalidating.
+       The VR4300 has no cache coherency, and generated code is written
+       through the D-cache, so if any dirty line has not reached RDRAM the
+       I-cache refill reads stale bytes -- which executes as garbage and is
+       indistinguishable from a codegen bug.  The ranged sync above should
+       already cover this; if making it global changes the failure, the
+       ranges are wrong somewhere. */
+    data_cache_writeback_invalidate_all();
+    inst_cache_invalidate_all();
+    #endif
     #endif
 }
 
