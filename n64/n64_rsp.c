@@ -103,6 +103,7 @@ bool n64_rsp_selftest(void)
   }
   debugf("[gpSP]: RSP selftest OK (ucode loaded, DMA in/out, %u bytes)\n",
          (unsigned)sizeof(src));
+
   return true;
 }
 
@@ -229,4 +230,33 @@ void n64_rsp_bench(void)
          (unsigned long)(EXP_BYTES * 2), (unsigned long)ITERS,
          (unsigned long)(rsp_ticks / 1000), (unsigned long)(cpu_ticks / 1000),
          (unsigned long)(cpu_ticks ? (u64)rsp_ticks * 100 / cpu_ticks : 0));
+
+  /* Price the palette step on its own.  op=2 is extraction plus a scalar
+     16-entry lookup.  Same slope method, so the ~2166-cycle call overhead
+     cancels and what is left is per-pixel cost.  This decides where palette
+     lookup lives: the RSP has no per-lane gather, so 16 entries cost ~4
+     ops/px whether scalar or as a veq+vmrg tree, against roughly one cached
+     load on the CPU. */
+  {
+    const u32 R = 64;
+    u32 a, b, lo, hi;
+    c.op = 2; c.rep = 1;
+    data_cache_hit_writeback_invalidate(&c, sizeof(c));
+    rsp_load_data(&c, sizeof(c), 0);
+    a = RSP_TICK(); rsp_run(); lo = RSP_TICK() - a;
+
+    c.rep = 1 + R;
+    data_cache_hit_writeback_invalidate(&c, sizeof(c));
+    rsp_load_data(&c, sizeof(c), 0);
+    b = RSP_TICK(); rsp_run(); hi = RSP_TICK() - b;
+
+    if (hi > lo) {
+      u64 px = (u64)EXP_BYTES * 2u * R;
+      u32 x100 = (u32)(((u64)(hi - lo) * 2u * 100u) / px);
+      debugf("[gpSP]: RSP extract+palette %lu.%02lu cyc/px"
+             " (extract alone 1.76) -> palette adds %lu.%02lu\n",
+             (unsigned long)(x100 / 100), (unsigned long)(x100 % 100),
+             (unsigned long)((x100 - 176) / 100), (unsigned long)((x100 - 176) % 100));
+    }
+  }
 }

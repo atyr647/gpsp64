@@ -27,7 +27,8 @@
 # a .data label is relocatable and will not do.
 #define D_CTRL      0x0000
 #define D_VCONST    0x0020   /* CTRL is 5 words = 20 bytes; clear it */
-#define D_VFLAG     0x0060   /* VCONST is 4 vectors = 64 B from 0x20 */
+#define D_VFLAG     0x0060
+#define D_VPAL      0x0080   /* 16 u16 subpalette */   /* VCONST is 4 vectors = 64 B from 0x20 */
 #define D_SRCBUF    0x0400
 #define D_DSTBUF    0x0800
 
@@ -50,6 +51,11 @@ VCONST:
 VFLAG:
     .half 0,0,0,0,0,0,0,0
 
+    .org D_VPAL             # 0x0080
+VPAL:
+    .half 0x1000,0x1001,0x1002,0x1003,0x1004,0x1005,0x1006,0x1007
+    .half 0x1008,0x1009,0x100A,0x100B,0x100C,0x100D,0x100E,0x100F
+
     .text
     .align 3
     .global _start
@@ -58,6 +64,9 @@ _start:
     # rsp_run_async() always starts at the ucode's start_pc, so selecting
     # work via the control block keeps one ucode and one entry point.
     lw      t9, D_CTRL+16(zero)
+    li      t8, 2
+    beq     t9, t8, palette_entry
+     nop
     bne     t9, zero, expand_entry
      nop
 
@@ -166,6 +175,56 @@ expand_entry:
     lw      s0, D_CTRL+4(zero)
     lw      t3, D_CTRL+8(zero)
     sll     t3, t3, 2                   # 2 px per input byte, u16 each = 4*LEN
+    li      s4, D_DSTBUF
+    addi    t0, t3, -1
+    jal     DMAOut
+     li     t1, 0
+    break
+
+
+    # ---- op=2: extract + scalar palette lookup --------------------------
+    # Prices the step that does NOT vectorise.  The RSP has no per-lane
+    # gather, so a 16-entry palette costs ~4 ops/px whether done scalar or
+    # as a veq+vmrg tree -- against roughly one cached load on the CPU.  If
+    # this comes out much worse than op=1, palette lookup belongs on the CPU
+    # and the RSP should emit indices, not colours.
+    .global palette_entry
+palette_entry:
+    lw      s0, D_CTRL+0(zero)
+    lw      t3, D_CTRL+8(zero)
+    li      s4, D_SRCBUF
+    addi    t0, t3, -1
+    jal     DMAIn
+     li     t1, 0
+
+    lw      s7, D_CTRL+20(zero)         # repeat count
+5:
+    lw      t3, D_CTRL+8(zero)
+    li      t5, D_SRCBUF
+    li      t6, D_DSTBUF
+    add     s6, t5, t3
+6:  lbu     t7, 0(t5)                   # one packed byte = 2 pixels
+    andi    t4, t7, 0x0F                # low nibble
+    sll     t4, t4, 1
+    addu    t4, t4, zero
+    lhu     t4, D_VPAL(t4)              # scalar palette load
+    sh      t4, 0(t6)
+    srl     t4, t7, 4                   # high nibble
+    andi    t4, t4, 0x0F
+    sll     t4, t4, 1
+    lhu     t4, D_VPAL(t4)
+    sh      t4, 2(t6)
+    addi    t5, t5, 1
+    addi    t6, t6, 4
+    bne     t5, s6, 6b
+     nop
+    addi    s7, s7, -1
+    bgtz    s7, 5b
+     nop
+
+    lw      s0, D_CTRL+4(zero)
+    lw      t3, D_CTRL+8(zero)
+    sll     t3, t3, 2
     li      s4, D_DSTBUF
     addi    t0, t3, -1
     jal     DMAOut
