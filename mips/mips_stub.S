@@ -254,6 +254,15 @@ defsymbl(mips_update_gba)
   move $4, reg_cycles             # Remaining cycles as asg0
   cfncall update_gba, 0           # process the next event
 
+  # Sign-extend for MIPS III before testing bit 31.  update_gba returns a
+  # u32 and signals frame-complete with 0x80000000, but bltz on the VR4300
+  # tests bit 63 of the 64-bit register.  Zero-extended that is
+  # 0x0000000080000000, which is positive, so the branch is never taken:
+  # the JIT never returns to the main loop and spins calling update_gba
+  # forever.  Every other 32-bit value tested or used as a pointer in this
+  # file already gets this treatment.
+  sll $2, $2, 0                   # Sign-extend for MIPS III
+
   bltz $2, return_to_main         # Exit if a frame is complete (bit 31 is set)
 
   and reg_cycles, $2, 0x7FFF      # update new cycle count (ret value)
@@ -354,6 +363,15 @@ defsymbl(write_io_epilogue)
 cpu_sleep_loop:
   move $4, reg_cycles             # Remaining cycles as asg0
   cfncall update_gba, 0           # process the next event
+
+  # Sign-extend for MIPS III before testing bit 31.  update_gba returns a
+  # u32 and signals frame-complete with 0x80000000, but bltz on the VR4300
+  # tests bit 63 of the 64-bit register.  Zero-extended that is
+  # 0x0000000080000000, which is positive, so the branch is never taken:
+  # the JIT never returns to the main loop and spins calling update_gba
+  # forever.  Every other 32-bit value tested or used as a pointer in this
+  # file already gets this treatment.
+  sll $2, $2, 0                   # Sign-extend for MIPS III
 
   bltz $2, return_to_main         # Exit if a frame is complete (bit 31 is set)
 
