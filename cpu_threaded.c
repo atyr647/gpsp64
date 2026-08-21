@@ -2561,8 +2561,42 @@ inline static ramtag_type* get_ram_tag(u16 tagval) {
   #include <stdio.h>
   #define N64_JIT_TRACE_BLOCK(ty, pc) \
     fprintf(stderr, "JITX %s %08lx\n", (ty), (unsigned long)(pc))
+
+  /* Scan freshly emitted code for any instruction whose destination is $sp.
+     The dynarec's register allocation never assigns $29 -- ARM r13 lives in
+     $gp and r14 in $fp -- so a hit here is a codegen bug.  Worth detecting
+     directly, because the observed failure is $sp holding a GBA address,
+     after which the next interrupt spills the CPU context into GBA address
+     space and ares reports the fault against inthandler, which is the
+     victim rather than the cause. */
+  static void n64_jit_scan_sp(const char *ty, u32 pc, u8 *from, u8 *to)
+  {
+    u32 *p, *e = (u32 *)to;
+    for (p = (u32 *)from; p < e; p++) {
+      u32 w = *p, op = w >> 26, rt = (w >> 16) & 31, rd = (w >> 11) & 31;
+      u32 fn = w & 0x3F;
+      int hits;
+      if (op == 0) {
+        /* SPECIAL: exclude forms whose rd field is not a destination
+           (jr, mthi, mtlo, mult, multu, div, divu). */
+        hits = (fn != 0x08 && fn != 0x11 && fn != 0x13 && fn != 0x18 &&
+                fn != 0x19 && fn != 0x1A && fn != 0x1B) && (rd == 29);
+      } else if (op == 0x01 || op == 0x02 || op == 0x03 ||
+                 (op >= 0x04 && op <= 0x07) || (op >= 0x28 && op <= 0x2E)) {
+        hits = 0;            /* branches, jumps and stores write no GPR */
+      } else {
+        hits = (rt == 29);   /* I-type ALU and loads write rt */
+      }
+      if (hits)
+        fprintf(stderr, "JITSP %s %08lx +%u: %08lx writes $sp\n", ty,
+                (unsigned long)pc, (unsigned)((u8 *)p - from),
+                (unsigned long)w);
+    }
+  }
+  #define N64_JIT_SCAN_SP(ty, pc, from, to) n64_jit_scan_sp(ty, pc, from, to)
 #else
   #define N64_JIT_TRACE_BLOCK(ty, pc) do {} while (0)
+  #define N64_JIT_SCAN_SP(ty, pc, from, to) do {} while (0)
 #endif
 
 /* The N64_JIT_TRACE probes sit at the translate_block calls, NOT at the top
@@ -2642,7 +2676,9 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
         rom_translation_ptr += sizeof(hashhdr_type);                          \
         blkptr = rom_translation_ptr + block_prologue_size;                   \
         N64_JIT_TRACE_BLOCK(#type " rom", pc);                                \
+        { u8 *dbgfrom = rom_translation_ptr;                                  \
         result = translate_block_##type(pc, false);                           \
+        N64_JIT_SCAN_SP(#type, pc, dbgfrom, rom_translation_ptr); }           \
                                                                               \
         if (result) {                                                         \
           return blkptr;                                                      \
