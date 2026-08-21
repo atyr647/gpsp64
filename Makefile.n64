@@ -177,6 +177,8 @@ OBJS = main.o \
        n64/n64_interp.o \
        n64/n64_main.o \
        n64/n64_video.o \
+       n64/n64_rsp.o \
+       rsp_gbascan.o \
        n64/n64_audio.o \
        n64/n64_input.o \
        n64/n64_storage.o \

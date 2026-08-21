@@ -184,6 +184,13 @@ int main(void)
   gba_screen_pixels = (u16 *)UncachedAddr(screen_buf);
 #endif
 
+  /* RSP: prove the offload path works before anything depends on it.
+     Rendering is 85% compute, so the RSP is wanted as a second execution
+     unit; this only checks that ucode load + DMA in/out + sync are sound. */
+  { extern void n64_rsp_init(void); extern bool n64_rsp_selftest(void);
+    n64_rsp_init();
+    n64_rsp_selftest(); }
+
   /* Initialize sound */
   init_sound();
 
