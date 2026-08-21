@@ -148,7 +148,7 @@ u32 function_cc update_gba(int remaining_cycles)
      still cycles 0..227 and frame_counter climbs.  If it is spinning
      without ever reaching a hardware event, both sit still. */
   { static u32 _n = 0;
-    if ((++_n % 20000) == 0)
+    if (++_n <= 8 || (_n % 500) == 0)
       fprintf(stderr, "TIME upd=%lu vcount=%lu frame=%lu ticks=%lu\n",
               (unsigned long)_n, (unsigned long)read_ioreg(REG_VCOUNT),
               (unsigned long)frame_counter, (unsigned long)cpu_ticks); }
