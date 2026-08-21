@@ -1933,6 +1933,20 @@ void tile_render_layers(u32 start, u32 end, dsttype *dst_ptr, u32 enabled_layers
 // which similarly uses an indexed color for rendering but recording one
 // color for the background and another one for the object layer.
 
+#if defined(N64) && defined(PROFILE_PPU2)
+/* Which rendering path this scene actually exercises.  The PPU is the
+   largest single cost in the emulator (render 43ms/frame vs 21.5ms for all
+   CPU emulation), and render_scanline_window is 93% of it -- but that says
+   nothing about *which* renderer runs.  Effects path, video mode, layer
+   count and obj-blend decide which inner loop is hot, and therefore what
+   is worth optimising. */
+u32 prof_ppu2_effect[4]  = {0};   /* NONE / BRIGHT / DARK / BLEND */
+u32 prof_ppu2_mode[8]    = {0};
+u32 prof_ppu2_layers[8]  = {0};
+u32 prof_ppu2_objblend   = 0;
+u32 prof_ppu2_calls      = 0;
+#endif
+
 static void render_w_effects(
   u32 start, u32 end, u16* scanline, u32 enable_flags,
   const layer_render_struct *renderers
@@ -1940,6 +1954,17 @@ static void render_w_effects(
   bool effects_enabled = enable_flags & 0x20;   // Window bit for effects.
   bool obj_blend = obj_alpha_count[read_ioreg(REG_VCOUNT)] > 0;
   u16 bldcnt = read_ioreg(REG_BLDCNT);
+#if defined(N64) && defined(PROFILE_PPU2)
+  {
+    u32 _et = (enable_flags & 0x20) ? ((bldcnt >> 6) & 0x03) : 0;
+    u32 _vm = read_ioreg(REG_DISPCNT) & 0x07;
+    prof_ppu2_calls++;
+    prof_ppu2_effect[_et & 3]++;
+    prof_ppu2_mode[_vm & 7]++;
+    prof_ppu2_layers[layer_count & 7]++;
+    if (obj_blend) prof_ppu2_objblend++;
+  }
+#endif
 
   // If the window bits disable effects, default to NONE
   u32 effect_type = effects_enabled ? ((bldcnt >> 6) & 0x03)

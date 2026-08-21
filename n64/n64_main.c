@@ -360,6 +360,34 @@ int main(void)
           memset(prof_arm_hist,   0, sizeof(prof_arm_hist));
 #endif
 
+#ifdef PROFILE_PPU2
+          {
+            extern u32 prof_ppu2_effect[4], prof_ppu2_mode[8];
+            extern u32 prof_ppu2_layers[8], prof_ppu2_objblend, prof_ppu2_calls;
+            u32 c = prof_ppu2_calls ? prof_ppu2_calls : 1;
+            debugf("PROF:  ppu2: calls=%lu effect none%lu%% bright%lu%% dark%lu%% blend%lu%%"
+                   " | mode0=%lu%% mode1=%lu%% mode2=%lu%% mode4=%lu%%"
+                   " | layers 1=%lu%% 2=%lu%% 3=%lu%% 4=%lu%% | objblend=%lu%%\n",
+                   (unsigned long)prof_ppu2_calls,
+                   (unsigned long)(prof_ppu2_effect[0]*100/c),
+                   (unsigned long)(prof_ppu2_effect[1]*100/c),
+                   (unsigned long)(prof_ppu2_effect[2]*100/c),
+                   (unsigned long)(prof_ppu2_effect[3]*100/c),
+                   (unsigned long)(prof_ppu2_mode[0]*100/c),
+                   (unsigned long)(prof_ppu2_mode[1]*100/c),
+                   (unsigned long)(prof_ppu2_mode[2]*100/c),
+                   (unsigned long)(prof_ppu2_mode[4]*100/c),
+                   (unsigned long)(prof_ppu2_layers[1]*100/c),
+                   (unsigned long)(prof_ppu2_layers[2]*100/c),
+                   (unsigned long)(prof_ppu2_layers[3]*100/c),
+                   (unsigned long)(prof_ppu2_layers[4]*100/c),
+                   (unsigned long)(prof_ppu2_objblend*100/c));
+            for (int _i = 0; _i < 4; _i++) prof_ppu2_effect[_i] = 0;
+            for (int _i = 0; _i < 8; _i++) { prof_ppu2_mode[_i] = 0; prof_ppu2_layers[_i] = 0; }
+            prof_ppu2_objblend = prof_ppu2_calls = 0;
+          }
+#endif
+
 #ifdef PROFILE_PPU
           /* PPU sub-category breakdown within update_scanline, expressed
            * as % of total PPU ticks (prof_ppu_ticks).  "sort" = OAM sort
