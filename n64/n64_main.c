@@ -189,7 +189,8 @@ int main(void)
      unit; this only checks that ucode load + DMA in/out + sync are sound. */
   { extern void n64_rsp_init(void); extern bool n64_rsp_selftest(void);
     n64_rsp_init();
-    n64_rsp_selftest(); }
+    n64_rsp_selftest();
+    { extern void n64_rsp_bench(void); n64_rsp_bench(); } }
 
   /* Initialize sound */
   init_sound();
