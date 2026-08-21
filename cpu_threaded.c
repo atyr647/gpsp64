@@ -266,17 +266,33 @@ void platform_cache_sync(void *baseaddr, void *endptr);
 #endif
 
 void translate_icache_sync() {
+    bool emitted = false;
     // Cache emitted code can only grow
     if (last_rom_translation_ptr < rom_translation_ptr) {
         platform_cache_sync(last_rom_translation_ptr, rom_translation_ptr);
         last_rom_translation_ptr = rom_translation_ptr;
+        emitted = true;
     }
     if (last_ram_translation_ptr < ram_translation_ptr) {
         platform_cache_sync(last_ram_translation_ptr, ram_translation_ptr);
         last_ram_translation_ptr = ram_translation_ptr;
+        emitted = true;
     }
     #ifdef N64
-    /* Brute-force: invalidate entire I-cache to ensure no stale code */
+    /* Brute-force backstop against stale code -- but ONLY when something
+       was actually emitted.  This function is called from
+       block_lookup_address_*, i.e. on every indirect branch, and the
+       overwhelmingly common case is a hash hit where no code changed at
+       all.  Running a full 16 KB I-cache invalidate there discards the
+       entire I-cache on every indirect branch, so everything afterwards
+       runs from a cold cache.
+       That does not present as a slowdown -- it presents as a hang.  PC
+       sampling during what looked like a hung JIT found the CPU sitting
+       in inst_cache_invalidate_all, called from block_lookup_address_thumb,
+       never completing a frame.  Newly emitted code still gets both the
+       ranged sync above and this invalidate, so the safety property is
+       unchanged. */
+    if (emitted)
     inst_cache_invalidate_all();
     #ifdef N64_JIT_PARANOID_CACHE
     /* Diagnostic: also write back the whole D-cache before invalidating.
