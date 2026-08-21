@@ -3004,9 +3004,22 @@ u32 execute_arm_translate(u32 cycles) {
        serviced every frame.  The real fix is to stop generating
        gp-relative code (rebuild libdragon with -G0) or to free $gp in the
        register allocator; this keeps the JIT testable meanwhile. */
+#ifdef N64_JIT_HEARTBEAT
+    { static u32 jf = 0;
+      if (jf < 8 || (jf % 60) == 0)
+        fprintf(stderr, "JITFRAME %lu enter cyc=%lu\n",
+                (unsigned long)jf, (unsigned long)cycles);
+      jf++; }
+#endif
     disable_interrupts();
     rv = execute_arm_translate_internal(cycles, &reg[0]);
     enable_interrupts();
+#ifdef N64_JIT_HEARTBEAT
+    { static u32 jr = 0;
+      if (jr < 8) fprintf(stderr, "JITFRAME %lu exit rv=%08lx\n",
+                          (unsigned long)jr, (unsigned long)rv);
+      jr++; }
+#endif
 #else
     rv = execute_arm_translate_internal(cycles, &reg[0]);
 #endif
