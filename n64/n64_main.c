@@ -162,6 +162,21 @@ int main(void)
   static u16 __attribute__((aligned(16))) screen_buf[GBA_SCREEN_PITCH * (GBA_SCREEN_HEIGHT + 1)];
   gba_screen_pixels = screen_buf;
   memset(gba_screen_pixels, 0, sizeof(screen_buf));
+#ifdef N64_UNCACHED_SCREEN
+  /* Experiment: address the GBA screen buffer uncached.
+     It is 75 KB written by every scanline and read back by the blit, and a
+     D-cache miss histogram puts it at ~50% of all misses while rendering
+     (buckets 0x1b/0x1c -- anonymous because this is a function-local static
+     that LTO privatises).  The N64 framebuffer costs nothing precisely
+     because libdragon puts it in KSEG1, so the same treatment may pay here.
+     RISK: the renderer does read-modify-write on the destination for
+     stacked/blended pixels (render_tile_Nbpp STCKCOLOR reads *dest_ptr),
+     and obj-blend is active on up to 80% of scanlines in this game, so
+     uncached *reads* could easily cost more than the writes save.  Measure,
+     do not assume. */
+  data_cache_hit_writeback_invalidate(screen_buf, sizeof(screen_buf));
+  gba_screen_pixels = (u16 *)UncachedAddr(screen_buf);
+#endif
 
   /* Initialize sound */
   init_sound();
