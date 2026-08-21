@@ -2605,9 +2605,28 @@ inline static ramtag_type* get_ram_tag(u16 tagval) {
     }
   }
   #define N64_JIT_SCAN_SP(ty, pc, from, to) n64_jit_scan_sp(ty, pc, from, to)
+
+  /* The memory stubs (loads, stores, open-bus, save-media) are emitted once
+     at init into rom_translation_cache below rom_cache_watermark, so a scan
+     of freshly translated blocks never covers them.  They are the natural
+     suspects for a stray $sp write: they are the code that runs on every
+     GBA load and store, and the observed corruption puts a GBA destination
+     pointer -- palette RAM, mid-CpuSet -- into $sp. */
+  static void n64_jit_scan_stubs(void)
+  {
+    static int done = 0;
+    if (done) return;
+    done = 1;
+    fprintf(stderr, "JITSTUB scanning %u bytes of stubs\n",
+            (unsigned)rom_cache_watermark);
+    n64_jit_scan_sp("stub", 0, rom_translation_cache,
+                    rom_translation_cache + rom_cache_watermark);
+  }
+  #define N64_JIT_SCAN_STUBS() n64_jit_scan_stubs()
 #else
   #define N64_JIT_TRACE_BLOCK(ty, pc) do {} while (0)
   #define N64_JIT_SCAN_SP(ty, pc, from, to) do {} while (0)
+  #define N64_JIT_SCAN_STUBS() do {} while (0)
 #endif
 
 /* The N64_JIT_TRACE probes sit at the translate_block calls, NOT at the top
@@ -2686,6 +2705,7 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
         *blk_offset_addr = (u32)(rom_translation_ptr - rom_translation_cache);\
         rom_translation_ptr += sizeof(hashhdr_type);                          \
         blkptr = rom_translation_ptr + block_prologue_size;                   \
+        N64_JIT_SCAN_STUBS();                                                 \
         N64_JIT_TRACE_BLOCK(#type " rom", pc);                                \
         { u8 *dbgfrom = rom_translation_ptr;                                  \
         result = translate_block_##type(pc, false);                           \
