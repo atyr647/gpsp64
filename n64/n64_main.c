@@ -37,9 +37,19 @@ u32 translation_gate_targets = 0;
 
 static bool emulator_running = false;
 
-/* Simple frameskip state */
+/* Simple frameskip state.
+ *
+ * FRAMESKIP_INTERVAL is how many frames are skipped after each rendered
+ * one, so 0 = render everything, 1 = render every other frame.  Note
+ * that the FPS this file reports counts *emulated* frames, which is
+ * (interval + 1) times the rate the player actually sees -- skipping is
+ * only a win if it buys back more emulated throughput than the frames it
+ * throws away, and the PPU + blit are together ~50% of frame time, so it
+ * does not.  Overridable so it can be A/B'd on ares. */
 static u32 frameskip_counter = 0;
-#define FRAMESKIP_INTERVAL 1  /* Skip every other frame */
+#ifndef FRAMESKIP_INTERVAL
+#define FRAMESKIP_INTERVAL 1
+#endif
 
 void error_msg(const char *text)
 {
