@@ -2617,10 +2617,16 @@ inline static ramtag_type* get_ram_tag(u16 tagval) {
     static int done = 0;
     if (done) return;
     done = 1;
-    fprintf(stderr, "JITSTUB scanning %u bytes of stubs\n",
-            (unsigned)rom_cache_watermark);
-    n64_jit_scan_sp("stub", 0, rom_translation_cache,
-                    rom_translation_cache + rom_cache_watermark);
+    /* Scan everything emitted before the first runtime translation, not
+       just [0, watermark).  rom_cache_watermark is recorded *before*
+       init_bios_hooks() runs, so the BIOS hook code sits above it and a
+       scan bounded by the watermark misses it entirely. */
+    fprintf(stderr, "JITSTUB scanning %u bytes (watermark %u, +%u above it)\n",
+            (unsigned)(rom_translation_ptr - rom_translation_cache),
+            (unsigned)rom_cache_watermark,
+            (unsigned)((rom_translation_ptr - rom_translation_cache)
+                       - rom_cache_watermark));
+    n64_jit_scan_sp("stub", 0, rom_translation_cache, rom_translation_ptr);
   }
   #define N64_JIT_SCAN_STUBS() n64_jit_scan_stubs()
 #else
