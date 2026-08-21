@@ -80,6 +80,24 @@ extern "C" {
    * recompile to native C for AOT HLE?"
    *
    * Only built when PROFILE_AOT is defined. */
+  #if defined(PROFILE_AOT) || defined(PROFILE_CYCLES)
+    #define PROFILE_AOT_COUNTERS 1
+      /* AOT coverage counters.  prof_aot_hits counts auto-generated
+       * dispatch successes, prof_aot_hw_hits the hand-written ones, and
+       * prof_aot_gba_cycles the GBA cycles those dispatches accounted
+       * for.  Together with prof_arm_insns/prof_thumb_insns (which count
+       * only *interpreted* instructions) these give AOT coverage as a
+       * fraction of total emulated work.
+       *
+       * Updated once per AOT dispatch (~2K per profiling window), not per
+       * interpreted instruction, so these are safe to carry in a
+       * PROFILE_CYCLES build -- unlike the page histograms below, whose
+       * per-instruction cost is itself worth 33% of the framerate. */
+      u32 prof_aot_hits = 0;
+      u32 prof_aot_hw_hits = 0;
+      u32 prof_aot_gba_cycles = 0;
+  #endif
+
   #ifdef PROFILE_AOT
     #define AOT_PAGE_BUCKETS 6144
     #define AOT_BL_TABLE_SIZE 512
@@ -96,16 +114,6 @@ extern "C" {
        * actually actionable. */
       u32 prof_page_hist_thumb[AOT_PAGE_BUCKETS] = {0};
       bl_target_t prof_bl_targets[AOT_BL_TABLE_SIZE] = {{0,0}};
-
-      /* AOT coverage counters.  prof_aot_hits counts auto-generated
-       * dispatch successes, prof_aot_hw_hits the hand-written ones, and
-       * prof_aot_gba_cycles the GBA cycles those dispatches accounted
-       * for.  Together with prof_arm_insns/prof_thumb_insns (which count
-       * only *interpreted* instructions) these give AOT coverage as a
-       * fraction of total emulated work. */
-      u32 prof_aot_hits = 0;
-      u32 prof_aot_hw_hits = 0;
-      u32 prof_aot_gba_cycles = 0;
 
       /* Fine-grained PC profiler for one 4KB page, at 2-byte (Thumb
        * instruction) granularity.  Page histograms say *which* page is
@@ -3256,7 +3264,7 @@ thumb_loop:
        #ifndef AOT_NO_HANDWRITTEN
        if (__builtin_expect(reg[REG_PC] == 0x0806F160, 0)) {
          aot_0806F160_entry();
-         #ifdef PROFILE_AOT
+         #ifdef PROFILE_AOT_COUNTERS
          prof_aot_hw_hits++; prof_aot_gba_cycles += 200;
          #endif
          cycles_remaining -= 200;
@@ -3264,7 +3272,7 @@ thumb_loop:
        }
        if (__builtin_expect(reg[REG_PC] == 0x08005ED8, 0)) {
          aot_08005ED8_entry();
-         #ifdef PROFILE_AOT
+         #ifdef PROFILE_AOT_COUNTERS
          prof_aot_hw_hits++; prof_aot_gba_cycles += 400;
          #endif
          cycles_remaining -= 400;
@@ -3297,7 +3305,7 @@ thumb_loop:
          {
            u32 _aot_cyc = 0;
            if (aot_generated_dispatch(reg[REG_PC], &_aot_cyc)) {
-             #ifdef PROFILE_AOT
+             #ifdef PROFILE_AOT_COUNTERS
              prof_aot_hits++; prof_aot_gba_cycles += _aot_cyc;
              #endif
              cycles_remaining -= (s32)_aot_cyc;
@@ -3327,7 +3335,7 @@ thumb_loop:
 #ifdef PROFILE_CYCLES
              prof_aot_ticks += PROF_CYC_TICK() - _aot_t0;
 #endif
-             #ifdef PROFILE_AOT
+             #ifdef PROFILE_AOT_COUNTERS
              prof_aot_hits++; prof_aot_gba_cycles += _aot_cyc;
              #endif
              cycles_remaining -= (s32)_aot_cyc;
