@@ -1971,6 +1971,7 @@ u32 prof_ppu2_layers[8]  = {0};
 u32 prof_ppu2_objblend   = 0;
 u32 prof_ppu2_4bpp = 0, prof_ppu2_8bpp = 0;
 u32 prof_ppu2_objlast = 0, prof_ppu2_objmid = 0, prof_ppu2_noobj = 0;
+u32 prof_ppu2_fastok = 0, prof_ppu2_fastno = 0;
 u32 prof_ppu2_calls      = 0;
 #endif
 
@@ -1982,6 +1983,18 @@ static void render_w_effects(
   bool obj_blend = obj_alpha_count[read_ioreg(REG_VCOUNT)] > 0;
   u16 bldcnt = read_ioreg(REG_BLDCNT);
 #if defined(N64) && defined(PROFILE_PPU2)
+  {
+    /* Joint applicability of the RSP BG fast path.  It needs the plain
+       fullcolor route: no colour effect AND no object blending.  With
+       obj_blend the renderer goes through stacked() + merge_blend into a
+       u32 intermediate, which the index-producing kernel cannot feed.
+       The marginals (effect none %, objblend %) do not give this -- they
+       are separate percentages over the same scanlines. */
+    extern u32 prof_ppu2_fastok, prof_ppu2_fastno;
+    u32 _eff = (enable_flags & 0x20) ? ((bldcnt >> 6) & 0x03) : 0;
+    bool _eff_noop = (_eff == COL_EFFECT_NONE);
+    if (_eff_noop && !obj_blend) prof_ppu2_fastok++; else prof_ppu2_fastno++;
+  }
   {
     u32 _et = (enable_flags & 0x20) ? ((bldcnt >> 6) & 0x03) : 0;
     u32 _vm = read_ioreg(REG_DISPCNT) & 0x07;

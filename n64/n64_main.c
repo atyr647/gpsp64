@@ -444,6 +444,13 @@ int main(void)
                    (unsigned long)(prof_ppu2_layers[3]*100/c),
                    (unsigned long)(prof_ppu2_layers[4]*100/c),
                    (unsigned long)(prof_ppu2_objblend*100/c));
+            { extern u32 prof_ppu2_fastok, prof_ppu2_fastno;
+              u32 ft = prof_ppu2_fastok + prof_ppu2_fastno; if (!ft) ft = 1;
+              debugf("PROF:  ppu2: RSP BG fast path applicable on %lu%% of scanlines"
+                     " (%lu of %lu)\n",
+                     (unsigned long)(prof_ppu2_fastok*100/ft),
+                     (unsigned long)prof_ppu2_fastok, (unsigned long)ft);
+              prof_ppu2_fastok = prof_ppu2_fastno = 0; }
             { extern u32 prof_ppu2_objlast, prof_ppu2_objmid, prof_ppu2_noobj;
               u32 tt = prof_ppu2_objlast + prof_ppu2_objmid + prof_ppu2_noobj;
               if (!tt) tt = 1;
