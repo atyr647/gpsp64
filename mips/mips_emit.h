@@ -2776,26 +2776,32 @@ static void emit_phand(
   mips_emit_lw(reg_rv,   reg_temp, tbloff);     // Get func addr from 1st table
 
   #if defined(N64)
-    /* Patch the calling JAL so subsequent executions of this memory access
-       jump straight to the region handler instead of re-running the whole
-       dispatcher.  Memory accesses are a large fraction of all instructions,
-       so leaving this off costs full region dispatch on every load and store,
-       forever.
-       bd2f569 removed it to stop a crash at 0x04fffed8, blamed on the store
-       interfering with the I-cache.  That address is the RCP-unmapped
-       signature this branch later traced to the $gp/inthandler exception
-       storm, which is independent of the patcher -- so it was very likely
-       innocent.
-       The VR4300 has no cache coherency, so the patched word needs explicit
-       maintenance, which the original attempt skipped entirely:
-         Hit_Write_Back_D          (6<<2)|1 = 0x19  push the store to RDRAM
-         Hit_Invalidate_I          (4<<2)|0 = 0x10  drop the stale I-line
-       Ordering is safe: we return via jr reg_rv rather than to ra-8, so the
-       patched instruction is not re-executed until a later pass. */
-    mips_emit_lw(reg_temp, reg_temp, tbloff2);  // JAL opcode from 2nd table
-    mips_emit_sw(reg_temp, mips_reg_ra, -8);    // patch the calling JAL
-    mips_emit_cache(0x19, mips_reg_ra, -8);     // D-cache hit writeback
-    mips_emit_cache(0x10, mips_reg_ra, -8);     // I-cache hit invalidate
+    /* Do NOT patch the calling JAL on N64.  MEASURED, not assumed:
+
+         interpreter                  ~7.9  N64cyc per GBAcyc
+         dynarec, no patcher         ~20.5
+         dynarec, patcher restored   ~39.4   1.9x WORSE
+
+       (eight consecutive readings within 0.5%, so this is steady state.)
+
+       The restoration was well motivated -- bd2f569 disabled it to fix a
+       crash at 0x04fffed8, which this branch later traced to the
+       $gp/inthandler storm and which has nothing to do with self-modifying
+       code -- and it added the cache maintenance the original lacked
+       (Hit_Write_Back_D then Hit_Invalidate_I; the original skipped both,
+       reasoning the line would write back "naturally when evicted", which
+       is not sound on a VR4300).
+
+       It is still slower.  The most likely reason is that the patch does
+       not stick: gpSP patches the JAL to a *region-specific* handler, so
+       any instruction whose address moves between regions -- ordinary
+       pointer-chasing code -- lands on the wrong handler, returns to the
+       dispatcher and is re-patched.  That thrashes, and each pass now also
+       pays a store and two cache operations.  Cost with no benefit.
+
+       Re-enabling this needs the patch to be validated as sticky first
+       (count patches versus memory accesses); the dispatcher-only path is
+       measurably the cheaper of the two. */
     mips_emit_jr(reg_rv);
     mips_emit_nop();
   #elif defined(PSP)
