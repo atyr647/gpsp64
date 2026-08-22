@@ -297,4 +297,77 @@ void n64_rsp_bench(void)
       debugf("[gpSP]:   (CPU equivalent: 4 layers x ~5.81 = ~23.2 cyc/px)\n");
     }
   }
+
+  /* What does feeding the RSP actually cost?
+   *
+   * The composite kernel wants packed 4bpp bytes laid out contiguously per
+   * layer, but real tile rows are scattered through VRAM by tile index, so
+   * the data has to be gathered first.  If the CPU does that gather, it
+   * pays exactly the scattered-read cost the offload was meant to avoid.
+   * Measure it against a realistic access pattern: 32 tiles per layer per
+   * scanline, 4 layers, tile indices spread over a 16 KB charblock. */
+  {
+    extern u8 vram_raw[];
+    static u8 gathered[4 * 32 * 4] __attribute__((aligned(16)));
+    static u16 tilemap[4][32];
+    u32 t0g, t1g, L, i, s;
+    u32 lines = 160;
+
+    /* Plausible tilemap: indices scattered, not sequential. */
+    for (L = 0; L < 4; L++)
+      for (i = 0; i < 32; i++)
+        tilemap[L][i] = (u16)((i * 37 + L * 101) & 0x3FF);
+
+    t0g = RSP_TICK();
+    for (s = 0; s < lines; s++) {
+      u8 *g = gathered;
+      for (L = 0; L < 4; L++) {
+        const u8 *base = &vram_raw[L * 0x4000 + (s & 7) * 4];
+        for (i = 0; i < 32; i++) {
+          const u32 *tp = (const u32 *)&base[(tilemap[L][i] & 0x3FF) * 32];
+          *(u32 *)g = *tp;         /* one tile row = 4 bytes */
+          g += 4;
+        }
+      }
+    }
+    t1g = RSP_TICK();
+    {
+      u32 cyc = (t1g - t0g) * 2;             /* COUNT is CPU/2 */
+      debugf("[gpSP]: CPU gather for %lu scanlines: %lu cyc = %lu.%02lu ms/frame\n",
+             (unsigned long)lines, (unsigned long)cyc,
+             (unsigned long)(cyc / 93750), (unsigned long)((cyc % 93750) * 100 / 93750));
+      debugf("[gpSP]:   (composite offload saves 6.78 ms before this cost)\n");
+    }
+
+    /* Same bytes, 8x fewer scattered accesses.
+     *
+     * The per-scanline gather above re-reads 4 bytes from each tile for
+     * every one of the 8 scanlines in a tile-row band -- 256 scattered
+     * reads per layer per band.  Fetching the 32 whole tiles once per band
+     * moves exactly the same 1 KB with 32 scattered reads, each pulling
+     * contiguous cache lines.  Cache behaviour, not bytes moved, is what
+     * made the first version cost 5.13 ms. */
+    t0g = RSP_TICK();
+    for (s = 0; s < lines / 8; s++) {
+      u8 *g = gathered;
+      for (L = 0; L < 4; L++) {
+        const u8 *base = &vram_raw[L * 0x4000];
+        for (i = 0; i < 32; i++) {
+          const u32 *tp = (const u32 *)&base[(tilemap[L][i] & 0x3FF) * 32];
+          u32 w;
+          /* whole 32-byte tile = 8 words, sequential */
+          for (w = 0; w < 8; w++) ((u32 *)g)[w] = tp[w];
+          g += 32;
+          if (g > gathered + sizeof(gathered) - 32) g = gathered;
+        }
+      }
+    }
+    t1g = RSP_TICK();
+    {
+      u32 cyc = (t1g - t0g) * 2;
+      debugf("[gpSP]: CPU band gather (1 fetch per 8 lines): %lu cyc = %lu.%02lu ms/frame\n",
+             (unsigned long)cyc,
+             (unsigned long)(cyc / 93750), (unsigned long)((cyc % 93750) * 100 / 93750));
+    }
+  }
 }
