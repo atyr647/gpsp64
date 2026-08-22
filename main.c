@@ -143,6 +143,30 @@ u32 function_cc update_gba(int remaining_cycles)
   u32 _upd_t0 = PROF_TICK();
   prof_update_calls++;
 #endif
+#ifdef PROFILE_EFF
+  /* Frame-independent efficiency metric: N64 cycles spent per GBA cycle
+     emulated.  Full speed is 5.56 (93.75 MHz host / 16.78 MHz GBA).
+     Unlike the FPS report this needs no frame boundary, so it yields a
+     valid number after a fraction of a frame -- which is what makes
+     dynarec iteration practical, since the dynarec makes the host crawl
+     in wall-clock even though emulated time advances normally. */
+  { static u32 _n = 0, _t0 = 0, _c0 = 0;
+    if ((++_n % 400) == 0) {
+      u32 t = PROF_TICK(), c = cpu_ticks;
+      if (_t0) {
+        u32 dt = (t - _t0) * 2;          /* COUNT is CPU/2 */
+        u32 dc = c - _c0;
+        if (dc)
+          fprintf(stderr, "EFF %lu.%02lu N64cyc per GBAcyc (target 5.56)\n",
+                  (unsigned long)(dt / dc),
+                  (unsigned long)(((u64)(dt % dc) * 100) / dc));
+      }
+      /* Re-sample AFTER printing: an ISViewer fprintf costs real emulated
+         cycles under ares, and folding it into the next interval inflated
+         the reading roughly tenfold (106 vs an expected ~9). */
+      _t0 = PROF_TICK(); _c0 = cpu_ticks;
+    } }
+#endif
 #ifdef N64_TIME_TRACE
   /* Is emulated time advancing at all?  If the JIT is merely slow, vcount
      still cycles 0..227 and frame_counter climbs.  If it is spinning

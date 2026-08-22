@@ -5,6 +5,14 @@
 #
 #   native/ares_bench.sh <label> [EXTRA_CFLAGS...]
 #
+# ARES_NORECOMP=1 disables ares's own CPU recompiler.  Essential when
+# benchmarking the gpSP dynarec: our ROM writes MIPS code and executes it,
+# which is the worst case for a recompiling host -- ares keeps discarding
+# translations and a single emulated frame can take 15 minutes of wall
+# clock.  With ares interpreting, the cost is uniform and iteration is
+# usable.  The reported FPS comes from the VR4300 COUNT register, i.e.
+# emulated time, so it stays valid either way.
+#
 # What it measures comes straight from the ROM's own PROF output, which
 # is derived from the VR4300 COUNT register (CP0 $9, CPU/2 = 46.875 MHz)
 # that ares emulates:
@@ -72,7 +80,7 @@ sleep 2
 
 echo "[ares:$LABEL] running ares (up to ${TIMEOUT}s, want $WINDOWS PROF windows)..."
 ( cd "$SCRATCH" && DISPLAY="$DISP" timeout "$TIMEOUT" \
-    "$ARES" --setting Nintendo64/ExpansionPak=true --system "Nintendo 64" gpsp.z64 ) \
+    "$ARES" --setting Nintendo64/ExpansionPak=true ${ARES_NORECOMP:+--setting Nintendo64/Recompiler=false} --system "Nintendo 64" gpsp.z64 ) \
     >"$SCRATCH/ares.log" 2>&1 &
 APID=$!
 
