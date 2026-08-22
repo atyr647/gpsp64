@@ -24,7 +24,8 @@ typedef struct {
   u32 orval;
   u32 op;        /* 0 = selftest, 1 = expand */
   u32 rep;       /* repeat kernel N times inside one invocation */
-  u32 pad[2];
+  u32 palv;      /* RDRAM: per-layer per-group palette vectors */
+  u32 pad[1];
 } rsp_ctrl_t;
 
 static bool rsp_ready = false;
@@ -369,5 +370,71 @@ void n64_rsp_bench(void)
              (unsigned long)cyc,
              (unsigned long)(cyc / 93750), (unsigned long)((cyc % 93750) * 100 / 93750));
     }
+  }
+
+  /* op=4: composite with per-tile palette, verified against a CPU model of
+     gpSP's INDXCOLOR semantics -- `pval | tilepal`, transparency tested on
+     the raw nibble so index 0 of any sub-palette still reads transparent. */
+  {
+    const int LB = 128;                       /* bytes per layer */
+    static u8  src4[4 * 128]  __attribute__((aligned(16)));
+    static u16 pal4[4 * 128]  __attribute__((aligned(16)));  /* LEN/4 groups x 8 lanes */
+    static u16 dst4[4 * 128]  __attribute__((aligned(16)));
+    static u16 ref4[4 * 128];
+    u32 i, L, g, lane, bad = 0;
+
+    for (i = 0; i < sizeof(src4); i++) src4[i] = (u8)(i * 53 + (i >> 4));
+    /* one palette vector per layer per 4-tile group: [p0,p0,p1,p1,...] */
+    for (L = 0; L < 4; L++)
+      for (g = 0; g < LB / 16; g++)
+        for (lane = 0; lane < 8; lane++)
+          pal4[(L * (LB / 16) + g) * 8 + lane] =
+            (u16)(((L * 3 + g * 5 + (lane / 2)) & 0xF) << 4);
+
+    data_cache_hit_writeback_invalidate(src4, sizeof(src4));
+    data_cache_hit_writeback_invalidate(pal4, sizeof(pal4));
+    data_cache_hit_writeback_invalidate(dst4, sizeof(dst4));
+
+    c.src = (u32)src4; c.dst = (u32)dst4; c.palv = (u32)pal4;
+    c.len = LB; c.orval = 0; c.op = 4; c.rep = 1;
+    data_cache_hit_writeback_invalidate(&c, sizeof(c));
+    rsp_load_data(&c, sizeof(c), 0);
+    rsp_run();
+    data_cache_hit_invalidate(dst4, sizeof(dst4));
+
+    /* CPU reference, same planar layout the kernel writes */
+    for (g = 0; g < (u32)LB / 16; g++) {
+      for (lane = 0; lane < 8; lane++) {
+        u32 plane_ent[4];
+        u32 pl;
+        for (pl = 0; pl < 4; pl++) {
+          u32 acc = 0, have = 0;
+          for (L = 0; L < 4; L++) {
+            const u8 *lay = &src4[L * LB + g * 16];
+            u32 byte = (pl < 2) ? lay[lane * 2] : lay[lane * 2 + 1];
+            u32 nib  = (pl & 1) ? ((byte >> 4) & 0xF) : (byte & 0xF);
+            u32 pv   = pal4[(L * (LB / 16) + g) * 8 + lane];
+            if (L == 0)      { acc = nib | pv; have = 1; }
+            else if (nib)    { acc = nib | pv; }
+          }
+          (void)have;
+          plane_ent[pl] = acc;
+        }
+        for (pl = 0; pl < 4; pl++)
+          ref4[pl * (LB / 2) + g * 8 + lane] = (u16)plane_ent[pl];
+      }
+    }
+    for (i = 0; i < (u32)LB * 2; i++) {
+      if (dst4[i] != ref4[i]) {
+        if (bad++ < 3)
+          debugf("[gpSP]: comppal MISMATCH at %lu: rsp=%04x ref=%04x\n",
+                 (unsigned long)i, dst4[i], ref4[i]);
+      }
+    }
+    if (!bad)
+      debugf("[gpSP]: RSP comppal OK -- 4 layers + per-tile palette verified\n");
+    else
+      debugf("[gpSP]: RSP comppal %lu mismatches of %lu\n",
+             (unsigned long)bad, (unsigned long)(LB * 2));
   }
 }

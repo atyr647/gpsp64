@@ -28,7 +28,8 @@
 #define D_CTRL      0x0000
 #define D_VCONST    0x0020   /* CTRL is 5 words = 20 bytes; clear it */
 #define D_VFLAG     0x0060
-#define D_VPAL      0x0080   /* 16 u16 subpalette */   /* VCONST is 4 vectors = 64 B from 0x20 */
+#define D_VPAL      0x0080   /* 16 u16 subpalette */
+#define D_PALV      0x0100   /* per-layer per-group palette vectors */   /* VCONST is 4 vectors = 64 B from 0x20 */
 #define D_SRCBUF    0x0400
 #define D_DSTBUF    0x0800
 
@@ -64,6 +65,9 @@ _start:
     # rsp_run_async() always starts at the ucode's start_pc, so selecting
     # work via the control block keeps one ucode and one entry point.
     lw      t9, D_CTRL+16(zero)
+    li      t8, 4
+    beq     t9, t8, comppal_entry
+     nop
     li      t8, 3
     beq     t9, t8, composite_entry
      nop
@@ -350,6 +354,126 @@ composite_entry:
      nop
     addi    s7, s7, -1
     bgtz    s7, 7b
+     nop
+
+    lw      s0, D_CTRL+4(zero)
+    lw      t3, D_CTRL+8(zero)
+    sll     t3, t3, 2
+    li      s4, D_DSTBUF
+    addi    t0, t3, -1
+    jal     DMAOut
+     li     t1, 0
+    break
+
+
+    # ---- op=4: 4-layer composite with per-tile palette -------------------
+    # gpSP's INDXCOLOR output is `pval | px_comb | tilepal`, where tilepal is
+    # the 4bpp sub-palette selected per tile by tilemap bits 12-15.  A 16-byte
+    # load covers 4 tiles, and the planar layout maps lane i of every plane to
+    # tile i/2, so ONE vector [p0,p0,p1,p1,p2,p2,p3,p3] per 4-tile group
+    # applies the palette to all four planes with a single vor.
+    #
+    # Order matters: transparency is tested on the RAW nibble (pval == 0),
+    # and the palette is OR'd after -- otherwise a pixel using sub-palette N
+    # with index 0 would stop reading as transparent.
+    #
+    # src  = 4 layers x LEN bytes tile data, then 4 layers x (LEN/4) palette
+    #        vectors of 8 lanes each, built by the CPU during the gather.
+    .global comppal_entry
+comppal_entry:
+    lw      s0, D_CTRL+0(zero)
+    lw      t3, D_CTRL+8(zero)
+    sll     t0, t3, 2
+    addi    t0, t0, -1
+    li      s4, D_SRCBUF
+    jal     DMAIn
+     li     t1, 0
+
+    lw      s0, D_CTRL+24(zero)         # palette vectors, RDRAM
+    lw      t3, D_CTRL+8(zero)
+    sll     t0, t3, 2                   # 4 layers x LEN bytes of vectors
+    addi    t0, t0, -1
+    li      s4, D_PALV
+    jal     DMAIn
+     li     t1, 0
+
+    lqv     $v10, 0,D_VCONST+0x00, zero
+    lqv     $v11, 0,D_VCONST+0x10, zero
+    lqv     $v12, 0,D_VCONST+0x20, zero
+    lqv     $v13, 0,D_VCONST+0x30, zero
+    vxor    $v00, $v00, $v00
+
+    lw      s7, D_CTRL+20(zero)
+9:
+    lw      t3, D_CTRL+8(zero)
+    li      t5, D_SRCBUF
+    li      t6, D_DSTBUF
+    li      s8, D_PALV
+    add     s6, t5, t3
+10:
+    # layer 0 (base): extract, apply palette, no transparency test
+    lqv     $v01, 0,0x000, t5
+    lqv     $v25, 0,0x000, s8
+    vmudl   $v02, $v01, $v12
+    vand    $v03, $v01, $v10
+    vand    $v20, $v02, $v11
+    vor     $v20, $v20, $v25
+    vmudl   $v05, $v02, $v13
+    vand    $v21, $v05, $v11
+    vor     $v21, $v21, $v25
+    vand    $v22, $v03, $v11
+    vor     $v22, $v22, $v25
+    vmudl   $v07, $v03, $v13
+    vand    $v23, $v07, $v11
+    vor     $v23, $v23, $v25
+
+    li      t2, 3                       # layers 1..3
+    add     t7, t5, t3
+    add     t4, s8, t3
+11:
+    lqv     $v01, 0,0x000, t7
+    lqv     $v25, 0,0x000, t4
+    vmudl   $v02, $v01, $v12
+    vand    $v03, $v01, $v10
+    vand    $v04, $v02, $v11            # raw nibble -- test on this
+    vmudl   $v05, $v02, $v13
+    vand    $v05, $v05, $v11
+    vand    $v06, $v03, $v11
+    vmudl   $v07, $v03, $v13
+    vand    $v07, $v07, $v11
+    vne     $v24, $v04, $v00
+    vor     $v26, $v04, $v25
+    vmrg    $v20, $v26, $v20
+    vne     $v24, $v05, $v00
+    vor     $v26, $v05, $v25
+    vmrg    $v21, $v26, $v21
+    vne     $v24, $v06, $v00
+    vor     $v26, $v06, $v25
+    vmrg    $v22, $v26, $v22
+    vne     $v24, $v07, $v00
+    vor     $v26, $v07, $v25
+    vmrg    $v23, $v26, $v23
+    add     t7, t7, t3
+    add     t4, t4, t3
+    addi    t2, t2, -1
+    bgtz    t2, 11b
+     nop
+
+    sqv     $v20, 0,0x000, t6
+    add     t8, t6, t3
+    sqv     $v21, 0,0x000, t8
+    add     t8, t8, t3
+    sqv     $v22, 0,0x000, t8
+    add     t8, t8, t3
+    sqv     $v23, 0,0x000, t8
+
+    addi    t5, t5, 16
+    addi    t6, t6, 16
+    addi    s8, s8, 16
+    bne     t5, s6, 10b
+     nop
+    addi    s7, s7, -1
+    bgtz    s7, 9b
      nop
 
     lw      s0, D_CTRL+4(zero)

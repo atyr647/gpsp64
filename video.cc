@@ -1874,6 +1874,22 @@ void tile_render_layers(u32 start, u32 end, dsttype *dst_ptr, u32 enabled_layers
   bool objlayer_is_1st_tgt = ((read_ioreg(REG_BLDCNT) >> 4) & 1) != 0;
   bool has_trans_obj = obj_alpha_count[read_ioreg(REG_VCOUNT)];
 
+#if defined(N64) && defined(PROFILE_PPU2)
+  /* Can the RSP composite kernel apply here?  It assumes N consecutive BG
+     layers, but layer_order interleaves OBJ with BG by priority.  Count how
+     often OBJ appears before the last BG -- those scanlines cannot use a
+     batched BG composite without splitting it. */
+  { extern u32 prof_ppu2_objlast, prof_ppu2_objmid, prof_ppu2_noobj;
+    u32 li, lastbg = 0, firstobj = 0xFF, nobj = 0;
+    for (li = 0; li < layer_count; li++) {
+      if (layer_order[li] & 0x4) { nobj++; if (firstobj == 0xFF) firstobj = li; }
+      else lastbg = li;
+    }
+    if (!nobj)                 prof_ppu2_noobj++;
+    else if (firstobj > lastbg) prof_ppu2_objlast++;
+    else                        prof_ppu2_objmid++;
+  }
+#endif
   for (lnum = 0; lnum < layer_count; lnum++) {
     u32 layer = layer_order[lnum];
     bool is_obj = layer & 0x4;
@@ -1954,6 +1970,7 @@ u32 prof_ppu2_mode[8]    = {0};
 u32 prof_ppu2_layers[8]  = {0};
 u32 prof_ppu2_objblend   = 0;
 u32 prof_ppu2_4bpp = 0, prof_ppu2_8bpp = 0;
+u32 prof_ppu2_objlast = 0, prof_ppu2_objmid = 0, prof_ppu2_noobj = 0;
 u32 prof_ppu2_calls      = 0;
 #endif
 

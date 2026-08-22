@@ -444,6 +444,15 @@ int main(void)
                    (unsigned long)(prof_ppu2_layers[3]*100/c),
                    (unsigned long)(prof_ppu2_layers[4]*100/c),
                    (unsigned long)(prof_ppu2_objblend*100/c));
+            { extern u32 prof_ppu2_objlast, prof_ppu2_objmid, prof_ppu2_noobj;
+              u32 tt = prof_ppu2_objlast + prof_ppu2_objmid + prof_ppu2_noobj;
+              if (!tt) tt = 1;
+              debugf("PROF:  ppu2: layer order -- no obj %lu%%, obj last %lu%%,"
+                     " obj interleaved %lu%% (batchable = first two)\n",
+                     (unsigned long)(prof_ppu2_noobj*100/tt),
+                     (unsigned long)(prof_ppu2_objlast*100/tt),
+                     (unsigned long)(prof_ppu2_objmid*100/tt));
+              prof_ppu2_objlast = prof_ppu2_objmid = prof_ppu2_noobj = 0; }
             { extern u32 prof_ppu2_4bpp, prof_ppu2_8bpp;
               u32 bt = prof_ppu2_4bpp + prof_ppu2_8bpp;
               debugf("PROF:  ppu2: tiled layer draws 4bpp=%lu 8bpp=%lu (%lu%% 4bpp)\n",
