@@ -151,7 +151,11 @@ u32 function_cc update_gba(int remaining_cycles)
      dynarec iteration practical, since the dynarec makes the host crawl
      in wall-clock even though emulated time advances normally. */
   { static u32 _n = 0, _t0 = 0, _c0 = 0;
-    if ((++_n % 400) == 0) {
+    /* 400 was far too coarse for the dynarec: it manages only a few hundred
+       update_gba calls in an entire run, and with the first sample used to
+       prime the interval that needs 800 before printing anything.  50 gives
+       a reading within seconds on either path. */
+    if ((++_n % 50) == 0) {
       u32 t = PROF_TICK(), c = cpu_ticks;
       if (_t0) {
         u32 dt = (t - _t0) * 2;          /* COUNT is CPU/2 */
