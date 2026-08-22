@@ -103,7 +103,6 @@ bool n64_rsp_selftest(void)
   }
   debugf("[gpSP]: RSP selftest OK (ucode loaded, DMA in/out, %u bytes)\n",
          (unsigned)sizeof(src));
-
   return true;
 }
 
@@ -257,6 +256,45 @@ void n64_rsp_bench(void)
              " (extract alone 1.76) -> palette adds %lu.%02lu\n",
              (unsigned long)(x100 / 100), (unsigned long)(x100 % 100),
              (unsigned long)((x100 - 176) / 100), (unsigned long)((x100 - 176) % 100));
+    }
+  }
+
+
+  /* op=3: 4-layer extract + composite, the last unmeasured piece of the
+     render pipeline.  Same slope method so the ~2166-cycle call overhead
+     cancels.  Cost is quoted per *output* pixel, which is what the frame
+     projection needs -- each output pixel costs four layer-pixels of work. */
+  {
+    const int R = 64;
+    const int LAYER_BYTES = 128;          /* 4 layers x 128 B fits DMEM */
+    static u8  csrc[4 * 128] __attribute__((aligned(16)));
+    static u16 cdst[4 * 128] __attribute__((aligned(16)));
+    u32 t0c, t1c, lo, hi, i;
+
+    for (i = 0; i < sizeof(csrc); i++) csrc[i] = (u8)(i * 31 + (i >> 3));
+    data_cache_hit_writeback_invalidate(csrc, sizeof(csrc));
+    data_cache_hit_writeback_invalidate(cdst, sizeof(cdst));
+
+    c.src = (u32)csrc; c.dst = (u32)cdst;
+    c.len = LAYER_BYTES; c.orval = 0; c.op = 3;
+
+    c.rep = 1;
+    data_cache_hit_writeback_invalidate(&c, sizeof(c));
+    rsp_load_data(&c, sizeof(c), 0);
+    t0c = RSP_TICK(); rsp_run(); lo = RSP_TICK() - t0c;
+
+    c.rep = 1 + R;
+    data_cache_hit_writeback_invalidate(&c, sizeof(c));
+    rsp_load_data(&c, sizeof(c), 0);
+    t1c = RSP_TICK(); rsp_run(); hi = RSP_TICK() - t1c;
+
+    if (hi > lo) {
+      /* LAYER_BYTES bytes/layer x 2 px/byte = output pixels per iteration */
+      u32 outpx = (u32)LAYER_BYTES * 2u * (u32)R;
+      u32 cyc_x100 = (u32)(((u64)(hi - lo) * 2u * 100u) / outpx);
+      debugf("[gpSP]: RSP 4-layer composite %lu.%02lu cyc per OUTPUT px\n",
+             (unsigned long)(cyc_x100 / 100), (unsigned long)(cyc_x100 % 100));
+      debugf("[gpSP]:   (CPU equivalent: 4 layers x ~5.81 = ~23.2 cyc/px)\n");
     }
   }
 }

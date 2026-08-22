@@ -64,6 +64,9 @@ _start:
     # rsp_run_async() always starts at the ucode's start_pc, so selecting
     # work via the control block keeps one ucode and one entry point.
     lw      t9, D_CTRL+16(zero)
+    li      t8, 3
+    beq     t9, t8, composite_entry
+     nop
     li      t8, 2
     beq     t9, t8, palette_entry
      nop
@@ -220,6 +223,133 @@ palette_entry:
      nop
     addi    s7, s7, -1
     bgtz    s7, 5b
+     nop
+
+    lw      s0, D_CTRL+4(zero)
+    lw      t3, D_CTRL+8(zero)
+    sll     t3, t3, 2
+    li      s4, D_DSTBUF
+    addi    t0, t3, -1
+    jal     DMAOut
+     li     t1, 0
+    break
+
+
+    # ---- op=3: 4-layer extract + composite ------------------------------
+    # gpSP does not composite in a separate pass: non-base layers write only
+    # where the pixel is non-transparent (pval != 0), so compositing is a
+    # masked select per layer-pixel.  That is exactly vne + vmrg.
+    #
+    # src = 4 layers x LEN bytes, contiguous.  dst = LEN*2 u16 indices.
+    # Output stays in INDEX form -- palette lookup measured at 14.72 cyc/px
+    # on the RSP versus ~1-2 on the CPU, so colours are the CPU's job.
+    .global composite_entry
+composite_entry:
+    lw      s0, D_CTRL+0(zero)
+    lw      t3, D_CTRL+8(zero)
+    sll     t0, t3, 2                   # 4 layers
+    addi    t0, t0, -1
+    li      s4, D_SRCBUF
+    jal     DMAIn
+     li     t1, 0
+
+    lqv     $v10, 0,D_VCONST+0x00, zero     # 0x00FF
+    lqv     $v11, 0,D_VCONST+0x10, zero     # 0x000F
+    lqv     $v12, 0,D_VCONST+0x20, zero     # 0x0100 (>>8)
+    lqv     $v13, 0,D_VCONST+0x30, zero     # 0x1000 (>>4)
+    vxor    $v00, $v00, $v00                # zero vector for the != test
+
+    lw      s7, D_CTRL+20(zero)             # repeat count
+7:
+    lw      t3, D_CTRL+8(zero)              # bytes per layer
+    li      t5, D_SRCBUF
+    li      t6, D_DSTBUF
+    add     s6, t5, t3                      # end of layer 0
+8:
+    # ---- layer 0 (base): extract straight into the accumulators ---------
+    lqv     $v01, 0,0x000, t5
+    vmudl   $v02, $v01, $v12
+    vand    $v03, $v01, $v10
+    vand    $v20, $v02, $v11
+    vmudl   $v05, $v02, $v13
+    vand    $v21, $v05, $v11
+    vand    $v22, $v03, $v11
+    vmudl   $v07, $v03, $v13
+    vand    $v23, $v07, $v11
+
+    # ---- layers 1..3: extract, then merge where non-transparent ---------
+    add     t7, t5, t3                      # layer 1
+    lqv     $v01, 0,0x000, t7
+    vmudl   $v02, $v01, $v12
+    vand    $v03, $v01, $v10
+    vand    $v04, $v02, $v11
+    vmudl   $v05, $v02, $v13
+    vand    $v05, $v05, $v11
+    vand    $v06, $v03, $v11
+    vmudl   $v07, $v03, $v13
+    vand    $v07, $v07, $v11
+    vne     $v24, $v04, $v00
+    vmrg    $v20, $v04, $v20
+    vne     $v24, $v05, $v00
+    vmrg    $v21, $v05, $v21
+    vne     $v24, $v06, $v00
+    vmrg    $v22, $v06, $v22
+    vne     $v24, $v07, $v00
+    vmrg    $v23, $v07, $v23
+
+    add     t7, t7, t3                      # layer 2
+    lqv     $v01, 0,0x000, t7
+    vmudl   $v02, $v01, $v12
+    vand    $v03, $v01, $v10
+    vand    $v04, $v02, $v11
+    vmudl   $v05, $v02, $v13
+    vand    $v05, $v05, $v11
+    vand    $v06, $v03, $v11
+    vmudl   $v07, $v03, $v13
+    vand    $v07, $v07, $v11
+    vne     $v24, $v04, $v00
+    vmrg    $v20, $v04, $v20
+    vne     $v24, $v05, $v00
+    vmrg    $v21, $v05, $v21
+    vne     $v24, $v06, $v00
+    vmrg    $v22, $v06, $v22
+    vne     $v24, $v07, $v00
+    vmrg    $v23, $v07, $v23
+
+    add     t7, t7, t3                      # layer 3
+    lqv     $v01, 0,0x000, t7
+    vmudl   $v02, $v01, $v12
+    vand    $v03, $v01, $v10
+    vand    $v04, $v02, $v11
+    vmudl   $v05, $v02, $v13
+    vand    $v05, $v05, $v11
+    vand    $v06, $v03, $v11
+    vmudl   $v07, $v03, $v13
+    vand    $v07, $v07, $v11
+    vne     $v24, $v04, $v00
+    vmrg    $v20, $v04, $v20
+    vne     $v24, $v05, $v00
+    vmrg    $v21, $v05, $v21
+    vne     $v24, $v06, $v00
+    vmrg    $v22, $v06, $v22
+    vne     $v24, $v07, $v00
+    vmrg    $v23, $v07, $v23
+
+    # planar output, four planes of LEN bytes each
+    sqv     $v20, 0,0x000, t6
+    add     t8, t6, t3
+    sqv     $v21, 0,0x000, t8
+    add     t8, t8, t3
+    sqv     $v22, 0,0x000, t8
+    add     t8, t8, t3
+    sqv     $v23, 0,0x000, t8
+
+    addi    t5, t5, 16
+    addi    t6, t6, 16
+    bne     t5, s6, 8b
+     nop
+    addi    s7, s7, -1
+    bgtz    s7, 7b
      nop
 
     lw      s0, D_CTRL+4(zero)
