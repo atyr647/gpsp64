@@ -139,18 +139,21 @@ static bool load_rom_and_bios(const char *rom_path)
    * staged into the DFS image by native/ares_bench.sh.  It costs 416 KB
    * of ROM, so it is off unless explicitly built in. */
   {
-    int fd = dfs_open("rom:/boot.sav");
-    if (fd >= 0) {
+    /* Through stdio, not dfs_open: the raw DFS API takes "/boot.sav",
+     * while the "rom:/" prefix belongs to the newlib filesystem hook that
+     * the rest of this file already uses. */
+    FILE *f = fopen("rom:/boot.sav", "rb");
+    if (f) {
       void *buf = malloc(GBA_STATE_MEM_SIZE);
       if (buf) {
-        int got = dfs_read(buf, 1, GBA_STATE_MEM_SIZE, fd);
-        debugf("[gpSP]: boot.sav %d bytes, load %s\n", got,
+        size_t got = fread(buf, 1, GBA_STATE_MEM_SIZE, f);
+        debugf("[gpSP]: boot.sav %u bytes, load %s\n", (unsigned)got,
                (got == GBA_STATE_MEM_SIZE && gba_load_state(buf)) ? "OK" : "FAILED");
         free(buf);
       }
-      dfs_close(fd);
+      fclose(f);
     } else {
-      debugf("[gpSP]: boot.sav not present (dfs_open %d)\n", fd);
+      debugf("[gpSP]: boot.sav not present in DFS\n");
     }
   }
 #endif

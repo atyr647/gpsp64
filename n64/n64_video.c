@@ -80,7 +80,12 @@ void n64_video_render_frame(void)
     return;
   }
 
-#ifdef N64_FUSED_BLIT
+/* N64_RSP_BLIT lives inside this block, so it has to open the block too.
+ * It did not, and the default build (-DN64_RSP_BLIT without
+ * -DN64_FUSED_BLIT) compiled the RSP blit out and fell through to the
+ * rdpq path below -- which under ares, with no RDP backend, never
+ * releases the framebuffer and hangs display_get after two frames. */
+#if defined(N64_FUSED_BLIT) || defined(N64_RSP_BLIT)
   /* Convert straight into the framebuffer, skipping rgba_buf entirely.
    *
    * The intermediate cost more than the arithmetic: rgba_buf is 75 KB of

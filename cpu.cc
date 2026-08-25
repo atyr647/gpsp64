@@ -133,6 +133,14 @@ extern "C" {
        * runtime -- chiefly the m4a mixer -- which the ROM page
        * histogram cannot see, so this is the only view of it. */
       u32 prof_iwram_hist[512] = {0};
+
+      /* Differential PC trace.  Two builds that should be executing the
+       * same game must produce the same stream; diffing the traces finds
+       * the exact instruction where they part company. */
+      u32 *prof_pctrace = 0;
+      u32  prof_pctrace_n = 0;
+      u32  prof_pctrace_max = 0;
+      u32  prof_pctrace_skip = 0;
       /* Entry points into IWRAM: every PC that lands in IWRAM having
        * come from outside it.  This is what names the routine the game
        * copies into RAM -- the histogram says where the time goes, this
@@ -3211,6 +3219,14 @@ skip_instruction:
          prof_region_arm[(reg[REG_PC] >> 24) & 0xF]++;
          if (((reg[REG_PC] >> 24) & 0xF) == 3)
            prof_iwram_hist[(reg[REG_PC] & 0x7FFF) >> 6]++;
+         if (prof_pctrace_max) {
+           if (prof_pctrace_skip) prof_pctrace_skip--;
+           else if (prof_pctrace_n + 1 < prof_pctrace_max) {
+             u32 _h = 0; for (int _r = 0; _r < 15; _r++) _h = _h * 31 + reg[_r];
+             prof_pctrace[prof_pctrace_n++] = reg[REG_PC];
+             prof_pctrace[prof_pctrace_n++] = _h;
+           }
+         }
          { u32 _in = (((reg[REG_PC] >> 24) & 0xF) == 3);
            if (_in && prof_iwram_prev_out) {
              u32 _p = reg[REG_PC];
@@ -3887,6 +3903,14 @@ thumb_loop:
          prof_region_thumb[(reg[REG_PC] >> 24) & 0xF]++;
          if (((reg[REG_PC] >> 24) & 0xF) == 3)
            prof_iwram_hist[(reg[REG_PC] & 0x7FFF) >> 6]++;
+         if (prof_pctrace_max) {
+           if (prof_pctrace_skip) prof_pctrace_skip--;
+           else if (prof_pctrace_n + 1 < prof_pctrace_max) {
+             u32 _h = 0; for (int _r = 0; _r < 15; _r++) _h = _h * 31 + reg[_r];
+             prof_pctrace[prof_pctrace_n++] = reg[REG_PC];
+             prof_pctrace[prof_pctrace_n++] = _h;
+           }
+         }
          { u32 _in = (((reg[REG_PC] >> 24) & 0xF) == 3);
            if (_in && prof_iwram_prev_out) {
              u32 _p = reg[REG_PC];

@@ -62,6 +62,8 @@ extern u32 prof_aot_hits, prof_aot_hw_hits, prof_aot_gba_cycles;
 extern u32 prof_pc_hist[];
 extern u32 prof_pc_hist_page;
 extern u32 prof_iwram_hist[];
+extern u32 *prof_pctrace;
+extern u32 prof_pctrace_n, prof_pctrace_max, prof_pctrace_skip;
 typedef struct { u32 pc; u32 count; } iw_entry_t;
 extern iw_entry_t prof_iwram_entry[];
 extern u32 prof_region_arm[];
@@ -381,6 +383,47 @@ int main(int argc, char **argv)
 
   reset_gba();
 
+  /* --romcheck: read the whole cart through the emulator's own read path
+   * and checksum it, sequentially and then in a stride that forces the
+   * 32 KB page cache to thrash.  A paged build (ROM_BUFFER_SIZE smaller
+   * than the cart) must produce the same numbers as a fully resident one;
+   * if it does not, demand paging is handing the game wrong data. */
+  { const char *tp = getenv("PCTRACE");
+    if (tp) { prof_pctrace_max = (u32)atol(getenv("PCTRACE_N") ? getenv("PCTRACE_N") : "4000000");
+              prof_pctrace = (u32*)malloc((size_t)prof_pctrace_max * 4);
+              prof_pctrace_skip = (u32)atol(getenv("PCTRACE_SKIP") ? getenv("PCTRACE_SKIP") : "0"); } }
+
+  if (getenv("ROMCHECK")) {
+    extern u32 gamepak_size;
+    extern u32 prof_rom_page_misses;
+    u32 sum1 = 0, sum2 = 0, a;
+    for (a = 0; a < gamepak_size; a += 4)
+      sum1 = sum1 * 31 + read_memory32(0x08000000 + a);
+    u32 miss1 = prof_rom_page_misses;
+    for (u32 off = 0; off < 0x8000; off += 4)
+      for (a = off; a < gamepak_size; a += 0x8000)
+        sum2 = sum2 * 31 + read_memory32(0x08000000 + a);
+    u32 sum8 = 0, sum16 = 0, sumx = 0;
+    for (a = 0; a < gamepak_size; a += 1)
+      sum8 = sum8 * 31 + read_memory8(0x08000000 + a);
+    for (a = 0; a < gamepak_size; a += 2)
+      sum16 = sum16 * 31 + read_memory16(0x08000000 + a);
+    /* Mirrors and past-the-end open bus, which take different paths. */
+    for (a = 0; a < 0x2000000; a += 0x400) {
+      sumx = sumx * 31 + read_memory32(0x0A000000 + a);
+      sumx = sumx * 31 + read_memory16(0x0C000000 + a);
+      sumx = sumx * 31 + read_memory8(0x08000000 + a);
+    }
+    fprintf(stderr, "ROMCHECK size=%lu seq=%08lx stride=%08lx "
+                    "misses seq=%lu stride=%lu\n",
+            (unsigned long)gamepak_size, (unsigned long)sum1,
+            (unsigned long)sum2, (unsigned long)miss1,
+            (unsigned long)(prof_rom_page_misses - miss1));
+    fprintf(stderr, "ROMCHECK8 %08lx  ROMCHECK16 %08lx  ROMCHECKX %08lx\n",
+            (unsigned long)sum8, (unsigned long)sum16, (unsigned long)sumx);
+    return 0;
+  }
+
   /* Start from a captured state instead of the boot sequence.  Boot and
    * gameplay have wildly different instruction mixes -- gameplay runs
    * about a thirtieth of boot's instruction count and two thirds of it
@@ -479,6 +522,11 @@ int main(int argc, char **argv)
     report_hot_calls(num_frames, 10);
     report_hot_pcs(num_frames, 16);
     if (pages_out) dump_pages(pages_out, num_frames);
+    { const char *tp = getenv("PCTRACE");
+      if (tp && prof_pctrace) { FILE *f = fopen(tp, "wb");
+        if (f) { fwrite(prof_pctrace, 4, prof_pctrace_n, f); fclose(f);
+                 fprintf(stderr, "PCTRACE %s: %lu entries\n", tp,
+                         (unsigned long)prof_pctrace_n); } } }
     { const char *iw = getenv("DUMP_IWRAM");
       if (iw) { extern u8 iwram_raw[]; FILE *f = fopen(iw, "wb");
                 if (f) { fwrite(iwram_raw, 1, 64 * 1024, f); fclose(f); } } }

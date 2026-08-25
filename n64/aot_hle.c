@@ -25,8 +25,33 @@
  * semantics gpSP implements in read_memory32/read_memory16: an unaligned
  * load reads the *aligned* word and rotates the result right by the
  * misalignment, rather than reading across the boundary. */
-u32 aot_read32(u32 addr) {
+/* Resolve a GBA address to a directly-readable page pointer.
+ *
+ * memory_map_read is NULL both for genuinely unmapped regions and for
+ * cart pages that are simply not resident: this port ships
+ * ROM_BUFFER_SIZE=2, so only 2 MB of a 16 MB cart is in RAM at a time
+ * and the rest is paged in on demand.  Returning NULL for the second
+ * case -- which is what these readers used to do, yielding 0 -- is a
+ * silent wrong answer, and it only shows up in the shipped
+ * configuration: with the whole cart resident every page is always
+ * mapped and the bug is invisible.
+ *
+ * It cost the game its sound.  A PC trace of two builds differing only
+ * in ROM_BUFFER_SIZE stays identical for five million instructions and
+ * then, inside an AOT-translated block, returns different registers;
+ * from there m4a never finishes initialising and no music ever plays.
+ *
+ * So fault the page in, exactly as read_memory_gamepak does. */
+static u8 *aot_map(u32 addr)
+{
     u8 *map = memory_map_read[addr >> 15];
+    if (!map && (addr >> 24) >= 0x08 && (addr >> 24) <= 0x0D)
+        map = load_gamepak_page((addr >> 15) & 0x3FF);
+    return map;
+}
+
+u32 aot_read32(u32 addr) {
+    u8 *map = aot_map(addr);
     if (!map) return 0;
     u32 value = eswap32(*(u32*)(map + (addr & 0x7FFC)));
     u32 rotate = (addr & 3u) * 8u;
@@ -35,7 +60,7 @@ u32 aot_read32(u32 addr) {
 }
 
 u16 aot_read16(u32 addr) {
-    u8 *map = memory_map_read[addr >> 15];
+    u8 *map = aot_map(addr);
     if (!map) return 0;
     u32 value = eswap16(*(u16*)(map + (addr & 0x7FFE)));
     /* Matches read_memory16(): odd address rotates the halfword by 8. */
@@ -44,7 +69,7 @@ u16 aot_read16(u32 addr) {
 }
 
 u8 aot_read8(u32 addr) {
-    u8 *map = memory_map_read[addr >> 15];
+    u8 *map = aot_map(addr);
     if (map) return *(u8*)(map + (addr & 0x7FFF));
     return 0;
 }
