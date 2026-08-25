@@ -271,8 +271,22 @@ Running the game's whole sound driver now costs **3 ms/frame instead of
 the default; `N64_M4A_STUB` remains as the skip-it variant for anyone who
 wants the last 5%.
 
-Playing the result is a separate 15.5 ms/frame, and that cost is not in
-the mixer -- it is in gpSP's own output path, which the mixer work has
-now exposed as the next thing worth attacking.  `-DN64_AUDIO_OUT` turns
-it on.
+Playing the result is a separate 15.5 ms/frame, and none of it is the
+mixer.  Building with `-DN64_AUDIO_NOPUSH`, so the samples are still read
+and resampled but never handed to the AI, measures 61.0 ms/f -- identical
+to producing no audio at all.  The whole cost is libdragon's
+`audio_push`, so gpSP's resampling is not implicated either.
+
+That makes it the next thing worth attacking rather than a reason not to
+have sound.  Two things in libdragon's `audio.c` are worth checking
+first, though neither is confirmed: `audio_push`'s loop condition is
+`(blocking || dst || audio_can_write())`, so a call that arrives with a
+partially-filled buffer left over from last time skips the
+`audio_can_write()` guard entirely; and `audio_write_begin()` busy-waits
+on `while (buf_full & (1<<next))` with interrupts toggling inside the
+loop.  This port pushes 369 samples per emulated frame against a buffer
+length that does not divide it, so a leftover partial buffer is the
+normal case.
+
+`-DN64_AUDIO_OUT` turns sound on.
 

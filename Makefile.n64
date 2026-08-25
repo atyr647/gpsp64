@@ -75,10 +75,14 @@ CFLAGS += $(N64_BLIT_OPT)
 # be played (-DN64_AUDIO_OUT).  -DN64_M4A_STUB is the skip-it variant.
 # Set N64_M4A= to build without either.
 #
-# Audio output is a separate switch and is off by default: measured in
-# ares, calling n64_audio_render_frame() costs 15.5 ms/frame -- 60.5 ->
-# 75.5 ms, a fifth of the frame -- and that cost is in gpSP's own output
-# path, not in the mixer.  Add -DN64_AUDIO_OUT to turn sound on.
+# Audio output is a separate switch and is off by default.  Measured in
+# ares, calling n64_audio_render_frame() costs 15.5 ms/frame (61.0 ->
+# 75.5 ms, a fifth of the frame), and all of it is libdragon's
+# audio_push: building with -DN64_AUDIO_NOPUSH, so that the samples are
+# still read and resampled but never handed to the AI, measures 61.0
+# ms/f -- identical to not producing audio at all.  So the cost is
+# neither the mixer nor gpSP's resampling.  Add -DN64_AUDIO_OUT to turn
+# sound on.
 N64_M4A ?= -DN64_M4A_NATIVE
 CFLAGS += $(N64_M4A)
 # DIAGNOSTIC flags (off by default; re-enable for profiling passes):
