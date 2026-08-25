@@ -92,16 +92,56 @@ Effect on the interpreter (native harness, from the same savestate):
 ```
 
 ROM-side execution is unchanged (9113 -> 9161 insns/frame), which is the
-check that game logic was not disturbed.
+check that game logic was not disturbed.  A 6000-frame soak confirms the
+game keeps running.
+
+## The bug this uncovered
+
+The first attempt to measure the change on the N64 said it bought
+nothing, and the reason turned out to matter more than the change.
+
+`n64/aot_hle.c` resolved GBA addresses like this:
+
+```c
+u32 aot_read32(u32 addr) {
+    u8 *map = memory_map_read[addr >> 15];
+    if (!map) return 0;
+```
+
+`memory_map_read` is NULL both for genuinely unmapped regions and for
+cart pages that are merely not resident.  This port ships
+`ROM_BUFFER_SIZE=2` -- 2 MB of a 16 MB cart in RAM, the rest paged in on
+demand -- so every AOT-translated read of a paged-out page was silently
+answering zero.  With the whole cart resident the entry is never NULL,
+so the bug cannot appear in a full-buffer build, which is why no
+host-side test had ever seen it.
+
+It cost the game its sound.  m4a never finished initialising, the
+`MusicPlayerInfo` structures stayed zeroed, and no music played for the
+rest of the run -- which is also why the mixer was not showing up as
+expensive on the N64.
+
+Found with a differential trace (`PCTRACE=`): two builds that should be
+running the same game must emit the same stream of (pc, register-hash)
+pairs, and the first pair that differs is the instruction that went
+wrong.  Entries are emitted per *interpreted* instruction, so an AOT
+block appears as a single entry -- which is what pointed at the AOT
+reader rather than at the interpreter.  `ROMCHECK=1` checksums the whole
+cart through `read_memory8/16/32` and the mirrors; that path verified
+identical across buffer sizes, which ruled the interpreter out.
+
+After the fix, `ROM_BUFFER_SIZE=2` and a fully resident build produce
+identical frame-by-frame instruction counts over 1200 frames.
 
 ## The harness had been measuring the wrong thing
 
-Chasing this exposed a problem with every performance number taken before
-it.  ares emulates the N64 slowly enough that a 400-second run reaches
-only ~180 emulated GBA frames — BIOS decompression and the Game Freak
-logo.  Boot runs roughly *thirty times* the instructions per frame of
-gameplay and the sound driver has not started, so a boot-phase benchmark
-is not measuring the workload the port exists for.
+Chasing this exposed a second problem with every performance number
+taken before it.  ares emulates the N64 slowly enough that a 400-second
+run reaches only ~180 emulated GBA frames -- BIOS decompression and the
+Game Freak logo.  Boot runs roughly *thirty times* the instructions per
+frame of gameplay and the sound driver has not started, so a boot-phase
+benchmark is not measuring the workload the port exists for.  The
+"35.71 fps" quoted before this was a boot number; gameplay was 12.
 
 `native/bench.sh` can now write a savestate (`BENCH_SAVESTATE=`) and
 `native/ares_bench.sh` can boot the ROM from one (`BENCH_STATE=`), which
@@ -111,6 +151,27 @@ puts the ares window in gameplay from frame zero:
 BENCH_SAVESTATE=/tmp/boot.sav BENCH_WARMUP=1500 native/bench.sh mkstate
 BENCH_STATE=/tmp/boot.sav native/ares_bench.sh mylabel
 ```
+
+Capture the state with the same `ROM_BUFFER_SIZE` as the build under
+test, or it will be a state that build could never reach.
+
+## What it is worth
+
+ares, 8 windows of 60 frames each, booted from a gameplay savestate,
+`ROM_BUFFER_SIZE=2` as shipped:
+
+```
+                     ms/f    fps     CPU  PPU  Blt   mix
+  mixer emulated     82.5   12.12    72%  28%   3%   ARM 67% / Thumb 32%
+  mixer skipped      58.0   17.24    58%  42%   5%   ARM  2% / Thumb 98%
+```
+
+**+42.2% frame rate**, frame time down 29.7%.  Every window in both runs
+is stable, and the instruction mix confirms what was removed.
+
+Note what this does to the balance of the port: the PPU was 28% of the
+frame and is now 42%.  Rendering, not the CPU, is where the next work
+belongs.
 
 ## What else is worth substituting
 

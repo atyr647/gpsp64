@@ -64,7 +64,12 @@ CFLAGS += $(N64_BLIT_OPT)
 # Skip the game's own software audio mixer.  Two thirds of every emulated
 # instruction in Pokemon Emerald belongs to m4a's SoundMainRAM, which
 # produces PCM this port never plays -- n64_audio_render_frame() is not
-# called.  See n64/m4a_hle.c.  Set N64_M4A= to build without it.
+# called.  See n64/m4a_hle.c and docs/HYBRID_PORT.md.
+#
+# Measured in ares over 8 windows booted from a gameplay savestate:
+#   mixer emulated   82.5 ms/f   12.12 fps   CPU 72% PPU 28%
+#   mixer skipped    58.0 ms/f   17.24 fps   CPU 58% PPU 42%   (+42.2%)
+# Set N64_M4A= to build without it.
 N64_M4A ?= -DN64_M4A_STUB
 CFLAGS += $(N64_M4A)
 # DIAGNOSTIC flags (off by default; re-enable for profiling passes):
