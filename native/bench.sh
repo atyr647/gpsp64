@@ -32,13 +32,13 @@ OBJ=".bench-obj/$LABEL"
 rm -rf "$OBJ"; mkdir -p "$OBJ/mips" "$OBJ/n64"
 
 echo "[bench:$LABEL] compiling${EXTRA:+ ($EXTRA)}..."
-for f in main gba_memory sound cheats serial gbp rfu serial_proto gba_cc_lut memmap; do
+for f in main gba_memory sound cheats serial gbp rfu serial_proto gba_cc_lut memmap savestate; do
   gcc $CFLAGS -c "$f.c" -o "$OBJ/$f.o" || { echo "FAILED: $f.c"; exit 1; }
 done
 for f in cpu video; do
   g++ $CXXFLAGS -c "$f.cc" -o "$OBJ/$f.o" || { echo "FAILED: $f.cc"; exit 1; }
 done
-for f in n64/aot_hle n64/bios_hle n64/aot_generated; do
+for f in n64/aot_hle n64/bios_hle n64/m4a_hle n64/n64_savestate n64/aot_generated; do
   gcc $CFLAGS -c "$f.c" -o "$OBJ/$f.o" || { echo "FAILED: $f.c"; exit 1; }
 done
 gcc $CFLAGS -c native/native_main.c -o "$OBJ/native_main.o" || exit 1
@@ -55,7 +55,9 @@ AOTFN=$(grep -c '^static u32 aot_gen_' n64/aot_generated.c || echo 0)
 
 echo "[bench:$LABEL] running $FRAMES frames (warmup $WARMUP)..."
 "$OBJ/bench" "$ROM" "$FRAMES" "$BIOS" --bench --warmup "$WARMUP" \
-    --input "${BENCH_INPUT:-mash}" --pages "$OUT/$LABEL.pages" > "$OUT/$LABEL.txt" 2>&1
+    --input "${BENCH_INPUT:-mash}" --pages "$OUT/$LABEL.pages" \
+    ${BENCH_SAVESTATE:+--savestate "$BENCH_SAVESTATE"} \
+    ${BENCH_LOADSTATE:+--loadstate "$BENCH_LOADSTATE"} > "$OUT/$LABEL.txt" 2>&1
 RC=$?
 
 echo "  aot_generated.c: $AOTSZ bytes, $AOTFN functions" >> "$OUT/$LABEL.txt"

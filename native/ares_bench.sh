@@ -65,6 +65,19 @@ ln -sfn "$REPO/toolchain" "$SCRATCH/toolchain"
 # needs no synthetic controller input at all.
 cp "$ROM" "$SCRATCH/filesystem/gba/emerald.gba"
 
+# BENCH_STATE=<file> starts the ROM from a captured gameplay state rather
+# than from the boot sequence.  ares is slow enough that a run only ever
+# reaches the first few hundred emulated frames -- BIOS decompression and
+# the Game Freak logo -- which is not the workload this port is for.
+# Produce the file with:
+#   BENCH_SAVESTATE=/path/boot.sav BENCH_WARMUP=1500 native/bench.sh mkstate
+if [ -n "${BENCH_STATE:-}" ]; then
+  [ -f "$BENCH_STATE" ] || { echo "BENCH_STATE not found: $BENCH_STATE"; exit 1; }
+  cp "$BENCH_STATE" "$SCRATCH/filesystem/boot.sav"
+  EXTRA="$EXTRA -DN64_BOOT_STATE"
+  echo "[ares:$LABEL] booting from savestate $BENCH_STATE"
+fi
+
 echo "[ares:$LABEL] building N64 ROM${EXTRA:+ ($EXTRA)}..."
 ( cd "$SCRATCH" \
   && export N64_INST="$REPO/toolchain/opt/libdragon" PATH="$REPO/toolchain/opt/libdragon/bin:$PATH" \

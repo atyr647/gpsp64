@@ -27,6 +27,7 @@
  */
 
 #include "../common.h"
+#include "../savestate.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -60,6 +61,12 @@ extern u32 prof_page_hist_thumb[];
 extern u32 prof_aot_hits, prof_aot_hw_hits, prof_aot_gba_cycles;
 extern u32 prof_pc_hist[];
 extern u32 prof_pc_hist_page;
+extern u32 prof_iwram_hist[];
+typedef struct { u32 pc; u32 count; } iw_entry_t;
+extern iw_entry_t prof_iwram_entry[];
+extern u32 prof_region_arm[];
+extern u32 prof_region_thumb[];
+extern u32 prof_swi_hist[];
 typedef struct { u32 pc; u32 count; } bl_target_t;
 extern bl_target_t prof_bl_targets[];
 #define AOT_BL_TABLE_SIZE 512
@@ -115,6 +122,11 @@ static void reset_counters(void)
   memset(prof_page_hist_thumb, 0, sizeof(u32) * AOT_PAGE_BUCKETS);
   memset(prof_bl_targets, 0, sizeof(bl_target_t) * AOT_BL_TABLE_SIZE);
   memset(prof_pc_hist, 0, sizeof(u32) * 2048);
+  memset(prof_iwram_hist, 0, sizeof(u32) * 512);
+  memset(prof_iwram_entry, 0, sizeof(iw_entry_t) * 64);
+  memset(prof_region_arm, 0, sizeof(u32) * 16);
+  memset(prof_region_thumb, 0, sizeof(u32) * 16);
+  memset(prof_swi_hist, 0, sizeof(u32) * 256);
 #endif
 }
 
@@ -187,6 +199,89 @@ static void report_hot_pcs(long frames, int topn)
   }
 }
 
+/* Where interpreted instructions live, by GBA memory region.  This is
+ * the first question the "hybrid port" idea has to answer: code in ROM
+ * (0x08+) sits at fixed addresses and can be identified against a decomp
+ * symbol map, whereas IWRAM (0x03) holds routines the game copies there
+ * at runtime -- most notably the m4a sound mixer, which is hand-written
+ * ARM and never appears in ROM at its executing address. */
+static void report_regions(long frames)
+{
+  static const char *names[16] = {
+    "BIOS", "?", "EWRAM", "IWRAM", "IO", "PAL", "VRAM", "OAM",
+    "ROM0", "ROM0", "ROM1", "ROM1", "ROM2", "ROM2", "SRAM", "?"
+  };
+  u64 grand = 0;
+  for (int i = 0; i < 16; i++)
+    grand += (u64)prof_region_arm[i] + (u64)prof_region_thumb[i];
+  if (!grand) grand = 1;
+  fprintf(stderr, "\n  interpreted instructions by region:\n");
+  for (int i = 0; i < 16; i++) {
+    u64 a = prof_region_arm[i], t = prof_region_thumb[i];
+    if (!(a + t)) continue;
+    fprintf(stderr,
+            "    %02x %-5s %9.0f/frame  %5.1f%%   ARM %9.0f  Thumb %9.0f\n",
+            i, names[i], (double)(a + t) / (double)frames,
+            100.0 * (double)(a + t) / (double)grand,
+            (double)a / (double)frames, (double)t / (double)frames);
+  }
+}
+
+/* Which BIOS SWIs the game issues.  A SWI whose cost is dominated by a
+ * loop inside the BIOS (LZ77UnComp, CpuFastSet) is a natural candidate
+ * for a native implementation: the semantics are documented and the
+ * whole call is a pure memory-to-memory transform. */
+static void report_iwram(long frames, int topn)
+{
+  u64 grand = 0;
+  for (int i = 0; i < 512; i++) grand += prof_iwram_hist[i];
+  if (!grand) return;
+  { fprintf(stderr, "\n  IWRAM entry points (PC arriving from outside IWRAM):\n");
+    for (int i = 0; i < 64 && prof_iwram_entry[i].count; i++)
+      fprintf(stderr, "    0x%08lx  %8.1f entries/frame\n",
+              (unsigned long)prof_iwram_entry[i].pc,
+              (double)prof_iwram_entry[i].count / (double)frames);
+  }
+  fprintf(stderr, "\n  hottest IWRAM 64-byte blocks (%.0f insns/frame total):\n",
+          (double)grand / (double)frames);
+  static u32 tmp[512];
+  memcpy(tmp, prof_iwram_hist, sizeof(tmp));
+  for (int n = 0; n < topn; n++) {
+    u32 best = 0; int bi = -1;
+    for (int i = 0; i < 512; i++) if (tmp[i] > best) { best = tmp[i]; bi = i; }
+    if (bi < 0) break;
+    fprintf(stderr, "    0x%08lx  %8.0f/frame  %5.1f%%\n",
+            (unsigned long)(0x03000000u + ((u32)bi << 6)),
+            (double)best / (double)frames,
+            100.0 * (double)best / (double)grand);
+    tmp[bi] = 0;
+  }
+}
+
+static void report_swis(long frames)
+{
+  static const char *names[32] = {
+    "SoftReset", "RegisterRamReset", "Halt", "Stop", "IntrWait",
+    "VBlankIntrWait", "Div", "DivArm", "Sqrt", "ArcTan", "ArcTan2",
+    "CpuSet", "CpuFastSet", "GetBiosChecksum", "BgAffineSet",
+    "ObjAffineSet", "BitUnPack", "LZ77UnCompWram", "LZ77UnCompVram",
+    "HuffUnComp", "RLUnCompWram", "RLUnCompVram", "Diff8bitUnFilterWram",
+    "Diff8bitUnFilterVram", "Diff16bitUnFilter", "SoundBiasChange",
+    "SoundDriverInit", "SoundDriverMode", "SoundDriverMain",
+    "SoundDriverVSync", "SoundChannelClear", "MidiKey2Freq"
+  };
+  int any = 0;
+  for (int i = 0; i < 256; i++) if (prof_swi_hist[i]) { any = 1; break; }
+  if (!any) return;
+  fprintf(stderr, "\n  BIOS SWI calls:\n");
+  for (int i = 0; i < 256; i++) {
+    if (!prof_swi_hist[i]) continue;
+    fprintf(stderr, "    swi 0x%02x %-22s %8.1f /frame\n", i,
+            i < 32 ? names[i] : "?",
+            (double)prof_swi_hist[i] / (double)frames);
+  }
+}
+
 static void report_hot_calls(long frames, int topn)
 {
   fprintf(stderr, "\n  hottest call targets (BL destinations):\n");
@@ -213,6 +308,8 @@ int main(int argc, char **argv)
   long warmup = 0;
   int bench = 0;
   const char *pages_out = NULL;
+  const char *state_out = NULL;
+  const char *state_in = NULL;
   int positional = 0;
 
   for (int i = 1; i < argc; i++) {
@@ -225,6 +322,8 @@ int main(int argc, char **argv)
       else { fprintf(stderr, "unknown --input mode: %s\n", m); return 1; }
     }
     else if (!strcmp(argv[i], "--pages") && i + 1 < argc) pages_out = argv[++i];
+    else if (!strcmp(argv[i], "--savestate") && i + 1 < argc) state_out = argv[++i];
+    else if (!strcmp(argv[i], "--loadstate") && i + 1 < argc) state_in = argv[++i];
 #ifdef PROFILE_AOT
     else if (!strcmp(argv[i], "--pchist") && i + 1 < argc)
       prof_pc_hist_page = (u32)strtoul(argv[++i], NULL, 0) >> 12;
@@ -282,6 +381,24 @@ int main(int argc, char **argv)
 
   reset_gba();
 
+  /* Start from a captured state instead of the boot sequence.  Boot and
+   * gameplay have wildly different instruction mixes -- gameplay runs
+   * about a thirtieth of boot's instruction count and two thirds of it
+   * is the sound mixer -- so a benchmark that only ever reaches boot is
+   * measuring the wrong thing. */
+  if (state_in) {
+    FILE *f = fopen(state_in, "rb");
+    void *buf = malloc(GBA_STATE_MEM_SIZE);
+    if (f && buf) {
+      size_t got = fread(buf, 1, GBA_STATE_MEM_SIZE, f);
+      fprintf(stderr, "[gpSP]: savestate %s: read %u bytes, load %s\n",
+              state_in, (unsigned)got,
+              (got == GBA_STATE_MEM_SIZE && gba_load_state(buf)) ? "OK" : "FAILED");
+    }
+    if (f) fclose(f);
+    free(buf);
+  }
+
   if (!bench) {
     /* Interactive/regression mode: periodic progress, catches hangs. */
     for (long f = 0; f < num_frames; f++) {
@@ -306,6 +423,23 @@ int main(int argc, char **argv)
   /* Warm up past BIOS decompression / intro so we measure steady-state
    * gameplay rather than one-off boot work. */
   for (long f = 0; f < warmup; f++) { poll_fake_input(f); run_frame(); }
+
+  /* Hand the post-warmup state to the N64 build so ares can start the
+   * benchmark in gameplay instead of in the boot sequence.  See
+   * native/ares_bench.sh and n64/n64_main.c. */
+  if (state_out) {
+    void *buf = malloc(GBA_STATE_MEM_SIZE);
+    if (buf) {
+      memset(buf, 0, GBA_STATE_MEM_SIZE);
+      gba_save_state(buf);
+      FILE *f = fopen(state_out, "wb");
+      if (f) { fwrite(buf, 1, GBA_STATE_MEM_SIZE, f); fclose(f);
+               fprintf(stderr, "[gpSP]: wrote savestate %s (%d bytes) at frame %ld\n",
+                       state_out, GBA_STATE_MEM_SIZE, warmup); }
+      free(buf);
+    }
+  }
+
   reset_counters();
 
   for (long f = warmup; f < warmup + num_frames; f++) {
@@ -338,10 +472,16 @@ int main(int argc, char **argv)
             (double)prof_aot_gba_cycles / frames,
             100.0 * ((double)prof_aot_gba_cycles / frames) / (double)GBA_CYCLES_PER_FRAME,
             GBA_CYCLES_PER_FRAME);
+    report_regions(num_frames);
+    report_swis(num_frames);
+    report_iwram(num_frames, 14);
     report_hot_pages(num_frames, 12);
     report_hot_calls(num_frames, 10);
     report_hot_pcs(num_frames, 16);
     if (pages_out) dump_pages(pages_out, num_frames);
+    { const char *iw = getenv("DUMP_IWRAM");
+      if (iw) { extern u8 iwram_raw[]; FILE *f = fopen(iw, "wb");
+                if (f) { fwrite(iwram_raw, 1, 64 * 1024, f); fclose(f); } } }
 #endif
     /* Single-line machine-readable summary for scripted diffing. */
     fprintf(stderr, "\nBENCHSUM interp_per_frame=%.0f arm=%.0f thumb=%.0f",

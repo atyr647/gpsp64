@@ -60,6 +60,13 @@ CFLAGS += -DUSE_XBGR1555_FORMAT
 # default; it also leaves the RDP free for tile rendering later.
 N64_BLIT_OPT ?= -DN64_RSP_BLIT -DN64_UNCACHED_SCREEN
 CFLAGS += $(N64_BLIT_OPT)
+
+# Skip the game's own software audio mixer.  Two thirds of every emulated
+# instruction in Pokemon Emerald belongs to m4a's SoundMainRAM, which
+# produces PCM this port never plays -- n64_audio_render_frame() is not
+# called.  See n64/m4a_hle.c.  Set N64_M4A= to build without it.
+N64_M4A ?= -DN64_M4A_STUB
+CFLAGS += $(N64_M4A)
 # DIAGNOSTIC flags (off by default; re-enable for profiling passes):
 #   -DPROFILE_OPCODES  per-insn opcode histogram (~5 cyc/insn overhead)
 #   -DPROFILE_PPU      PPU sub-category timers (~few MFC0/scanline)
@@ -199,6 +206,8 @@ OBJS = main.o \
        n64/n64_storage.o \
        n64/aot_hle.o \
        n64/bios_hle.o \
+       n64/m4a_hle.o \
+       n64/n64_savestate.o \
        n64/aot_generated.o
 
 # Build rules

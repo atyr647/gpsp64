@@ -15,6 +15,7 @@
 #include <stdio.h>
 
 #include "../common.h"
+#include "../savestate.h"
 #include "../gba_memory.h"
 #include "../gba_cc_lut.h"
 
@@ -125,6 +126,35 @@ static bool load_rom_and_bios(const char *rom_path)
 
   /* Reset the GBA system */
   reset_gba();
+
+#ifdef N64_BOOT_STATE
+  /* Benchmark harness: start from a captured gameplay state rather than
+   * from the boot sequence.  Without this, ares only ever reaches the
+   * first few hundred frames -- BIOS decompression and the Game Freak
+   * logo -- where the game runs roughly thirty times the instructions
+   * per frame of actual gameplay and the sound driver has not started.
+   * Every number measured there is a boot number.
+   *
+   * The state is produced by native/bench.sh (BENCH_SAVESTATE=...) and
+   * staged into the DFS image by native/ares_bench.sh.  It costs 416 KB
+   * of ROM, so it is off unless explicitly built in. */
+  {
+    int fd = dfs_open("rom:/boot.sav");
+    if (fd >= 0) {
+      void *buf = malloc(GBA_STATE_MEM_SIZE);
+      if (buf) {
+        int got = dfs_read(buf, 1, GBA_STATE_MEM_SIZE, fd);
+        debugf("[gpSP]: boot.sav %d bytes, load %s\n", got,
+               (got == GBA_STATE_MEM_SIZE && gba_load_state(buf)) ? "OK" : "FAILED");
+        free(buf);
+      }
+      dfs_close(fd);
+    } else {
+      debugf("[gpSP]: boot.sav not present (dfs_open %d)\n", fd);
+    }
+  }
+#endif
+
   return true;
 }
 

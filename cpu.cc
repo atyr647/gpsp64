@@ -128,6 +128,20 @@ extern "C" {
        * This decides whether an ARM translator is even feasible: ROM and
        * BIOS sit at fixed addresses and can be translated statically,
        * whereas IWRAM/EWRAM code is copied there at runtime. */
+      /* IWRAM execution histogram at 64-byte granularity (32KB / 64 =
+       * 512 buckets).  IWRAM holds code the game copies there at
+       * runtime -- chiefly the m4a mixer -- which the ROM page
+       * histogram cannot see, so this is the only view of it. */
+      u32 prof_iwram_hist[512] = {0};
+      /* Entry points into IWRAM: every PC that lands in IWRAM having
+       * come from outside it.  This is what names the routine the game
+       * copies into RAM -- the histogram says where the time goes, this
+       * says where the call goes in, i.e. where a native replacement
+       * would have to hook. */
+      typedef struct { u32 pc; u32 count; } iw_entry_t;
+      iw_entry_t prof_iwram_entry[64] = {{0,0}};
+      u32 prof_iwram_prev_out = 1;
+
       u32 prof_region_arm[16] = {0};
       u32 prof_region_thumb[16] = {0};
 
@@ -3195,6 +3209,18 @@ skip_instruction:
            prof_pc_hist[(reg[REG_PC] & 0xFFF) >> 1]++;
 #ifdef PROFILE_REGIONS
          prof_region_arm[(reg[REG_PC] >> 24) & 0xF]++;
+         if (((reg[REG_PC] >> 24) & 0xF) == 3)
+           prof_iwram_hist[(reg[REG_PC] & 0x7FFF) >> 6]++;
+         { u32 _in = (((reg[REG_PC] >> 24) & 0xF) == 3);
+           if (_in && prof_iwram_prev_out) {
+             u32 _p = reg[REG_PC];
+             for (int _i = 0; _i < 64; _i++) {
+               if (prof_iwram_entry[_i].pc == _p) { prof_iwram_entry[_i].count++; break; }
+               if (!prof_iwram_entry[_i].count) {
+                 prof_iwram_entry[_i].pc = _p; prof_iwram_entry[_i].count = 1; break; }
+             }
+           }
+           prof_iwram_prev_out = !_in; }
 #endif
        }
        #endif
@@ -3859,6 +3885,18 @@ thumb_loop:
            prof_pc_hist[(reg[REG_PC] & 0xFFF) >> 1]++;
 #ifdef PROFILE_REGIONS
          prof_region_thumb[(reg[REG_PC] >> 24) & 0xF]++;
+         if (((reg[REG_PC] >> 24) & 0xF) == 3)
+           prof_iwram_hist[(reg[REG_PC] & 0x7FFF) >> 6]++;
+         { u32 _in = (((reg[REG_PC] >> 24) & 0xF) == 3);
+           if (_in && prof_iwram_prev_out) {
+             u32 _p = reg[REG_PC];
+             for (int _i = 0; _i < 64; _i++) {
+               if (prof_iwram_entry[_i].pc == _p) { prof_iwram_entry[_i].count++; break; }
+               if (!prof_iwram_entry[_i].count) {
+                 prof_iwram_entry[_i].pc = _p; prof_iwram_entry[_i].count = 1; break; }
+             }
+           }
+           prof_iwram_prev_out = !_in; }
 #endif
        }
        #endif

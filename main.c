@@ -18,6 +18,7 @@
  */
 
 #include "common.h"
+#include "n64/m4a_hle.h"
 #include <ctype.h>
 
 /* CPU vs PPU profiling (N64 COUNT register).  Gated on __mips__ (not just
@@ -300,6 +301,10 @@ u32 function_cc update_gba(int remaining_cycles)
 
           // Force audio generation. Need to flush samples for this frame.
           render_gbc_sound();
+
+          /* Keep the m4a mixer stub installed (see n64/m4a_hle.c).
+           * Once found this is a single halfword compare. */
+          M4A_HLE_FRAME();
 
           // We completed a frame, tell the dynarec to exit to the main thread
           frame_complete = 0x80000000;
