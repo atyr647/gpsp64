@@ -292,6 +292,13 @@ int main(void)
         u32 tb1 = PROF_TICK();
         prof_blit += tb1 - tb0;
 
+#ifdef N64_AUDIO_OUT
+        /* Push this frame's PCM.  The game's own m4a mixer produced it;
+         * see n64/m4a_hle.c, which is what made running that mixer cheap
+         * enough to be worth playing the result of. */
+        n64_audio_render_frame();
+#endif
+
         u32 t_frame_end = PROF_TICK();
         prof_total += t_frame_end - t_frame_start;
         prof_frames++;

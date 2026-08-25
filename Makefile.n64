@@ -61,16 +61,25 @@ CFLAGS += -DUSE_XBGR1555_FORMAT
 N64_BLIT_OPT ?= -DN64_RSP_BLIT -DN64_UNCACHED_SCREEN
 CFLAGS += $(N64_BLIT_OPT)
 
-# Skip the game's own software audio mixer.  Two thirds of every emulated
-# instruction in Pokemon Emerald belongs to m4a's SoundMainRAM, which
-# produces PCM this port never plays -- n64_audio_render_frame() is not
-# called.  See n64/m4a_hle.c and docs/HYBRID_PORT.md.
+# The game's own software audio mixer.  Two thirds of every emulated
+# instruction in Pokemon Emerald belongs to m4a's SoundMainRAM.  See
+# n64/m4a_hle.c and docs/HYBRID_PORT.md.
 #
 # Measured in ares over 8 windows booted from a gameplay savestate:
 #   mixer emulated   82.5 ms/f   12.12 fps   CPU 72% PPU 28%
 #   mixer skipped    58.0 ms/f   17.24 fps   CPU 58% PPU 42%   (+42.2%)
-# Set N64_M4A= to build without it.
-N64_M4A ?= -DN64_M4A_STUB
+#
+# -DN64_M4A_NATIVE replaces the mixer's four hot loops with native code
+# instead of skipping it: 19620 -> 504 interpreted instructions per frame,
+# byte-identical output over 900 frames, so the PCM is real and audio can
+# be played (-DN64_AUDIO_OUT).  -DN64_M4A_STUB is the skip-it variant.
+# Set N64_M4A= to build without either.
+#
+# Audio output is a separate switch and is off by default: measured in
+# ares, calling n64_audio_render_frame() costs 15.5 ms/frame -- 60.5 ->
+# 75.5 ms, a fifth of the frame -- and that cost is in gpSP's own output
+# path, not in the mixer.  Add -DN64_AUDIO_OUT to turn sound on.
+N64_M4A ?= -DN64_M4A_NATIVE
 CFLAGS += $(N64_M4A)
 # DIAGNOSTIC flags (off by default; re-enable for profiling passes):
 #   -DPROFILE_OPCODES  per-insn opcode histogram (~5 cyc/insn overhead)

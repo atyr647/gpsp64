@@ -33,8 +33,10 @@ void n64_audio_render_frame(void)
   if (samples_read == 0)
     return;
 
+#ifndef N64_AUDIO_NOPUSH
   /* Push samples to N64 audio output (non-blocking) */
   audio_push(audio_buffer, samples_read, false);
+#endif
 }
 
 void n64_audio_shutdown(void)

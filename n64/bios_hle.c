@@ -19,6 +19,7 @@
  */
 
 #include "../common.h"
+#include "m4a_hle.h"
 #include "../gba_memory.h"
 #include <string.h>
 
@@ -141,6 +142,16 @@ int bios_hle_swi(u32 swi_num, u32 *cycles)
   case SWI_CPUSET:
     *cycles = hle_cpuset();
     return 1;
+#ifdef N64_M4A_NATIVE
+  /* Not BIOS calls: m4a_hle.c marks the sound mixer's hot loops with
+   * SWIs in the 0xF0 block, which the BIOS leaves unused, so that they
+   * arrive here instead of being interpreted. */
+  case M4A_SWI_REVERB:
+  case M4A_SWI_RESAMP:
+  case M4A_SWI_UNITY:
+  case M4A_SWI_UNITYC:
+    return m4a_hle_arm_swi(swi_num, cycles);
+#endif
   default:
     return 0;
   }

@@ -192,12 +192,87 @@ GBA memory exactly.  BIOS SWIs are similarly small: one `CpuSet` and one
 The lever that remains is the PPU, which after this change is the large
 majority of the frame.  See `docs/RSP_SCANLINE_PLAN.md`.
 
-## The unfinished half
+## The native mixer
 
-Skipping the mixer is correct only while audio is dead.  The proper
-version is to implement `SoundMainRAM` in C against the same `SoundInfo`
-layout: the same PCM in the same buffer, at roughly a twentieth of the
-emulated cost, which would restore audio *and* keep the speed.  The hook
-point, the signature match and the struct layout established here are
-what that needs; `m4a_hle.c` is written so that the body can be filled in
-without moving anything else.
+Skipping the mixer is only correct while audio is dead, so the finished
+version replaces it instead.  Not all of it: the per-64-byte-block
+profile is extremely lopsided.
+
+```
+  0x03001dc0  9416/frame  47.5%    resampling mix loop
+  0x03001ac0  3361/frame  17.0%    reverb loop
+  0x03001e00  2964/frame  15.0%    resampling mix loop, tail
+  0x03001cc0  1498/frame   7.6%    unity-rate mix loop
+  0x03001c80   961/frame   5.3%    unity-rate mix loop, second variant
+  0x03001d80   926/frame   4.7%
+```
+
+Four loops are 97% of the cost.  Everything else -- the envelope state
+machine, the compressed and reverse-playback paths, the loop-point
+handling when a sample runs out -- is under 1% and is left interpreted,
+so it stays correct without being reimplemented.  That is the whole
+design: reimplement only what is hot, and let the driver keep its own
+control flow.
+
+Each hot loop is replaced, in the driver's IWRAM copy, by a single ARM
+`SWI` in the 0xF0 block that the BIOS leaves unused.  gpSP already routes
+SWIs through `bios_hle_swi`, so no interpreter change was needed: the
+handler runs the loop natively, writes back the registers the loop would
+have left, and sets the PC to wherever that loop exits.  A loop that
+meets a case it does not model -- an unresolvable address, a source
+sample running out mid-group -- hands the exact register state back and
+returns control to the interpreter at the instruction that handles it.
+Emulated time is charged for every instruction the loop would have
+executed, so the game's timing does not shift; only host time is saved.
+
+The loops themselves are the delicate part.  m4a packs four output
+samples into one 32-bit accumulator word, rotating each new sample into
+the top byte and clearing bits 16-23 so a negative product borrows into
+the discarded bit 32 rather than into its neighbour, and it counts the
+four samples in the *unused top two bits of the write pointer* -- `adds
+r5, r5, #0x40000000` carries out on exactly the fourth one.  The
+resampler keeps a 9.23 fixed-point position and interpolates between two
+8-bit samples.  All of that is reproduced as written.
+
+### Verifying it without being able to hear it
+
+There is no audio in ares and no console here, so the mixer is checked by
+differential execution instead: the driver's entire output -- the PCM
+buffer and all channel state -- lives in IWRAM, so running the same
+savestate under an interpreted build and a native build and diffing IWRAM
+is a complete check.
+
+Over 1800 frames (30 seconds of gameplay) the two builds' IWRAM differs
+in exactly twelve bytes: the four patched instruction words. Nothing
+else.
+
+### What it costs
+
+```
+                            interp insns/frame     of which IWRAM
+  mixer interpreted               28591              19620  (68.6%)
+  mixer's hot loops native         9854                667  ( 6.8%)
+```
+
+The mixer went from 19,620 interpreted instructions per frame to 667 --
+96.6% less -- for identical output.  In ares, from the same gameplay
+savestate:
+
+```
+                                     ms/f    fps     CPU  PPU
+  mixer interpreted                  82.5   12.12    72%  28%
+  mixer skipped entirely             58.0   17.24    58%  42%
+  mixer's hot loops native           61.0   16.39    60%  40%
+  ...and audio actually played       75.5   13.25    68%  32%
+```
+
+Running the game's whole sound driver now costs **3 ms/frame instead of
+24.5** -- 5% of the frame where it used to be 30%.  `N64_M4A_NATIVE` is
+the default; `N64_M4A_STUB` remains as the skip-it variant for anyone who
+wants the last 5%.
+
+Playing the result is a separate 15.5 ms/frame, and that cost is not in
+the mixer -- it is in gpSP's own output path, which the mixer work has
+now exposed as the next thing worth attacking.  `-DN64_AUDIO_OUT` turns
+it on.
+
