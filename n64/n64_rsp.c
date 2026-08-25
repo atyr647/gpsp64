@@ -467,4 +467,40 @@ void n64_rsp_bench(void)
       debugf("[gpSP]: RSP comppal %lu mismatches of %lu\n",
              (unsigned long)bad, (unsigned long)(LB * 2));
   }
+
+  /* Verify the RSP blit against the CPU conversion.  This matters more than
+     the usual correctness check: the target is real hardware, and ares has
+     no RDP backend, so nothing here ever displays the framebuffer.  A wrong
+     blit would be completely invisible in the test environment and only
+     show up on the console. */
+  {
+    static u16 bsrc[256] __attribute__((aligned(16)));
+    static u16 bref[256] __attribute__((aligned(16)));
+    static u16 bdst[256] __attribute__((aligned(16)));
+    u32 i, bad = 0;
+    for (i = 0; i < 256; i++) { bsrc[i] = (u16)(i * 211 + 7); bdst[i] = 0; }
+
+    /* CPU reference: the same expression n64_video.c uses */
+    for (i = 0; i < 256; i++) {
+      u32 p = bsrc[i];
+      bref[i] = (u16)(((p << 11) & 0xF800) | ((p << 1) & 0x07C0)
+                    | ((p >> 9) & 0x003E) | 1);
+    }
+    data_cache_hit_writeback_invalidate(bsrc, sizeof(bsrc));
+    data_cache_hit_writeback_invalidate(bdst, sizeof(bdst));
+
+    /* one "scanline" of 256 px, 4 lines of 64 px so the rect path is used */
+    n64_rsp_blit(bsrc, bdst, 128, 4, 128);
+    data_cache_hit_invalidate(bdst, sizeof(bdst));
+
+    for (i = 0; i < 256; i++)
+      if (bdst[i] != bref[i]) {
+        if (bad++ < 3)
+          debugf("[gpSP]: RSP blit MISMATCH at %lu: rsp=%04x cpu=%04x\n",
+                 (unsigned long)i, bdst[i], bref[i]);
+      }
+    if (!bad) debugf("[gpSP]: RSP blit OK -- matches CPU conversion\n");
+    else      debugf("[gpSP]: RSP blit %lu/%u mismatches\n",
+                     (unsigned long)bad, 256u);
+  }
 }

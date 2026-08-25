@@ -43,7 +43,22 @@ CFLAGS += -DUSE_XBGR1555_FORMAT
 # writes, so every line cost a write-allocate miss (fetch 16 bytes from
 # RDRAM only to overwrite them) plus a writeback.  Together they were ~65%
 # of all D-cache misses while rendering.
-N64_BLIT_OPT ?= -DN64_FUSED_BLIT -DN64_UNCACHED_SCREEN
+# N64_RSP_BLIT hands the blit to the RSP entirely.  Measured 33.33 -> 35.71
+# fps (+7.1%), output verified against the CPU conversion.
+#
+# Why the RSP and not the CPU: the blit costs ~11.7 cyc/px but the conversion
+# is only ~2-3 of that.  The rest is uncached store throughput -- the
+# framebuffer is KSEG1, so every write reaches RDRAM through the write buffer
+# with no combining.  The RSP moves it with its own DMA engine while vector
+# ops do the conversion, so the CPU is out of the loop.
+#
+# HARDWARE NOTE: N64_FUSED_BLIT (below) replaced an rdpq_tex_blit with a CPU
+# copy and measured +1.1% here -- but ares has no RDP backend, so that RDP
+# copy cost ZERO in the measurement while on console it is real work done in
+# parallel with the CPU.  That +1.1% may not exist on hardware.  N64_RSP_BLIT
+# supersedes both paths and is correct on either, which is why it is the
+# default; it also leaves the RDP free for tile rendering later.
+N64_BLIT_OPT ?= -DN64_RSP_BLIT -DN64_UNCACHED_SCREEN
 CFLAGS += $(N64_BLIT_OPT)
 # DIAGNOSTIC flags (off by default; re-enable for profiling passes):
 #   -DPROFILE_OPCODES  per-insn opcode histogram (~5 cyc/insn overhead)
