@@ -29,7 +29,10 @@
 #define D_VCONST    0x0020   /* CTRL is 5 words = 20 bytes; clear it */
 #define D_VFLAG     0x0060
 #define D_VPAL      0x0080   /* 16 u16 subpalette */
-#define D_PALV      0x0100   /* per-layer per-group palette vectors */   /* VCONST is 4 vectors = 64 B from 0x20 */
+#define D_PALV      0x0140   /* per-layer per-group palette vectors */
+#define D_BCONST    0x00C0   /* blit constants: lqv offset must be <=1008 */
+#define D_BLIT      0x0400   /* blit staging, 4 lines = 1920 B; aliases
+                                 SRCBUF, which the blit op does not use */   /* VCONST is 4 vectors = 64 B from 0x20 */
 #define D_SRCBUF    0x0400
 #define D_DSTBUF    0x0800
 
@@ -57,6 +60,17 @@ VPAL:
     .half 0x1000,0x1001,0x1002,0x1003,0x1004,0x1005,0x1006,0x1007
     .half 0x1008,0x1009,0x100A,0x100B,0x100C,0x100D,0x100E,0x100F
 
+    .org D_BCONST
+BCONST:
+    .half 0x0800,0x0800,0x0800,0x0800,0x0800,0x0800,0x0800,0x0800   # <<11 via vmudn
+    .half 0x0002,0x0002,0x0002,0x0002,0x0002,0x0002,0x0002,0x0002   # <<1  via vmudn
+    .half 0x0080,0x0080,0x0080,0x0080,0x0080,0x0080,0x0080,0x0080   # >>9  via vmudl
+    .half 0xF800,0xF800,0xF800,0xF800,0xF800,0xF800,0xF800,0xF800   # R mask
+    .half 0x07C0,0x07C0,0x07C0,0x07C0,0x07C0,0x07C0,0x07C0,0x07C0   # G mask
+    .half 0x003E,0x003E,0x003E,0x003E,0x003E,0x003E,0x003E,0x003E   # B mask
+    .half 0x0001,0x0001,0x0001,0x0001,0x0001,0x0001,0x0001,0x0001   # alpha
+
+
     .text
     .align 3
     .global _start
@@ -65,6 +79,9 @@ _start:
     # rsp_run_async() always starts at the ucode's start_pc, so selecting
     # work via the control block keeps one ucode and one entry point.
     lw      t9, D_CTRL+16(zero)
+    li      t8, 5
+    beq     t9, t8, blit_entry
+     nop
     li      t8, 4
     beq     t9, t8, comppal_entry
      nop
@@ -483,6 +500,83 @@ comppal_entry:
     addi    t0, t3, -1
     jal     DMAOut
      li     t1, 0
+    break
+
+
+    # ---- op=5: XBGR1555 -> RGBA5551 blit, CPU entirely uncoupled ---------
+    # The CPU blit costs ~11.7 cyc/px, of which only ~2-3 is the conversion.
+    # The rest is uncached store throughput: the framebuffer is KSEG1, so
+    # every write goes to RDRAM through the write buffer with no combining.
+    # The RSP's DMA engine moves RDRAM->RDRAM without the CPU touching it,
+    # and the conversion is pure shift/mask, so this is a far better fit than
+    # the BG renderer -- no gather, no palette, no tile addressing.
+    #
+    # CTRL_SRC = gba_screen_pixels, CTRL_DST = framebuffer + row/col offset,
+    # CTRL_LEN = bytes per scanline (480), CTRL_OR = scanline count,
+    # CTRL_REP = destination pitch (framebuffer stride).
+    .global blit_entry
+blit_entry:
+    lqv     $v10, 0,D_BCONST+0x00, zero     # <<11
+    lqv     $v11, 0,D_BCONST+0x10, zero     # <<1
+    lqv     $v12, 0,D_BCONST+0x20, zero     # >>9
+    lqv     $v13, 0,D_BCONST+0x30, zero     # R mask
+    lqv     $v14, 0,D_BCONST+0x40, zero     # G mask
+    lqv     $v15, 0,D_BCONST+0x50, zero     # B mask
+    lqv     $v16, 0,D_BCONST+0x60, zero     # alpha
+
+    lw      s0, D_CTRL+0(zero)              # src
+    lw      s1, D_CTRL+4(zero)              # dst
+    lw      s2, D_CTRL+8(zero)              # bytes per line
+    lw      s3, D_CTRL+12(zero)             # line count
+    lw      s5, D_CTRL+20(zero)             # dst pitch
+
+12: # ---- four scanlines per pass ----------------------------------------
+    sll     t0, s2, 2                       # 4 lines of source
+    addi    t0, t0, -1
+    li      s4, D_BLIT
+    jal     DMAIn
+     li     t1, 0
+
+    li      t5, D_BLIT
+    sll     t6, s2, 2
+    add     t6, t5, t6                      # end of staged block
+13: lqv     $v01, 0,0x000, t5
+    vmudn   $v02, $v01, $v10                # p << 11
+    vand    $v02, $v02, $v13                # & 0xF800   -> R
+    vmudn   $v03, $v01, $v11                # p << 1
+    vand    $v03, $v03, $v14                # & 0x07C0   -> G
+    vmudl   $v04, $v01, $v12                # p >> 9
+    vand    $v04, $v04, $v15                # & 0x003E   -> B
+    vor     $v02, $v02, $v03
+    vor     $v02, $v02, $v04
+    vor     $v02, $v02, $v16                # alpha = 1
+    sqv     $v02, 0,0x000, t5
+    addi    t5, t5, 16
+    bne     t5, t6, 13b
+     nop
+
+    # rectangular DMA out: width = bytes/line, height = 4, pitch = stride
+    li      s4, D_BLIT
+    addi    t0, s2, -1                      # width-1
+    sll     t2, s5, 20                      # pitch field
+    li      t1, 0
+    move    t1, s5
+    li      t2, 3
+    sll     t2, t2, 12
+    or      t0, t0, t2                      # | (height-1)<<12
+    move    s0, s1
+    jal     DMAOut
+     nop
+
+    lw      s0, D_CTRL+0(zero)              # advance source
+    sll     t7, s2, 2
+    add     s0, s0, t7
+    sw      s0, D_CTRL+0(zero)
+    sll     t7, s5, 2                       # advance dest by 4 rows
+    add     s1, s1, t7
+    addi    s3, s3, -4
+    bgtz    s3, 12b
+     nop
     break
 
 #include <rsp_dma.inc>

@@ -99,6 +99,18 @@ void n64_video_render_frame(void)
       memset(disp->buffer, 0, disp->stride * N64_SCREEN_HEIGHT);
       initial_clear_remaining--;
     }
+#ifdef N64_RSP_BLIT
+    /* Hand the whole blit to the RSP: it is uncached-store bound on the CPU
+       (~11.7 cyc/px, only ~2-3 of it conversion), and the RSP has an idle
+       DMA engine plus vector ops that do the conversion for free. */
+    { extern void n64_rsp_blit(const void *, void *, u32, u32, u32);
+      u8 *dstrow = (u8 *)disp->buffer + GBA_OFFSET_Y * disp->stride
+                   + GBA_OFFSET_X * 2;
+      n64_rsp_blit(gba_screen_pixels, dstrow,
+                   GBA_SCREEN_WIDTH * 2, GBA_SCREEN_HEIGHT, disp->stride);
+      display_show(disp);
+      return; }
+#else
     const u32 *src = (const u32 *)gba_screen_pixels;
     u8 *dstrow = (u8 *)disp->buffer + GBA_OFFSET_Y * disp->stride
                  + GBA_OFFSET_X * 2;
@@ -112,6 +124,7 @@ void n64_video_render_frame(void)
     }
     display_show(disp);
     return;
+#endif
   }
 #endif
 

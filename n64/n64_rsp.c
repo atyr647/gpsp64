@@ -39,6 +39,36 @@ void n64_rsp_init(void)
   rsp_ready = true;
 }
 
+/* Offload the XBGR1555 -> RGBA5551 blit to the RSP.
+ *
+ * The CPU version costs ~11.7 cyc/px but only ~2-3 of that is the
+ * conversion; the rest is uncached store throughput, because the
+ * framebuffer is KSEG1 and every write goes to RDRAM through the write
+ * buffer with no combining.  The RSP moves it with its own DMA engine and
+ * converts with vector ops, so the CPU is freed entirely.
+ *
+ * Both buffers are already uncached (KSEG1), so no cache maintenance is
+ * needed -- the CPU's writes to the screen buffer are in RDRAM by
+ * construction.  RSP DMA takes physical addresses, hence the masking.
+ */
+void n64_rsp_blit(const void *src, void *dst, u32 bytes_per_line,
+                  u32 lines, u32 pitch)
+{
+  static rsp_ctrl_t bc __attribute__((aligned(16)));
+  if (!rsp_ready) return;
+
+  bc.src   = ((u32)src) & 0x1FFFFFFF;
+  bc.dst   = ((u32)dst) & 0x1FFFFFFF;
+  bc.len   = bytes_per_line;
+  bc.orval = lines;
+  bc.op    = 5;
+  bc.rep   = pitch;
+
+  data_cache_hit_writeback_invalidate(&bc, sizeof(bc));
+  rsp_load_data(&bc, sizeof(bc), 0);
+  rsp_run();
+}
+
 /* Returns true if the RSP produced exactly what the CPU would have. */
 bool n64_rsp_selftest(void)
 {
