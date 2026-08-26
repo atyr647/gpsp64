@@ -187,6 +187,16 @@ N64_OPT ?= -O3
 AOT_OPT ?=
 n64/aot_generated.o: CFLAGS += $(AOT_OPT)
 
+# Same argument, but for the interpreter.  cpu.cc is one enormous switch
+# per instruction set, and a host-side PC profile puts 33.6% of the frame
+# inside execute_arm for only ~9,560 interpreted instructions -- over 200
+# VR4300 cycles each, which scalar work alone cannot explain.  -O3 grows
+# the dispatch bodies, which is exactly wrong against a 16 KB
+# direct-mapped I-cache.  CPU_OPT builds just that file at a different
+# level; empty means it follows N64_OPT.
+CPU_OPT ?=
+cpu.o: CXXFLAGS += $(CPU_OPT)
+
 %.z64: CFLAGS   += $(N64_OPT) $(EXTRA_CFLAGS)
 %.z64: CXXFLAGS += $(N64_OPT) $(EXTRA_CFLAGS)
 
