@@ -595,12 +595,25 @@ static void render_scanline_text(u32 layer,
       render_scanline_text_mosaic<stype, rdtype, isbase, false>(
         layer, start, end, scanline, paltbl);
   } else {
+#ifdef N64_NO_BG
+    /* Upper-bound probe: skip BG tile rasterisation entirely.  Whatever
+     * this saves is the ceiling for any BG offload (RSP compositing and
+     * the like), so it is worth knowing before building one.  The image
+     * is wrong while this is on -- it is a timing probe, nothing else. */
+    if (isbase) {
+      stype *d = ((stype*)scanline) + start;
+      stype bg = (stype)paltbl[0];
+      for (u32 i = start; i < end; i++) *d++ = bg;
+    }
+    (void)layer; (void)is8bpp;
+#else
     if (is8bpp)
       render_scanline_text_fast<stype, rdtype, isbase, true>(
         layer, start, end, scanline, paltbl);
     else
       render_scanline_text_fast<stype, rdtype, isbase, false>(
         layer, start, end, scanline, paltbl);
+#endif
   }
 }
 

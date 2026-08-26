@@ -222,6 +222,17 @@ n64/aot_generated.o: CFLAGS += $(AOT_OPT)
 CPU_OPT ?=
 cpu.o: CXXFLAGS += $(CPU_OPT)
 
+# The two hand-written AOT entry points (0x0806F160, 0x08005ED8) cost an
+# inline PC compare each on EVERY interpreted instruction, and they never
+# fire: prof_aot_hw_hits is 0 across all three benchmark workloads --
+# cold boot, the intro cutscene and the overworld -- while the generated
+# table takes 72K-108K dispatches per run.  Deleting the compares is
+# worth 69.0 -> 68.0 ms/f (+1.5%), consistent in every window.
+# Set AOT_HANDWRITTEN=1 to build them back in.
+ifneq ($(AOT_HANDWRITTEN),1)
+CFLAGS += -DAOT_NO_HANDWRITTEN
+endif
+
 %.z64: CFLAGS   += $(N64_OPT) $(EXTRA_CFLAGS)
 %.z64: CXXFLAGS += $(N64_OPT) $(EXTRA_CFLAGS)
 
