@@ -3215,9 +3215,7 @@ skip_instruction:
 
        /* End of Execute ARM instruction */
        #ifdef N64
-#ifndef N64_NO_INSN_COUNTERS
        prof_arm_insns++;
-#endif
        #ifdef PROFILE_OPCODES
        prof_arm_hist[(opcode >> 20) & 0xFF]++;
        #endif
@@ -3892,9 +3890,13 @@ thumb_loop:
 
        /* End of Execute THUMB instruction */
        #ifdef N64
-#ifndef N64_NO_INSN_COUNTERS
+       /* Measured: compiling these two counters out is NOT a win --
+        * 69.0 -> 69.5 ms/f, i.e. nothing, on the overworld state.  An
+        * earlier reading of 2.5 ms came from measuring on top of the
+        * idle-target hoist and was an artifact of that regression.  A
+        * global read-modify-write per instruction costing nothing says
+        * this loop is not issue-bound; it is waiting on something else. */
        prof_thumb_insns++;
-#endif
        #ifdef PROFILE_OPCODES
        {
          u32 _hi = (opcode >> 8) & 0xFF;

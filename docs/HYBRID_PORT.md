@@ -333,11 +333,29 @@ the interpreter is **register-pressure-bound at the dispatch**, which is
 also the likeliest reason -O3 loses to -O2 on this file -- -O3's extra
 passes lengthen live ranges in the one function that can least afford it.
 
-So the obvious micro-optimisations in this path are not available, and
-the structural answer, if the dispatch really is spill-bound, is to
-shrink what is live across it rather than add to it.  _cheat_hook is
-cached for the same reason the hoist seemed sensible, and predates the
-dispatch growing; it may no longer pay for itself either.
+**Removing the profiling counters is not a win either.**  prof_arm_insns
+and prof_thumb_insns are a global read-modify-write on every instruction:
+
+```
+  counters on    69.0 ms/f   14.49 fps
+  counters off   69.5 ms/f   14.39 fps
+```
+
+Nothing.  (An earlier reading of 2.5 ms came from measuring on top of the
+hoist regression.)  That a global RMW per instruction is free says the
+loop is not issue-bound -- it is waiting on something else, which fits
+spilling rather than instruction count.
+
+So the obvious micro-optimisations in this path are all unavailable, and
+the structural answer is to shrink what is live across the dispatch
+rather than trim around it.  The concrete candidate: execute_arm holds
+*both* the ARM and the Thumb interpreter in one function under one
+register allocation, and 97% of executed instructions are Thumb.  The ARM
+half inflates pressure on a path that almost never runs it.  Splitting
+them into separate functions is the change the evidence actually points
+at.  (_cheat_hook is cached in that function for the same reason the
+hoist seemed sensible, and predates the dispatch growing; it may no
+longer pay for itself either -- worth re-measuring in the same pass.)
 
 ## What else is worth substituting
 
