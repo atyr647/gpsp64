@@ -237,6 +237,16 @@ float rumble_active_pct();
 extern const u32 def_seq_cycles[16][2];
 /* Cycles can change depending on WAITCNT */
 extern u8 ws_cyc_seq[16][2];
+
+/* Mid-frame drawing-state writes -- see gba_memory.c.  Counted only during
+ * HDraw (vcount < 160); a write during VBlank cannot invalidate a band. */
+extern u32 prof_mid_vram, prof_mid_pal, prof_mid_bgreg, prof_mid_frames;
+#if defined(N64) && defined(PROFILE_MIDFRAME)
+  #define N64_MIDFRAME_TALLY(which) \
+    if (read_ioreg(REG_VCOUNT) < 160) prof_mid_##which++;
+#else
+  #define N64_MIDFRAME_TALLY(which)
+#endif
 extern u8 ws_cyc_nseq[16][2];
 
 extern u32 gamepak_size;

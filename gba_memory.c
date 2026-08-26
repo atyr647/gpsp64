@@ -1047,6 +1047,7 @@ cpu_alert_type function_cc write_io_register32(u32 address, u32 value)
   address16(palette_ram_raw, palette_address) = eswap16(value);               \
   value = convert_palette(value);                                             \
   native16(palette_ram_converted, palette_address) = value;                   \
+  N64_MIDFRAME_TALLY(pal)                                                     \
 }                                                                             \
 
 #define write_palette32(address, value)                                       \
@@ -1190,10 +1191,12 @@ void function_cc write_backup(u32 address, u32 value)
 
 #define write_vram8()                                                         \
   address &= ~0x01;                                                           \
-  address16(vram_raw, address) = eswap16((value << 8) | value)                \
+  address16(vram_raw, address) = eswap16((value << 8) | value);               \
+  N64_MIDFRAME_TALLY(vram)                                                   \
 
 #define write_vram16()                                                        \
-  address16(vram_raw, address) = eswap16(value)                               \
+  address16(vram_raw, address) = eswap16(value);                              \
+  N64_MIDFRAME_TALLY(vram)                                                   \
 
 #define write_vram32()                                                        \
   address32(vram_raw, address) = eswap32(value)                               \
@@ -2217,6 +2220,13 @@ static u32 evict_gamepak_page(void)
 /* Counts ROM page faults: each one is a 32 KB seek+read from the cart,
  * so this says whether the ROM page buffer (ROM_BUFFER_SIZE) is doing
  * any work, i.e. whether extra RAM could help at all. */
+/* How much of the frame's drawing state changes mid-frame?  A banded
+ * renderer -- gathering several scanlines from one snapshot, which is what
+ * an RSP composite needs -- is only safe while VRAM, the palette and the
+ * BG registers hold still during HDraw.  Games that run raster effects
+ * rewrite them per scanline, and then a band is simply wrong. */
+u32 prof_mid_vram = 0, prof_mid_pal = 0, prof_mid_bgreg = 0, prof_mid_frames = 0;
+
 u32 prof_rom_page_misses = 0;
 
 u8 *load_gamepak_page(u32 physical_index)

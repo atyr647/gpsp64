@@ -66,6 +66,49 @@ the previous frame, reuse it.  That attacks the 85% directly, costs no
 ucode, and on static screens (menus, dialogue, title) could skip nearly all
 of the 27.4 ms.
 
+## Measured before building (2026-08, overworld savestate)
+
+Three things that were assumptions when this plan was written now have
+numbers, and they change the verdict.
+
+**The ceiling.**  `-DN64_NO_BG` skips BG tile rasterisation and fills with
+backdrop -- a timing probe, the image is wrong under it:
+
+```
+  BG rasterisation on    68.0 ms/f   14.71 fps
+  BG skipped             49.0 ms/f   20.41 fps
+```
+
+19 ms of a 68 ms frame, +38.8%.  That is the hard ceiling for any BG
+offload; the RSP path only recovers part of it, since it still pays a
+band gather (1.8 ms measured, more with flips and wrapping), a CPU
+palette pass (~1.6 ms) and ~2200 cycles per RSP invocation.  A realistic
+net is 12-14 ms, so roughly +25%.
+
+**Applicability.**  In the overworld the fast path applies to *100%* of
+scanlines (effect none, no obj blend); in the intro cutscene, 0%.  The
+plan shelved this work believing effects would keep it from ever
+applying, which was measured during boot and is false for gameplay.
+OBJ is never interleaved between BG layers either -- 60% of scanlines
+have no OBJ, 40% have it last, 0% interleaved -- so a batched BG
+composite is always ordering-valid.  Tiles are 100% 4bpp.
+
+**The precondition nobody had checked.**  gpSP renders one scanline at a
+time as the emulated PPU advances, because mid-frame register writes have
+to be honoured per scanline.  Banding several lines from one snapshot is
+only sound if the drawing state holds still during HDraw.  Counted:
+
+```
+  mid-frame writes per frame (HDraw only)   VRAM   palette   BG regs
+    overworld                                0.0       1.7       0.0
+    intro cutscene                           0.0       0.0       0.0
+```
+
+No VRAM and no BG register writes during HDraw at all, so bands are safe.
+The 1.7 palette writes per frame in the overworld are the one hazard: a
+deferred palette pass would apply a late palette to earlier scanlines.
+Either snapshot the palette per band or detect the write and fall back.
+
 ## Do the cheap thing first
 
 Rendering is currently ~105 VR4300 cycles per output pixel

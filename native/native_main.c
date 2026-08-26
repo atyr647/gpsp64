@@ -607,6 +607,13 @@ int main(int argc, char **argv)
               (unsigned long)(prof_ppu2_objblend*100/c),
               (unsigned long)(prof_ppu2_fastok*100/ft)); }
 #endif
+#ifdef PROFILE_MIDFRAME
+    { extern u32 prof_mid_vram, prof_mid_pal, prof_mid_bgreg;
+      double _f = (double)(num_frames ? num_frames : 1);
+      fprintf(stderr, "\n  mid-frame writes per frame (HDraw only):"
+                      "  VRAM %.1f   palette %.1f   BG regs %.1f\n",
+              prof_mid_vram / _f, prof_mid_pal / _f, prof_mid_bgreg / _f); }
+#endif
     report_regions(num_frames);
     report_swis(num_frames);
     report_iwram(num_frames, 14);
