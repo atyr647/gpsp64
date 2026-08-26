@@ -83,9 +83,16 @@ extern bl_target_t prof_bl_targets[];
  * differently than it does on hardware. */
 static s16 audio_scratch[1024 * 2];
 
+/* Rendering is off by default: the harness exists to compare emulated CPU
+ * work across builds, and the PPU is host-identical.  RENDER=1 turns it
+ * on, which is how the PPU2 counters (effect mix, RSP applicability) can
+ * be surveyed across game states in seconds rather than in ares. */
+static int render_enable = -1;
+
 static void run_frame(void)
 {
-  skip_next_frame = 1;
+  if (render_enable < 0) render_enable = getenv("RENDER") ? 1 : 0;
+  skip_next_frame = !render_enable;
   clear_gamepak_stickybits();
   execute_arm(execute_cycles);
   sound_read_samples(audio_scratch, 1024);
@@ -124,6 +131,14 @@ static void reset_counters(void)
   memset(prof_page_hist_thumb, 0, sizeof(u32) * AOT_PAGE_BUCKETS);
   memset(prof_bl_targets, 0, sizeof(bl_target_t) * AOT_BL_TABLE_SIZE);
   memset(prof_pc_hist, 0, sizeof(u32) * 2048);
+#ifdef PROFILE_PPU2
+  { extern u32 prof_ppu2_effect[4], prof_ppu2_calls, prof_ppu2_objblend;
+    extern u32 prof_ppu2_fastok, prof_ppu2_fastno, prof_ppu2_layers[8];
+    memset(prof_ppu2_effect, 0, sizeof(u32) * 4);
+    memset(prof_ppu2_layers, 0, sizeof(u32) * 8);
+    prof_ppu2_calls = prof_ppu2_objblend = 0;
+    prof_ppu2_fastok = prof_ppu2_fastno = 0; }
+#endif
   memset(prof_iwram_hist, 0, sizeof(u32) * 512);
   memset(prof_iwram_entry, 0, sizeof(iw_entry_t) * 64);
   memset(prof_region_arm, 0, sizeof(u32) * 16);
@@ -515,6 +530,22 @@ int main(int argc, char **argv)
             (double)prof_aot_gba_cycles / frames,
             100.0 * ((double)prof_aot_gba_cycles / frames) / (double)GBA_CYCLES_PER_FRAME,
             GBA_CYCLES_PER_FRAME);
+#ifdef PROFILE_PPU2
+    { extern u32 prof_ppu2_effect[4], prof_ppu2_calls, prof_ppu2_objblend;
+      extern u32 prof_ppu2_fastok, prof_ppu2_fastno;
+      u32 c = prof_ppu2_calls ? prof_ppu2_calls : 1;
+      u32 ft = prof_ppu2_fastok + prof_ppu2_fastno; if (!ft) ft = 1;
+      fprintf(stderr, "\n  ppu2: scanlines=%lu  effect none %lu%% bright %lu%%"
+                      " dark %lu%% blend %lu%%  objblend %lu%%"
+                      "  RSP-fastpath %lu%%\n",
+              (unsigned long)prof_ppu2_calls,
+              (unsigned long)(prof_ppu2_effect[0]*100/c),
+              (unsigned long)(prof_ppu2_effect[1]*100/c),
+              (unsigned long)(prof_ppu2_effect[2]*100/c),
+              (unsigned long)(prof_ppu2_effect[3]*100/c),
+              (unsigned long)(prof_ppu2_objblend*100/c),
+              (unsigned long)(prof_ppu2_fastok*100/ft)); }
+#endif
     report_regions(num_frames);
     report_swis(num_frames);
     report_iwram(num_frames, 14);
@@ -527,6 +558,27 @@ int main(int argc, char **argv)
         if (f) { fwrite(prof_pctrace, 4, prof_pctrace_n, f); fclose(f);
                  fprintf(stderr, "PCTRACE %s: %lu entries\n", tp,
                          (unsigned long)prof_pctrace_n); } } }
+    /* Write the last rendered frame as a PNG-able PPM.  Knowing which
+     * screen a benchmark state is parked on is not a nicety: the two
+     * states surveyed here differ by 2x in rendering cost purely because
+     * one has a brightness effect on every scanline and the other does
+     * not. */
+    { const char *sp = getenv("DUMP_SCREEN");
+      if (sp && render_enable) {
+        FILE *f = fopen(sp, "wb");
+        if (f) {
+          fprintf(f, "P6\n%d %d\n255\n", GBA_SCREEN_WIDTH, GBA_SCREEN_HEIGHT);
+          for (int y = 0; y < GBA_SCREEN_HEIGHT; y++)
+            for (int x = 0; x < GBA_SCREEN_WIDTH; x++) {
+              u16 px = gba_screen_pixels[y * GBA_SCREEN_PITCH + x];
+              /* XBGR1555 */
+              int r = (px & 0x1F), g = ((px >> 5) & 0x1F), b = ((px >> 10) & 0x1F);
+              fputc(r << 3 | r >> 2, f); fputc(g << 3 | g >> 2, f); fputc(b << 3 | b >> 2, f);
+            }
+          fclose(f);
+        }
+      } }
+
     { const char *iw = getenv("DUMP_IWRAM");
       if (iw) { extern u8 iwram_raw[]; FILE *f = fopen(iw, "wb");
                 if (f) { fwrite(iwram_raw, 1, 64 * 1024, f); fclose(f); } } }
