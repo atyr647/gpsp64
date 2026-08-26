@@ -607,6 +607,12 @@ int main(int argc, char **argv)
               (unsigned long)(prof_ppu2_objblend*100/c),
               (unsigned long)(prof_ppu2_fastok*100/ft)); }
 #endif
+#ifdef N64_BGBAND_VERIFY
+    { extern u32 bgband_lines, bgband_mismatch, bgband_skipped;
+      fprintf(stderr, "\n  bgband: %lu lines checked, %lu mismatched, %lu skipped\n",
+              (unsigned long)bgband_lines, (unsigned long)bgband_mismatch,
+              (unsigned long)bgband_skipped); }
+#endif
 #ifdef PROFILE_MIDFRAME
     { extern u32 prof_mid_vram, prof_mid_pal, prof_mid_bgreg;
       double _f = (double)(num_frames ? num_frames : 1);

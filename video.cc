@@ -1873,6 +1873,86 @@ static void render_backdrop(u32 start, u32 end, u16 *scanline) {
     scanline[start++] = pixcol;
 }
 
+
+#ifdef N64_BGBAND
+/* ---------------------------------------------------------------------
+ * BG compositor built the way an RSP offload needs the data.
+ *
+ * gpSP draws one layer at a time straight into the scanline.  An RSP
+ * composite instead wants the tile bytes for every layer gathered first,
+ * then merged.  Getting that address arithmetic right -- scroll, the
+ * 512-pixel screen-block layout, per-tile flips and palettes -- is the
+ * hard part, and it is entirely testable on the CPU before any ucode is
+ * involved.  So this is the same fetch path the gather will use, feeding
+ * a plain C merge, checked pixel-exact against the renderer it replaces.
+ *
+ * -DN64_BGBAND_VERIFY runs it alongside the real renderer and counts
+ * mismatches; it is a correctness harness, not a fast path.
+ * ------------------------------------------------------------------ */
+u32 bgband_lines = 0, bgband_mismatch = 0, bgband_skipped = 0;
+
+static bool bgband_layer_ok(u32 l)
+{
+  u16 c = read_ioreg(REG_BGxCNT(l));
+  if (c & 0x80) return false;                                   /* 8bpp   */
+  if ((c & 0x40) && (read_ioreg(REG_MOSAIC) & 0xFF)) return false; /* mosaic */
+  return true;
+}
+
+static void bgband_draw_layer(u32 layer, u32 start, u32 end, u16 *dst, bool isbase)
+{
+  u32 bgc    = read_ioreg(REG_BGxCNT(layer));
+  u32 msz    = (bgc >> 14) & 3;
+  u32 mw     = (msz & 1) ? 512 : 256;
+  u32 mh     = (msz & 2) ? 512 : 256;
+  u32 hofs   = read_ioreg(REG_BGxHOFS(layer));
+  u32 vofs   = read_ioreg(REG_BGxVOFS(layer));
+  u32 vcount = read_ioreg(REG_VCOUNT);
+  const u16 *map0 = (const u16 *)&vram_raw[((bgc >> 8) & 0x1F) * 2048];
+  const u8  *chr  = &vram_raw[((bgc >> 2) & 0x03) * 16384];
+  const u16 *pal  = palette_ram_converted;
+  u16 bg0 = pal[0];
+  u32 vy = (vcount + vofs) & (mh - 1);
+  /* Screen blocks are 32x32 tiles (2 KB).  A 512-wide map puts the right
+   * half in the next block; a 512-tall map puts the bottom half after all
+   * of the top, which is one block for a 256-wide map and two for 512. */
+  u32 rowblk = (vy >= 256) ? ((mw == 512) ? 2 : 1) : 0;
+  const u16 *maprow = map0 + rowblk * 1024 + ((vy & 255) >> 3) * 32;
+  u32 x;
+
+  for (x = start; x < end; x++) {
+    u32 vx  = (x + hofs) & (mw - 1);
+    const u16 *mp = maprow + ((vx >= 256) ? 1024 : 0) + ((vx & 255) >> 3);
+    u16 tile = gba_deref16(mp);
+    u32 row  = (tile & 0x800) ? (7 - (vy & 7)) : (vy & 7);
+    u32 col  = (tile & 0x400) ? (7 - (vx & 7)) : (vx & 7);
+    u8  byte = chr[(tile & 0x3FF) * 32 + row * 4 + (col >> 1)];
+    u32 nib  = (col & 1) ? (byte >> 4) : (byte & 0xF);
+    if (nib)         dst[x] = pal[((tile >> 12) << 4) + nib];
+    else if (isbase) dst[x] = bg0;
+  }
+}
+
+/* Returns true if it composed the whole line; false means the caller's
+ * output must be trusted instead (a case this path does not model). */
+static bool bgband_line(u32 start, u32 end, u16 *dst)
+{
+  u32 lnum;
+  bool base_done = false;
+
+  if ((read_ioreg(REG_DISPCNT) & 0x07) != 0) return false;   /* mode 0 only */
+
+  for (lnum = 0; lnum < layer_count; lnum++) {
+    u32 layer = layer_order[lnum];
+    if (layer & 0x04) return false;          /* OBJ: not modelled here */
+    if (!bgband_layer_ok(layer)) return false;
+    bgband_draw_layer(layer, start, end, dst, !base_done);
+    base_done = true;
+  }
+  return base_done;
+}
+#endif  /* N64_BGBAND */
+
 // Renders all the available and enabled layers (in tiled mode).
 // Walks the list of layers in visibility order and renders them in the
 // specified mode (taking into consideration the first layer, etc).
@@ -2095,6 +2175,24 @@ static void render_w_effects(
     merge_blend<OBJ_BLEND, true>(start, end, scanline, tmp_buf);
   } else {
     renderers->fullcolor(start, end, scanline, enable_flags);
+#ifdef N64_BGBAND_VERIFY
+    /* Compose the same span through the gather path and compare.  Only
+     * OBJ-free spans are checked, since bgband_line models BG only --
+     * that is 60% of overworld scanlines, plenty to prove the address
+     * arithmetic. */
+    {
+      static u16 chk[240];
+      u32 i;
+      for (i = start; i < end; i++) chk[i] = 0xDEAD;
+      if (bgband_line(start, end, chk)) {
+        bgband_lines++;
+        for (i = start; i < end; i++)
+          if (chk[i] != ((u16*)scanline)[i]) { bgband_mismatch++; break; }
+      } else {
+        bgband_skipped++;
+      }
+    }
+#endif
   }
 }
 
