@@ -2080,7 +2080,9 @@ static bool bgband_line(u32 start, u32 end, u16 *dst)
     if (layer & 0x04) return false;          /* OBJ: not modelled here */
     if (!bgband_layer_ok(layer)) return false;
     if (nl >= 4) return false;
+#ifndef N64_BGBAND_NOGATHER
     bgband_gather_layer(layer, 240, &lay[nl]);
+#endif
     if (lay[nl].ntiles > BGB_MAXTILES) return false;
     nl++;
   }
