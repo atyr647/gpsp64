@@ -173,6 +173,52 @@ Note what this does to the balance of the port: the PPU was 28% of the
 frame and is now 42%.  Rendering, not the CPU, is where the next work
 belongs.
 
+## A cheaper lever found the same way
+
+The host-side PC profiler added for this work (`GPSP_PCPROF=<n>` in the
+patched ares, which samples the VR4300 PC every n instructions) paid for
+itself immediately.  With the mixer dealt with, it reported:
+
+```
+  33.6%  execute_arm                          <- the interpreter
+  17.9%  render_w_effects
+  13.5%  render_scanline_text<INDXCOLOR,base>
+   7.0%  render_scanline_text<INDXCOLOR,!base>
+   5.0%  update_gba
+   3.4%  rsp_wait
+   2.0%  sound_timer / render_gbc_sound / update_scanline
+```
+
+Rendering is ~43%, the interpreter ~37%.  But only one of those is
+*pathological*: 33.6% of a 63 ms frame is 21 ms for 9,560 interpreted
+instructions, which is over 200 VR4300 cycles each where an interpreter
+should manage 20-40.  Rendering at ~60 cycles/pixel for four layers plus
+effects is merely a lot of work.
+
+The obvious explanation was code size -- `execute_arm` is 79 KB against a
+16 KB direct-mapped I-cache -- and it is wrong.  Sweeping the
+optimisation level from a gameplay savestate:
+
+```
+                              ms/f    fps     .text      execute_arm
+  -O3 everywhere              61.0   16.39   1,436,828     79,076
+  -O1 on cpu.cc               62.0   16.13   1,456,796
+  -Os on cpu.cc               60.5   16.53   1,428,716     66,288
+  -O2 on cpu.cc               56.0   17.86   1,431,996     74,376
+  -O2 everywhere              55.0   18.18   1,082,892
+```
+
+`-Os` produces the smallest `execute_arm` and is the second slowest, so
+size is not the mechanism.  Spills per instruction are lowest at `-Os`
+too (4.6% vs 5.0% at `-O2` vs 5.5% at `-O3`), and the stack frame is the
+same size at `-O2` and `-O3`, so register pressure does not predict it
+either.  The mechanism remains unexplained.
+
+The result stands on the measurement rather than the story: **-O2
+everywhere is +10.9% and a quarter smaller ROM**, stable across every
+window, with all startup self-tests still passing.  It is now the
+default.  Do not reason your way back to `-O3`; measure.
+
 ## What else is worth substituting
 
 With the mixer gone, the remaining interpreted work is ~9,200 Thumb

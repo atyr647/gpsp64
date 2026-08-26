@@ -179,7 +179,14 @@ ASFLAGS += $(EXTRA_CFLAGS)
 # Measured on ares: -O3 gives 12.82 -> 13.70 FPS (+6.8%, consistent on
 # every like-indexed PROF window) for +162 KB of .text.  Worth it even
 # though code size otherwise hurts on this target (16 KB I-cache).
-N64_OPT ?= -O3
+# -O2, not -O3.  Measured over the whole build from a gameplay savestate:
+#   -O3 everywhere   61.0 ms/f   16.39 fps   .text 1,436,828
+#   -O2 everywhere   55.0 ms/f   18.18 fps   .text 1,082,892   (+10.9%)
+# So -O3 costs a tenth of the frame rate and a quarter of the ROM.  See
+# the CPU_OPT note below: -O2 also beats -Os and -O1, so this is not a
+# code-size effect and the mechanism is not established -- but it is
+# stable in every window and every self-test still passes under it.
+N64_OPT ?= -O2
 # n64/aot_generated.c is by far the largest object, so its size presses
 # directly on the VR4300's 16 KB I-cache.  AOT_OPT builds just that file
 # at a different level from the rest (e.g. AOT_OPT=-Os to trade a little
@@ -187,13 +194,31 @@ N64_OPT ?= -O3
 AOT_OPT ?=
 n64/aot_generated.o: CFLAGS += $(AOT_OPT)
 
-# Same argument, but for the interpreter.  cpu.cc is one enormous switch
-# per instruction set, and a host-side PC profile puts 33.6% of the frame
-# inside execute_arm for only ~9,560 interpreted instructions -- over 200
-# VR4300 cycles each, which scalar work alone cannot explain.  -O3 grows
-# the dispatch bodies, which is exactly wrong against a 16 KB
-# direct-mapped I-cache.  CPU_OPT builds just that file at a different
-# level; empty means it follows N64_OPT.
+# Same knob for the interpreter alone.  cpu.cc is one enormous switch per
+# instruction set, and a host-side PC profile (GPSP_PCPROF, see
+# native/ares_bench.sh) puts 33.6% of the frame inside execute_arm for
+# only ~9,560 interpreted instructions -- over 200 VR4300 cycles each,
+# where an interpreter should manage 20-40.  Measured from a gameplay
+# savestate, with everything else at -O3:
+#
+#   CPU_OPT=-O2   56.0 ms/f   execute_arm 74,376 bytes
+#   CPU_OPT=-Os   60.5 ms/f   execute_arm 66,288 bytes
+#   (-O3)         61.0 ms/f   execute_arm 79,076 bytes
+#   CPU_OPT=-O1   62.0 ms/f
+#
+# Note what that ordering is NOT.  The obvious story -- 79 KB of dispatch
+# against a 16 KB direct-mapped I-cache -- predicts -Os wins, and it does
+# not: -Os is the smallest build and the second slowest.  Spills per
+# instruction are also lowest at -Os (4.6% vs 5.0% at -O2 vs 5.5% at -O3)
+# and the stack frame is the same size at -O2 and -O3, so neither code
+# size nor register pressure predicts the result either.  ares's I-cache
+# counters report nothing because it recompiles and never runs the
+# accounting path.  The measurement is solid and repeatable (five ms/f
+# apart in every one of six windows); the mechanism is not established.
+# Do not "fix" this by reasoning about it -- measure.
+#
+# CPU_OPT builds just that file at a different level; empty means it
+# follows N64_OPT.
 CPU_OPT ?=
 cpu.o: CXXFLAGS += $(CPU_OPT)
 
