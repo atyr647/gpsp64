@@ -1899,6 +1899,78 @@ static bool bgband_layer_ok(u32 l)
   return true;
 }
 
+/* One layer's worth of a scanline, in the shape the ucode consumes:
+ * tile rows packed contiguously at 4bpp with h-flip already applied (the
+ * RSP has no cheap nibble reverse), plus the per-tile palette base.  The
+ * visible span starts px_off pixels into tile 0, because the horizontal
+ * scroll is not tile-aligned. */
+#define BGB_MAXTILES 32
+typedef struct {
+  u8  bytes[BGB_MAXTILES * 4];
+  u16 palbase[BGB_MAXTILES];
+  u32 px_off, ntiles;
+} bgb_layer_t;
+
+static inline u8 bgb_swapnib(u8 b) { return (u8)((b >> 4) | (b << 4)); }
+
+static void bgband_gather_layer(u32 layer, u32 width, bgb_layer_t *g)
+{
+  u32 bgc    = read_ioreg(REG_BGxCNT(layer));
+  u32 msz    = (bgc >> 14) & 3;
+  u32 mw     = (msz & 1) ? 512 : 256;
+  u32 mh     = (msz & 2) ? 512 : 256;
+  u32 hofs   = read_ioreg(REG_BGxHOFS(layer));
+  u32 vofs   = read_ioreg(REG_BGxVOFS(layer));
+  u32 vcount = read_ioreg(REG_VCOUNT);
+  const u16 *map0 = (const u16 *)&vram_raw[((bgc >> 8) & 0x1F) * 2048];
+  const u8  *chr  = &vram_raw[((bgc >> 2) & 0x03) * 16384];
+  u32 vy = (vcount + vofs) & (mh - 1);
+  u32 rowblk = (vy >= 256) ? ((mw == 512) ? 2 : 1) : 0;
+  const u16 *maprow = map0 + rowblk * 1024 + ((vy & 255) >> 3) * 32;
+  u32 t;
+
+  g->px_off = hofs & 7;
+  /* Always fill the whole buffer.  The visible span needs at most 31
+   * tiles, but the RSP DMAs a fixed 128 bytes per layer, so leaving the
+   * last tile stale would hand the ucode undefined input. */
+  g->ntiles = BGB_MAXTILES;
+  (void)width;
+
+  for (t = 0; t < g->ntiles; t++) {
+    u32 vx = (hofs + (t << 3)) & (mw - 1);
+    const u16 *mp = maprow + ((vx >= 256) ? 1024 : 0) + ((vx & 255) >> 3);
+    u16 tile = gba_deref16(mp);
+    u32 row  = (tile & 0x800) ? (7 - (vy & 7)) : (vy & 7);
+    const u8 *src = &chr[(tile & 0x3FF) * 32 + row * 4];
+    u8 *dstb = &g->bytes[t * 4];
+    if (tile & 0x400) {
+      dstb[0] = bgb_swapnib(src[3]); dstb[1] = bgb_swapnib(src[2]);
+      dstb[2] = bgb_swapnib(src[1]); dstb[3] = bgb_swapnib(src[0]);
+    } else {
+      dstb[0] = src[0]; dstb[1] = src[1]; dstb[2] = src[2]; dstb[3] = src[3];
+    }
+    g->palbase[t] = (u16)((tile >> 12) << 4);
+  }
+}
+
+/* Merge one gathered layer over the destination.  This is the step the
+ * RSP takes over; keeping a C version means the ucode always has a
+ * pixel-exact reference to be checked against. */
+static void bgband_merge_layer(const bgb_layer_t *g, u32 start, u32 end,
+                               u16 *dst, bool isbase)
+{
+  const u16 *pal = palette_ram_converted;
+  u16 bg0 = pal[0];
+  u32 x;
+  for (x = start; x < end; x++) {
+    u32 p    = g->px_off + x;
+    u8  byte = g->bytes[(p >> 3) * 4 + ((p & 7) >> 1)];
+    u32 nib  = (p & 1) ? (byte >> 4) : (byte & 0xF);
+    if (nib)         dst[x] = pal[g->palbase[p >> 3] + nib];
+    else if (isbase) dst[x] = bg0;
+  }
+}
+
 static void bgband_draw_layer(u32 layer, u32 start, u32 end, u16 *dst, bool isbase)
 {
   u32 bgc    = read_ioreg(REG_BGxCNT(layer));
@@ -1935,10 +2007,71 @@ static void bgband_draw_layer(u32 layer, u32 start, u32 end, u16 *dst, bool isba
 
 /* Returns true if it composed the whole line; false means the caller's
  * output must be trusted instead (a case this path does not model). */
+/* The ucode's merge, modelled exactly as n64_rsp.c's verified reference
+ * describes it, so its semantics can be checked against gpSP before any
+ * RSP is involved.  Two things differ from a straightforward merge and
+ * both matter:
+ *
+ *  - Output is planar.  Within a 16-byte group (32 pixels) lane l covers
+ *    pixels 4l..4l+3, and those land in planes 0..3 respectively, at
+ *    dst[plane*(LEN/2) + group*8 + lane].
+ *
+ *  - The base layer writes `nibble | palette` unconditionally, so a
+ *    transparent base pixel comes out as that tile's palette base rather
+ *    than as the backdrop.  gpSP wants the backdrop.  Rather than change
+ *    the ucode, the palette pass resolves it: a low nibble of zero can
+ *    only mean nothing opaque was written, because every layer above the
+ *    base skips transparent pixels.  So `(v & 0xF) ? pal[v] : pal[0]`
+ *    recovers gpSP's rule for one extra test per pixel.
+ */
+#define BGB_LEN 128                     /* bytes per layer, 16-byte groups */
+#define BGB_GROUPS (BGB_LEN / 16)
+
+static void bgband_merge_rspmodel(const bgb_layer_t *lay, u32 nlayers,
+                                  u16 *planar)
+{
+  u32 g, lane, pl, L;
+  for (g = 0; g < BGB_GROUPS; g++) {
+    for (lane = 0; lane < 8; lane++) {
+      for (pl = 0; pl < 4; pl++) {
+        u32 acc = 0;
+        for (L = 0; L < nlayers; L++) {
+          const u8 *lb = &lay[L].bytes[g * 16];
+          u32 byte = (pl < 2) ? lb[lane * 2] : lb[lane * 2 + 1];
+          u32 nib  = (pl & 1) ? ((byte >> 4) & 0xF) : (byte & 0xF);
+          u32 pv   = lay[L].palbase[g * 4 + lane / 2];
+          if (L == 0)   acc = nib | pv;
+          else if (nib) acc = nib | pv;
+        }
+        planar[pl * (BGB_LEN / 2) + g * 8 + lane] = (u16)acc;
+      }
+    }
+  }
+}
+
+/* Planar -> linear, with the palette lookup.  This pass stays on the CPU:
+ * resolving a 4bpp palette on the RSP measured 16.5 cyc/px against 1-2
+ * here, so the gather/merge goes over and the lookup stays. */
+static void bgband_palette_pass(const u16 *planar, u32 px_off,
+                                u32 start, u32 end, u16 *dst)
+{
+  const u16 *pal = palette_ram_converted;
+  u16 bg0 = pal[0];
+  u32 x;
+  for (x = start; x < end; x++) {
+    u32 p    = px_off + x;
+    u32 g    = p >> 5, r = p & 31;
+    u32 lane = r >> 2, pl = r & 3;
+    u16 v    = planar[pl * (BGB_LEN / 2) + g * 8 + lane];
+    dst[x] = (v & 0xF) ? pal[v] : bg0;
+  }
+}
+
 static bool bgband_line(u32 start, u32 end, u16 *dst)
 {
-  u32 lnum;
-  bool base_done = false;
+  static bgb_layer_t lay[4];
+  static u16 planar[4 * (BGB_LEN / 2)];
+  u32 lnum, nl = 0;
 
   if ((read_ioreg(REG_DISPCNT) & 0x07) != 0) return false;   /* mode 0 only */
 
@@ -1946,10 +2079,16 @@ static bool bgband_line(u32 start, u32 end, u16 *dst)
     u32 layer = layer_order[lnum];
     if (layer & 0x04) return false;          /* OBJ: not modelled here */
     if (!bgband_layer_ok(layer)) return false;
-    bgband_draw_layer(layer, start, end, dst, !base_done);
-    base_done = true;
+    if (nl >= 4) return false;
+    bgband_gather_layer(layer, 240, &lay[nl]);
+    if (lay[nl].ntiles > BGB_MAXTILES) return false;
+    nl++;
   }
-  return base_done;
+  if (!nl) return false;
+
+  bgband_merge_rspmodel(lay, nl, planar);
+  bgband_palette_pass(planar, lay[0].px_off, start, end, dst);
+  return true;
 }
 #endif  /* N64_BGBAND */
 
