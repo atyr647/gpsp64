@@ -262,6 +262,62 @@ sprites than the merge pass ever saved.  It is also doing more CPU work
 The number that matters for the renderer: in the overworld the RSP BG
 fast path is applicable on **100%** of scanlines.
 
+## Inspecting the interpreter anomaly
+
+The interpreter costs ~197 VR4300 cycles per interpreted GBA instruction,
+where a decent ARM interpreter manages 20-50.  Three things were checked.
+
+**It is not memory stalls.**  D-cache misses run ~14,400/frame plus
+~5,200 writebacks; at ares's 40 cycles each that is ~8.3 ms of a 70 ms
+frame, about 12%.  (ares's I-cache counters read zero because it
+recompiles and never runs that accounting path -- they measure nothing
+and are not evidence either way.)
+
+**It is the shared per-instruction path, not the opcode handlers.**
+Bucketing PC samples by offset *within* execute_arm, rather than treating
+the function as one blob:
+
+```
+  +3e0..+430   AOT dispatch check + idle-target compares   1033 samples  35%
+  +494..+560   fetch, byte-swap, dispatch, cycle acct,      827          28%
+               idle detector
+  +6a8,+728    idle detector slow path / region change      227           8%
+  ------------------------------------------------------------------------
+  shared path                                              2087          72%
+  actual opcode handlers                                   ~830          28%
+```
+
+Seventy-two percent of interpreter time is bookkeeping around the GBA
+instruction rather than executing it.
+
+**The largest piece of that bookkeeping is justified.**  The AOT dispatch
+check runs on every interpreted instruction, so it looked like a straight
+loss.  It is not:
+
+```
+  AOT on       69.0 ms/f   14.49 fps    828K insns/window
+  AOT off      75.0 ms/f   13.33 fps   1426K insns/window
+  table off    76.0 ms/f   13.16 fps   1426K insns/window
+```
+
+AOT is worth +8.7%.  The "5.6% coverage" figure that made it look
+worthless is coverage of emulated *GBA cycles*; what the check actually
+buys is interpreted *instructions avoided*, and that is 598K of 1426K --
+**42%**.  It covers instructions that are numerous but cheap in emulated
+cycles, which is exactly the population an interpreter is worst at.  Two
+different denominators, and picking the wrong one inverts the conclusion.
+
+Note also that this was previously measured as "neutral" and shelved.
+That measurement was taken during boot.
+
+What remains in the shared path is the genuinely redundant part:
+reg[REG_PC] loaded twice and stored once per instruction,
+idle_loop_target_pc reloaded from $gp twice (it is set once by
+load_gamepak and never moves, but the compiler cannot prove that across
+the opcode handlers), and prof_arm_insns/prof_thumb_insns -- a global
+read-modify-write on every instruction, compiled in unconditionally,
+feeding nothing but the PROF line.
+
 ## What else is worth substituting
 
 With the mixer gone, the remaining interpreted work is ~9,200 Thumb

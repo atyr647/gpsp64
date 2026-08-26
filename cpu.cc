@@ -1707,6 +1707,17 @@ void execute_arm(u32 cycles)
    * Caching as a local saves the global reload on every instruction. */
   const u32 _cheat_hook = cheat_master_hook;
 
+  /* Same argument for the idle-loop target.  It is set once by
+   * load_gamepak and never moves, but the compiler cannot prove that
+   * across the opcode handlers, so it reloaded it from $gp twice per
+   * interpreted instruction -- once for the skip test and once for the
+   * AOT page guard.  A PC-sample histogram taken *inside* execute_arm
+   * (rather than treating the function as one blob) put 72% of
+   * interpreter time in this shared per-instruction path, so reloads
+   * here are worth removing. */
+  const u32 _idle_target = idle_loop_target_pc;
+  const u32 _idle_page   = idle_loop_target_pc >> 12;
+
   if(!pc_address_block)
     pc_address_block = load_gamepak_page(pc_region & 0x3FF);
   touch_gamepak_page(pc_region);
@@ -3206,7 +3217,9 @@ skip_instruction:
 
        /* End of Execute ARM instruction */
        #ifdef N64
+#ifndef N64_NO_INSN_COUNTERS
        prof_arm_insns++;
+#endif
        #ifdef PROFILE_OPCODES
        prof_arm_hist[(opcode >> 20) & 0xFF]++;
        #endif
@@ -3243,7 +3256,7 @@ skip_instruction:
        #endif
        cycles_remaining -= _ws_cyc_arm_seq;  /* cached: ws_cyc_seq[mem_region][1] */
 
-       if (reg[REG_PC] == idle_loop_target_pc && cycles_remaining > 0) {
+       if (reg[REG_PC] == _idle_target && cycles_remaining > 0) {
          #ifdef N64
          prof_idle_hits++;
          #endif
@@ -3328,7 +3341,7 @@ thumb_loop:
         * spans that PC starves it, so the emulator burns a full cycle
         * budget spinning instead of skipping to the next event.  Measured
         * on ares: 6.9 -> 3.3 FPS when this page was AOT'd. */
-       if (__builtin_expect((reg[REG_PC] >> 12) != (idle_loop_target_pc >> 12), 1))
+       if (__builtin_expect((reg[REG_PC] >> 12) != _idle_page, 1))
        {
          /* Two-level table lookup, inlined here because it runs once per
           * interpreted Thumb instruction.  Page entry first (uncovered
@@ -3881,7 +3894,9 @@ thumb_loop:
 
        /* End of Execute THUMB instruction */
        #ifdef N64
+#ifndef N64_NO_INSN_COUNTERS
        prof_thumb_insns++;
+#endif
        #ifdef PROFILE_OPCODES
        {
          u32 _hi = (opcode >> 8) & 0xFF;
@@ -4000,7 +4015,7 @@ thumb_loop:
        #endif
        cycles_remaining -= _ws_cyc_thumb_seq;  /* cached: ws_cyc_seq[mem_region][0] */
 
-       if (reg[REG_PC] == idle_loop_target_pc && cycles_remaining > 0) {
+       if (reg[REG_PC] == _idle_target && cycles_remaining > 0) {
          #ifdef N64
          prof_idle_hits++;
          #endif
