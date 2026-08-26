@@ -2086,7 +2086,9 @@ static bool bgband_line(u32 start, u32 end, u16 *dst)
   }
   if (!nl) return false;
 
+#ifndef N64_BGBAND_NOMERGE
   bgband_merge_rspmodel(lay, nl, planar);
+#endif
   bgband_palette_pass(planar, lay[0].px_off, start, end, dst);
   return true;
 }
@@ -2313,7 +2315,17 @@ static void render_w_effects(
     renderers->stacked(start, end, tmp_buf, enable_flags);
     merge_blend<OBJ_BLEND, true>(start, end, scanline, tmp_buf);
   } else {
+#ifdef N64_BGBAND_REPLACE
+    /* Use the gather path as the renderer, so its true cost can be
+     * measured.  It does gather + merge + palette where gpSP does one
+     * fused per-pixel loop, and only the merge moves to the RSP -- so if
+     * this is not comfortably under the 19 ms of BG rasterisation it
+     * replaces, no amount of RSP will make the offload pay. */
+    if (!bgband_line(start, end, (u16*)scanline))
+      renderers->fullcolor(start, end, scanline, enable_flags);
+#else
     renderers->fullcolor(start, end, scanline, enable_flags);
+#endif
 #ifdef N64_BGBAND_VERIFY
     /* Compose the same span through the gather path and compare.  Only
      * OBJ-free spans are checked, since bgband_line models BG only --
