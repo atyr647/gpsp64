@@ -219,6 +219,49 @@ everywhere is +10.9% and a quarter smaller ROM**, stable across every
 window, with all startup self-tests still passing.  It is now the
 default.  Do not reason your way back to `-O3`; measure.
 
+## Benchmark states, and why there are two
+
+Two savestates, both produced by `native/bench.sh` and both needed,
+because they exercise different halves of the emulator:
+
+```
+BENCH_SAVESTATE=/tmp/intro.sav BENCH_WARMUP=1500 \
+  BENCH_INPUT=mash native/bench.sh mk
+
+BENCH_SAVESTATE=/tmp/overworld.sav BENCH_LOADSTATE=/tmp/intro.sav \
+  BENCH_WARMUP=21600 BENCH_INPUT=walk native/bench.sh mk
+```
+
+  * **intro** -- the Prof. Birch cutscene.  Music playing, so the m4a
+    mixer is fully loaded; but a brightness effect on 100% of scanlines,
+    which forces every scanline down the INDXCOLOR + merge path.
+  * **overworld** -- the player's house in Littleroot, walking.  No
+    colour effect at all, so the plain FULLCOLOR path; but the sound
+    driver is idle here, so it says nothing about the mixer.
+
+Reaching the second one needs `--input walk`; Start/A mashing alone parks
+the game on a dialogue box, and every state past ~7200 frames was
+byte-identical.  Capture a state with the same `ROM_BUFFER_SIZE` as the
+build under test, or it is a state that build could never reach.
+
+Measured on the same build (`-O2`, native mixer, no audio output):
+
+```
+                   ms/f    fps    interp  ppu  event  snd  aot  blit
+  intro            55.0   18.18
+  overworld        67.0   14.93     41%   43%   10%    5%   5%    4%
+```
+
+Actual gameplay is **slower** than the cutscene, not faster.  A guess to
+the contrary -- that the overworld would render more cheaply because it
+skips the merge pass -- was wrong: the overworld PPU costs 28.8 ms
+against the cutscene's 25.3, because it draws more layers and more
+sprites than the merge pass ever saved.  It is also doing more CPU work
+(12,811 interpreted instructions per frame against 9,854).
+
+The number that matters for the renderer: in the overworld the RSP BG
+fast path is applicable on **100%** of scanlines.
+
 ## What else is worth substituting
 
 With the mixer gone, the remaining interpreted work is ~9,200 Thumb
