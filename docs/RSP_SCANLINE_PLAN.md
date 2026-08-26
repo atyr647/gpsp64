@@ -109,6 +109,50 @@ The 1.7 palette writes per frame in the overworld are the one hazard: a
 deferred palette pass would apply a late palette to earlier scanlines.
 Either snapshot the palette per band or detect the write and fall back.
 
+## What the offload actually costs (measured, not modelled)
+
+Building the CPU half first and measuring each piece separately:
+
+```
+  gpSP renderer (baseline)                68.0 ms
+  BG rasterisation skipped                49.0 ms   -> BG raster = 19.0
+
+  + palette pass only                     63.0 ms   -> palette   = 14.0
+  + gather (per scanline)                 79.0 ms   -> gather    = 16.0
+  + merge (naive C model)                 92.0 ms   -> merge     = 13.0
+```
+
+The merge is the only part that moves to the RSP.  Everything else is
+what the CPU still pays, and at 30 ms it already exceeds the 19 ms of
+rasterisation being replaced -- so as built, this loses ~11 ms even with
+a free RSP.
+
+But two of those numbers measure implementation mistakes, not the design:
+
+**The gather is per-scanline and should be per-band.**  Eight consecutive
+scanlines read eight different rows of the *same* tile, so fetching the
+whole 32-byte tile once per band turns eight scattered 4-byte reads into
+one sequential 32-byte read -- two cache lines instead of eight.  That is
+what "band" was supposed to mean, and n64_rsp.c already measures the
+correct version at **1.83 ms/frame** against the 16 ms measured here.
+
+**The palette pass is expensive because the ucode's output is planar.**
+Consecutive pixels land in four different planes, so every pixel costs an
+index computation and a strided load.  A linear output would make it
+`dst[x] = pal[src[x]]`.
+
+Corrected arithmetic, if both are fixed: 49 + 1.8 + (linear palette) +
+RSP overhead.  That is roughly 59 ms, or +15% -- worth having, but a
+third of the original projection, and it needs a ucode change on top of a
+band gather.
+
+Note the estimate history before trusting that number: the projection
+for this work was +25%, the predicted floor was 54 ms against an actual
+79, and the merge-dominates-M prediction was right.  Estimates about
+*memory behaviour* here have been consistently wrong and estimates about
+*instruction counts* consistently right.  Measure the band gather and the
+linear palette pass on the CPU before writing any ucode.
+
 ## Do the cheap thing first
 
 Rendering is currently ~105 VR4300 cycles per output pixel
