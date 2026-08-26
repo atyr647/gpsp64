@@ -34,6 +34,7 @@
    * optimisations are worth anything. */
   u32 prof_update_ticks = 0;   /* inside update_gba, PPU render included */
   u32 prof_update_calls = 0;   /* timeslice yields -- one per hw event */
+  u32 prof_snd_ticks = 0;      /* gpSP's own PSG synthesis + DirectSound */
 #else
   #define PROF_TICK() 0
   #ifdef N64
@@ -100,10 +101,22 @@ static unsigned update_timers(irq_type *irq_raised, unsigned completed_cycles)
       if(i < 2)
       {
          if(timer[i].direct_sound_channels & 0x01)
+#ifdef PROFILE_CYCLES
+            { u32 _ss = PROF_TICK();
+              ret += sound_timer(timer[i].frequency_step, 0);
+              prof_snd_ticks += PROF_TICK() - _ss; }
+#else
             ret += sound_timer(timer[i].frequency_step, 0);
+#endif
 
          if(timer[i].direct_sound_channels & 0x02)
+#ifdef PROFILE_CYCLES
+            { u32 _ss = PROF_TICK();
+              ret += sound_timer(timer[i].frequency_step, 1);
+              prof_snd_ticks += PROF_TICK() - _ss; }
+#else
             ret += sound_timer(timer[i].frequency_step, 1);
+#endif
       }
 
       timer[i].count += (timer[i].reload << timer[i].prescale);
@@ -300,7 +313,13 @@ u32 function_cc update_gba(int remaining_cycles)
           flush_ram_count = 0;
 
           // Force audio generation. Need to flush samples for this frame.
+#ifdef PROFILE_CYCLES
+          { u32 _ss = PROF_TICK();
+            render_gbc_sound();
+            prof_snd_ticks += PROF_TICK() - _ss; }
+#else
           render_gbc_sound();
+#endif
 
           /* Keep the m4a mixer stub installed (see n64/m4a_hle.c).
            * Once found this is a single halfword compare. */

@@ -371,21 +371,24 @@ int main(void)
           {
             extern u32 prof_update_ticks, prof_update_calls, prof_aot_ticks;
             extern u32 prof_aot_hits, prof_aot_gba_cycles;
+            extern u32 prof_snd_ticks;
             u32 upd_ex_ppu = prof_update_ticks > prof_ppu_ticks
                            ? prof_update_ticks - prof_ppu_ticks : 0;
             u32 accounted  = prof_update_ticks + prof_aot_ticks;
             u32 interp     = prof_emu > accounted ? prof_emu - accounted : 0;
             u32 e = prof_emu ? prof_emu : 1;
             debugf("PROF:  cyc: interp %lu%% aot %lu%% event %lu%% ppu %lu%%"
-                   " | yields/frame %lu | aot-calls %lu gba-cyc %luK\n",
+                   " snd %lu%% | yields/frame %lu | aot-calls %lu gba-cyc %luK\n",
                    (unsigned long)((u64)interp       * 100 / e),
                    (unsigned long)((u64)prof_aot_ticks * 100 / e),
                    (unsigned long)((u64)upd_ex_ppu   * 100 / e),
                    (unsigned long)((u64)prof_ppu_ticks * 100 / e),
+                   (unsigned long)((u64)prof_snd_ticks * 100 / e),
                    (unsigned long)(prof_update_calls / PROF_FRAMES),
                    (unsigned long)prof_aot_hits,
                    (unsigned long)(prof_aot_gba_cycles / 1000));
             prof_update_ticks = prof_update_calls = prof_aot_ticks = 0;
+            prof_snd_ticks = 0;
           }
 #endif
 
