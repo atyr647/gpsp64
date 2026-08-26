@@ -310,13 +310,34 @@ different denominators, and picking the wrong one inverts the conclusion.
 Note also that this was previously measured as "neutral" and shelved.
 That measurement was taken during boot.
 
-What remains in the shared path is the genuinely redundant part:
-reg[REG_PC] loaded twice and stored once per instruction,
-idle_loop_target_pc reloaded from $gp twice (it is set once by
-load_gamepak and never moves, but the compiler cannot prove that across
-the opcode handlers), and prof_arm_insns/prof_thumb_insns -- a global
-read-modify-write on every instruction, compiled in unconditionally,
-feeding nothing but the PROF line.
+What remains in the shared path looks redundant: reg[REG_PC] loaded
+twice and stored once per instruction, idle_loop_target_pc reloaded from
+$gp twice (it is set once by load_gamepak and never moves, but the
+compiler cannot prove that across the opcode handlers), and
+prof_arm_insns/prof_thumb_insns -- a global read-modify-write on every
+instruction, compiled in unconditionally, feeding nothing but the PROF
+line.
+
+**Removing the reloads makes it slower.**  Hoisting idle_loop_target_pc
+and its page into locals, exactly as _cheat_hook already is:
+
+```
+  baseline (no hoist, counters on)   69.0 ms/f   14.49 fps
+  hoist only                         72.0 ms/f   13.89 fps   -4.3%
+  hoist + counters off               69.5 ms/f   14.39 fps   -0.7%
+```
+
+Two more values live across the 256-way dispatch cost more in spills than
+the two reloads they removed.  That is worth knowing for its own sake:
+the interpreter is **register-pressure-bound at the dispatch**, which is
+also the likeliest reason -O3 loses to -O2 on this file -- -O3's extra
+passes lengthen live ranges in the one function that can least afford it.
+
+So the obvious micro-optimisations in this path are not available, and
+the structural answer, if the dispatch really is spill-bound, is to
+shrink what is live across it rather than add to it.  _cheat_hook is
+cached for the same reason the hoist seemed sensible, and predates the
+dispatch growing; it may no longer pay for itself either.
 
 ## What else is worth substituting
 

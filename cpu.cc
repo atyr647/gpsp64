@@ -1707,16 +1707,14 @@ void execute_arm(u32 cycles)
    * Caching as a local saves the global reload on every instruction. */
   const u32 _cheat_hook = cheat_master_hook;
 
-  /* Same argument for the idle-loop target.  It is set once by
-   * load_gamepak and never moves, but the compiler cannot prove that
-   * across the opcode handlers, so it reloaded it from $gp twice per
-   * interpreted instruction -- once for the skip test and once for the
-   * AOT page guard.  A PC-sample histogram taken *inside* execute_arm
-   * (rather than treating the function as one blob) put 72% of
-   * interpreter time in this shared per-instruction path, so reloads
-   * here are worth removing. */
-  const u32 _idle_target = idle_loop_target_pc;
-  const u32 _idle_page   = idle_loop_target_pc >> 12;
+  /* NOTE: hoisting idle_loop_target_pc into a local here -- it is set
+   * once by load_gamepak and reloaded from $gp twice per interpreted
+   * instruction -- was tried and is a REGRESSION: 69.0 -> 72.0 ms/f,
+   * -4.3%.  Two more values live across the 256-way dispatch cost more
+   * in spills than the two reloads cost.  The same register pressure is
+   * the likeliest reason -O3 loses to -O2 on this file.  Do not re-try
+   * it without measuring; _cheat_hook above is cached for the same
+   * reason and predates the dispatch growing. */
 
   if(!pc_address_block)
     pc_address_block = load_gamepak_page(pc_region & 0x3FF);
@@ -3256,7 +3254,7 @@ skip_instruction:
        #endif
        cycles_remaining -= _ws_cyc_arm_seq;  /* cached: ws_cyc_seq[mem_region][1] */
 
-       if (reg[REG_PC] == _idle_target && cycles_remaining > 0) {
+       if (reg[REG_PC] == idle_loop_target_pc && cycles_remaining > 0) {
          #ifdef N64
          prof_idle_hits++;
          #endif
@@ -3341,7 +3339,7 @@ thumb_loop:
         * spans that PC starves it, so the emulator burns a full cycle
         * budget spinning instead of skipping to the next event.  Measured
         * on ares: 6.9 -> 3.3 FPS when this page was AOT'd. */
-       if (__builtin_expect((reg[REG_PC] >> 12) != _idle_page, 1))
+       if (__builtin_expect((reg[REG_PC] >> 12) != (idle_loop_target_pc >> 12), 1))
        {
          /* Two-level table lookup, inlined here because it runs once per
           * interpreted Thumb instruction.  Page entry first (uncovered
@@ -4015,7 +4013,7 @@ thumb_loop:
        #endif
        cycles_remaining -= _ws_cyc_thumb_seq;  /* cached: ws_cyc_seq[mem_region][0] */
 
-       if (reg[REG_PC] == _idle_target && cycles_remaining > 0) {
+       if (reg[REG_PC] == idle_loop_target_pc && cycles_remaining > 0) {
          #ifdef N64
          prof_idle_hits++;
          #endif
