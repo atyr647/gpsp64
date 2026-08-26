@@ -108,12 +108,28 @@ static void run_frame(void)
  *           title screen keep running.  Much heavier CPU+PPU load, and
  *           therefore the more useful workload for perf work.
  */
-enum { INPUT_MASH, INPUT_NONE };
+enum { INPUT_MASH, INPUT_WALK, INPUT_NONE };
 static int input_mode = INPUT_MASH;
 
 static void poll_fake_input(long frame)
 {
   u16 key_input = 0x3FF;      /* active-low; all released */
+  if (input_mode == INPUT_WALK) {
+    /* Get through the intro and then keep moving.  Start/A mashing alone
+     * parks the game on a dialogue box forever -- every state past ~7200
+     * frames was byte-identical -- because it advances too slowly and
+     * cannot answer a menu that needs the D-pad.  Press A often, Start
+     * occasionally, and cycle directions so menu choices and overworld
+     * movement both happen. */
+    if ((frame % 16) < 4)  key_input &= ~(1 << 0);   /* A     */
+    if ((frame % 256) < 4) key_input &= ~(1 << 3);   /* Start */
+    switch ((frame / 64) % 4) {
+    case 0: key_input &= ~(1 << 6); break;           /* Up    */
+    case 1: key_input &= ~(1 << 5); break;           /* Right */
+    case 2: key_input &= ~(1 << 7); break;           /* Down  */
+    case 3: key_input &= ~(1 << 4); break;           /* Left  */
+    }
+  }
   if (input_mode == INPUT_MASH && (frame % 120) < 6) {
     key_input &= ~(1 << 3);   /* Start */
     key_input &= ~(1 << 0);   /* A */
@@ -335,6 +351,7 @@ int main(int argc, char **argv)
     else if (!strcmp(argv[i], "--input") && i + 1 < argc) {
       const char *m = argv[++i];
       if (!strcmp(m, "none")) input_mode = INPUT_NONE;
+      else if (!strcmp(m, "walk")) input_mode = INPUT_WALK;
       else if (!strcmp(m, "mash")) input_mode = INPUT_MASH;
       else { fprintf(stderr, "unknown --input mode: %s\n", m); return 1; }
     }
@@ -403,11 +420,6 @@ int main(int argc, char **argv)
    * 32 KB page cache to thrash.  A paged build (ROM_BUFFER_SIZE smaller
    * than the cart) must produce the same numbers as a fully resident one;
    * if it does not, demand paging is handing the game wrong data. */
-  { const char *tp = getenv("PCTRACE");
-    if (tp) { prof_pctrace_max = (u32)atol(getenv("PCTRACE_N") ? getenv("PCTRACE_N") : "4000000");
-              prof_pctrace = (u32*)malloc((size_t)prof_pctrace_max * 4);
-              prof_pctrace_skip = (u32)atol(getenv("PCTRACE_SKIP") ? getenv("PCTRACE_SKIP") : "0"); } }
-
   if (getenv("ROMCHECK")) {
     extern u32 gamepak_size;
     extern u32 prof_rom_page_misses;
@@ -452,6 +464,16 @@ int main(int argc, char **argv)
       fprintf(stderr, "[gpSP]: savestate %s: read %u bytes, load %s\n",
               state_in, (unsigned)got,
               (got == GBA_STATE_MEM_SIZE && gba_load_state(buf)) ? "OK" : "FAILED");
+      /* The GPIO registers (Emerald has an RTC) are not read from a
+       * register file -- they are mirrored into the cart's first page,
+       * which a fresh load_gamepak() has just overwritten with pristine
+       * ROM.  Nothing in gba_load_state puts them back. */
+      { extern void update_gpio_romregs(void); update_gpio_romregs(); }
+      { char bp[600]; snprintf(bp, sizeof(bp), "%s.bak", state_in);
+        FILE *bf = fopen(bp, "rb");
+        if (bf) { extern u8 gamepak_backup[];
+                  size_t bg = fread(gamepak_backup, 1, 1024 * 128, bf); fclose(bf);
+                  fprintf(stderr, "[gpSP]: backup %s: %u bytes\n", bp, (unsigned)bg); } }
     }
     if (f) fclose(f);
     free(buf);
@@ -482,6 +504,29 @@ int main(int argc, char **argv)
    * gameplay rather than one-off boot work. */
   for (long f = 0; f < warmup; f++) { poll_fake_input(f); run_frame(); }
 
+  /* STATECHECK: save the current state and immediately load it back, then
+   * report every register the round trip did not preserve.  A savestate
+   * that restores cleanly in one game state and crashes the game in
+   * another is losing something that only matters sometimes, and this
+   * finds it without having to guess. */
+  if (getenv("STATECHECK")) {
+    static u32 before[64];
+    void *buf = malloc(GBA_STATE_MEM_SIZE);
+    memcpy(before, reg, sizeof(before));
+    if (buf) {
+      memset(buf, 0, GBA_STATE_MEM_SIZE);
+      gba_save_state(buf);
+      int ok = gba_load_state(buf);
+      fprintf(stderr, "STATECHECK load=%s\n", ok ? "OK" : "FAILED");
+      for (u32 i = 0; i < 64; i++)
+        if (before[i] != reg[i])
+          fprintf(stderr, "STATECHECK reg[%2u] %08lx -> %08lx\n",
+                  (unsigned long)i, (unsigned long)before[i],
+                  (unsigned long)reg[i]);
+      free(buf);
+    }
+  }
+
   /* Hand the post-warmup state to the N64 build so ares can start the
    * benchmark in gameplay instead of in the boot sequence.  See
    * native/ares_bench.sh and n64/n64_main.c. */
@@ -494,11 +539,27 @@ int main(int argc, char **argv)
       if (f) { fwrite(buf, 1, GBA_STATE_MEM_SIZE, f); fclose(f);
                fprintf(stderr, "[gpSP]: wrote savestate %s (%d bytes) at frame %ld\n",
                        state_out, GBA_STATE_MEM_SIZE, warmup); }
+      /* The cart's backup memory is deliberately not part of a gpSP
+       * savestate -- it belongs to the .sav file.  For a benchmark state
+       * that is a trap: a game that has written its save and later reads
+       * it back comes up to blank flash and crashes.  Ship it alongside. */
+      { char bp[600]; snprintf(bp, sizeof(bp), "%s.bak", state_out);
+        FILE *bf = fopen(bp, "wb");
+        if (bf) { extern u8 gamepak_backup[];
+                  fwrite(gamepak_backup, 1, 1024 * 128, bf); fclose(bf); } }
       free(buf);
     }
   }
 
   reset_counters();
+
+  /* Arm the trace only once warmup is over, so two runs that reach the
+   * same point by different routes -- one by running, one by loading a
+   * savestate -- both record from that point. */
+  { const char *tp = getenv("PCTRACE");
+    if (tp) { prof_pctrace_max = (u32)atol(getenv("PCTRACE_N") ? getenv("PCTRACE_N") : "4000000");
+              prof_pctrace = (u32*)malloc((size_t)prof_pctrace_max * 4);
+              prof_pctrace_skip = (u32)atol(getenv("PCTRACE_SKIP") ? getenv("PCTRACE_SKIP") : "0"); } }
 
   for (long f = warmup; f < warmup + num_frames; f++) {
     poll_fake_input(f);
@@ -578,6 +639,26 @@ int main(int argc, char **argv)
           fclose(f);
         }
       } }
+
+    /* Dump every GBA-visible memory region.  A savestate round trip cannot
+     * detect missing coverage -- it rewrites the values that were already
+     * correct in memory and leaves anything uncovered untouched, so it
+     * always looks clean.  Comparing a state reached by running against
+     * the same state reached by loading is what actually finds the gap. */
+    { const char *ap = getenv("DUMP_ALL");
+      if (ap) { FILE *f = fopen(ap, "wb");
+        if (f) {
+          extern u8 iwram_raw[], ewram_raw[], vram_raw[], gamepak_backup[];
+          fwrite(iwram_raw + 0x8000, 1, 0x8000, f);
+          fwrite(ewram_raw, 1, 0x40000, f);
+          fwrite(vram_raw, 1, 0x18000, f);
+          fwrite(oam_ram_raw, 1, 0x400, f);
+          fwrite(palette_ram_raw, 1, 0x400, f);
+          fwrite(io_registers_raw, 1, 0x400, f);   /* declared in gba_memory.h */
+          fwrite(gamepak_backup, 1, 0x20000, f);
+          fwrite(reg, 4, 64, f);
+          fclose(f);
+        } } }
 
     { const char *iw = getenv("DUMP_IWRAM");
       if (iw) { extern u8 iwram_raw[]; FILE *f = fopen(iw, "wb");

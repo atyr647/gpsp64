@@ -339,13 +339,13 @@ static u32 m4a_cyc(u32 insns)
   return insns * (u32)ws_cyc_seq[3][1];
 }
 
-static u32 m4a_run_reverb(u32 *cycles)
+static u32 m4a_run_reverb(u32 entry, u32 *cycles)
 {
   u32 n = reg[4];
   u32 pl = reg[5], pn = reg[7], stride = reg[6];
   s32 rev = (s32)reg[3];
 
-  if ((s32)n <= 0) { *cycles = 0; return m4a_entry_pc() + M4A_REVERB_EXIT; }
+  if ((s32)n <= 0) { *cycles = 0; return entry + M4A_REVERB_EXIT; }
 
   u8 *l = m4a_ptr(pl, n);
   u8 *r = m4a_ptr(pl + stride, n);
@@ -371,7 +371,7 @@ static u32 m4a_run_reverb(u32 *cycles)
   reg[5] = pl + n;
   reg[7] = pn + n;
   *cycles = m4a_cyc(n * 15);
-  return m4a_entry_pc() + M4A_REVERB_EXIT;
+  return entry + M4A_REVERB_EXIT;
 }
 
 /* Source samples live in the cart, so this needs the same page-aware
@@ -428,7 +428,7 @@ static inline s32 m4a_src_at(const struct m4a_win *w, u32 addr)
  * left one; it is an immediate in the code, not a register. */
 #define M4A_PCM_STRIDE 1584
 
-static u32 m4a_run_resamp(u32 *cycles)
+static u32 m4a_run_resamp(u32 entry, u32 *cycles)
 {
   u32 pcm   = reg[5];           /* byte address in bits 0-29, group count
                                  * in bits 30-31, exactly as the original */
@@ -494,7 +494,7 @@ static u32 m4a_run_resamp(u32 *cycles)
           reg[8] = (u32)outleft;
           reg[9] = fw;         reg[14] = whole;
           *cycles = m4a_cyc(insns);
-          return m4a_entry_pc() + M4A_RESAMP_EXHAUSTED;
+          return entry + M4A_RESAMP_EXHAUSTED;
         }
         insns += 4;
         if (whole == 1) {
@@ -532,12 +532,12 @@ static u32 m4a_run_resamp(u32 *cycles)
   reg[8] = (u32)outleft;
   reg[9] = fw;
   *cycles = m4a_cyc(insns);
-  return m4a_entry_pc() + M4A_RESAMP_EXIT;
+  return entry + M4A_RESAMP_EXIT;
 }
 
 /* Both unity-rate variants, distinguished by whether the source-sample
  * count is carried (and so whether the loop can run out mid-block). */
-static u32 m4a_run_unity(int counted, u32 *cycles)
+static u32 m4a_run_unity(u32 entry, int counted, u32 *cycles)
 {
   u32 pcm  = reg[5];
   u32 envr = reg[10], envl = reg[11];
@@ -592,7 +592,7 @@ static u32 m4a_run_unity(int counted, u32 *cycles)
           reg[6] = acc6; reg[7] = acc7;
           reg[8] = (u32)outleft;
           *cycles = m4a_cyc(insns);
-          return m4a_entry_pc() + M4A_UNITYC_EXHAUSTED;
+          return entry + M4A_UNITYC_EXHAUSTED;
         }
       }
 
@@ -617,8 +617,7 @@ static u32 m4a_run_unity(int counted, u32 *cycles)
   reg[6] = acc6; reg[7] = acc7;
   reg[8] = (u32)outleft;
   *cycles = m4a_cyc(insns);
-  return m4a_entry_pc() +
-         (counted ? M4A_UNITYC_EXIT : M4A_UNITY_EXIT);
+  return entry + (counted ? M4A_UNITYC_EXIT : M4A_UNITY_EXIT);
 }
 
 /* Returns 1 if the loop was executed natively.  reg[REG_PC] is set so
@@ -648,14 +647,34 @@ static int m4a_unpatch_and_rerun(u32 swi_num)
  * execution should continue at. */
 int m4a_hle_arm_swi(u32 swi_num, u32 *cycles)
 {
-  u32 target = 0;
+  const struct m4a_loop *lp = 0;
+  u32 target = 0, entry;
+
+  for (u32 l = 0; l < M4A_NLOOPS; l++)
+    if (m4a_loops[l].swi == swi_num) { lp = &m4a_loops[l]; break; }
+  if (!lp) return 0;
+
+  /* Derive the routine's base from the PC of the SWI itself rather than
+   * from whatever the IWRAM scan last stored.
+   *
+   * A savestate restores IWRAM with these patches already in it, so on
+   * the very first frame after a load the SWI fires before
+   * m4a_hle_frame() has had a chance to re-find the driver -- and a
+   * stored base of zero sent the jump to 0x03000058, into IWRAM data,
+   * where the game spun at 280,000 instructions a frame.  It only showed
+   * up in savestates captured with this feature enabled, which is why the
+   * one benchmark state that predated it kept loading cleanly.
+   *
+   * The SWI's own address is authoritative: it is only there because this
+   * file wrote it at exactly entry + lp->off. */
+  entry = reg[REG_PC] - lp->off;
 
   *cycles = 0;
   switch (swi_num) {
-  case M4A_SWI_REVERB: target = m4a_run_reverb(cycles); break;
-  case M4A_SWI_RESAMP: target = m4a_run_resamp(cycles); break;
-  case M4A_SWI_UNITY:  target = m4a_run_unity(0, cycles); break;
-  case M4A_SWI_UNITYC: target = m4a_run_unity(1, cycles); break;
+  case M4A_SWI_REVERB: target = m4a_run_reverb(entry, cycles); break;
+  case M4A_SWI_RESAMP: target = m4a_run_resamp(entry, cycles); break;
+  case M4A_SWI_UNITY:  target = m4a_run_unity(entry, 0, cycles); break;
+  case M4A_SWI_UNITYC: target = m4a_run_unity(entry, 1, cycles); break;
   default: return 0;
   }
   if (!target) {
