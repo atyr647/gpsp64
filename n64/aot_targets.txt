@@ -67,3 +67,7 @@
 0x080B3000  0x080B4000        #  1.9%
 0x08096000  0x08097000        #  1.8%
 0x08089000  0x0808A000        #  1.8%
+#
+# Measured: 68.0 -> 66.0 ms/f (14.71 -> 15.15 fps, +3.0%), interpreted
+# instructions 828K -> 671K per window (-19%).  Cost is generated code:
+# 150 -> 671 functions, 700 KB -> 2.3 MB of C, .text 1.08 -> 1.60 MB.
