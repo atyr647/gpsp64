@@ -123,10 +123,15 @@ static void poll_fake_input(long frame)
      * movement both happen. */
     if ((frame % 16) < 4)  key_input &= ~(1 << 0);   /* A     */
     if ((frame % 256) < 4) key_input &= ~(1 << 3);   /* Start */
-    switch ((frame / 64) % 4) {
-    case 0: key_input &= ~(1 << 6); break;           /* Up    */
+    /* Hold each direction long enough to actually cross a map.  At 64
+     * frames a run covers ~4 tiles, which is enough to shuffle around a
+     * room and never find the door -- 54,000 frames of it stayed inside
+     * the player's house, which is one of the lightest scenes in the
+     * game and a poor thing to benchmark. */
+    switch ((frame / 240) % 4) {
+    case 0: key_input &= ~(1 << 7); break;           /* Down  */
     case 1: key_input &= ~(1 << 5); break;           /* Right */
-    case 2: key_input &= ~(1 << 7); break;           /* Down  */
+    case 2: key_input &= ~(1 << 6); break;           /* Up    */
     case 3: key_input &= ~(1 << 4); break;           /* Left  */
     }
   }
@@ -645,9 +650,20 @@ int main(int argc, char **argv)
           for (int y = 0; y < GBA_SCREEN_HEIGHT; y++)
             for (int x = 0; x < GBA_SCREEN_WIDTH; x++) {
               u16 px = gba_screen_pixels[y * GBA_SCREEN_PITCH + x];
-              /* XBGR1555 */
-              int r = (px & 0x1F), g = ((px >> 5) & 0x1F), b = ((px >> 10) & 0x1F);
-              fputc(r << 3 | r >> 2, f); fputc(g << 3 | g >> 2, f); fputc(b << 3 | b >> 2, f);
+              int r, g, b;
+#ifdef USE_XBGR1555_FORMAT
+              /* GBA-native XBGR1555, which is what the N64 build uses. */
+              r = px & 0x1F; g = (px >> 5) & 0x1F; b = (px >> 10) & 0x1F;
+              r = r << 3 | r >> 2; g = g << 3 | g >> 2; b = b << 3 | b >> 2;
+#else
+              /* gpSP's default is RGB565 -- convert_palette in common.h.
+               * Decoding it as XBGR1555 swaps red and blue and shifts
+               * green, which is what made the first screenshots look
+               * wrong.  The emulator was fine; the dump was not. */
+              r = (px >> 11) & 0x1F; g = (px >> 5) & 0x3F; b = px & 0x1F;
+              r = r << 3 | r >> 2; g = g << 2 | g >> 4; b = b << 3 | b >> 2;
+#endif
+              fputc(r, f); fputc(g, f); fputc(b, f);
             }
           fclose(f);
         }
