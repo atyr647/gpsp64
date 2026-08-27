@@ -241,9 +241,24 @@ extern u8 ws_cyc_seq[16][2];
 /* Mid-frame drawing-state writes -- see gba_memory.c.  Counted only during
  * HDraw (vcount < 160); a write during VBlank cannot invalidate a band. */
 extern u32 prof_mid_vram, prof_mid_pal, prof_mid_bgreg, prof_mid_frames;
+/* Total VRAM writes per frame, not just the HDraw ones.  Decides whether
+ * an RDP renderer should nibble-swap tiles on demand (3.78 ms/frame for
+ * 1,500 tiles) or keep a pre-swapped shadow of VRAM updated on writes --
+ * the shadow wins if the game writes far less than 48 KB of VRAM a
+ * frame, which is the volume the on-demand swap has to touch. */
+extern u32 prof_vram_writes, prof_vram_dma_bytes;
+#if defined(N64) && defined(PROFILE_MIDFRAME)
+  #define N64_VRAM_DMA_TALLY(tfsize) (prof_vram_dma_bytes += (tfsize) / 8)
+#else
+  #define N64_VRAM_DMA_TALLY(tfsize)
+#endif
 #if defined(N64) && defined(PROFILE_MIDFRAME)
   #define N64_MIDFRAME_TALLY(which) \
-    if (read_ioreg(REG_VCOUNT) < 160) prof_mid_##which++;
+    { if (read_ioreg(REG_VCOUNT) < 160) prof_mid_##which++;              \
+      prof_vram_tally_##which(); }
+  #define prof_vram_tally_vram()  (prof_vram_writes++)
+  #define prof_vram_tally_pal()   ((void)0)
+  #define prof_vram_tally_bgreg() ((void)0)
 #else
   #define N64_MIDFRAME_TALLY(which)
 #endif

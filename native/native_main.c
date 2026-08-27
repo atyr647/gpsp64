@@ -621,6 +621,9 @@ int main(int argc, char **argv)
 #ifdef PROFILE_MIDFRAME
     { extern u32 prof_mid_vram, prof_mid_pal, prof_mid_bgreg;
       double _f = (double)(num_frames ? num_frames : 1);
+      extern u32 prof_vram_writes, prof_vram_dma_bytes;
+      fprintf(stderr, "  VRAM per frame: %.0f CPU stores, %.1f KB via DMA\n",
+              prof_vram_writes / _f, prof_vram_dma_bytes / _f / 1024.0);
       fprintf(stderr, "\n  mid-frame writes per frame (HDraw only):"
                       "  VRAM %.1f   palette %.1f   BG regs %.1f\n",
               prof_mid_vram / _f, prof_mid_pal / _f, prof_mid_bgreg / _f); }

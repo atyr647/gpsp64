@@ -165,7 +165,29 @@ What is still unmeasured or unbuilt, in order of how much it could hurt:
 
     Budget for a frame: ~47 slice loads (600 distinct tiles per layer,
     2.5 layers) at ~1360 cyc = 0.7 ms, plus ~1,500 rectangles at 195 cyc
-    = 3.3 ms.  **~4 ms of CPU against 27 ms today.**
+    = 3.3 ms, plus 0.05 ms maintaining the nibble-swapped shadow below.
+    **~4.1 ms of CPU against 27 ms today**, which is a 55 ms frame going
+    to roughly 32.
+
+  * **The RDP's CI4 nibble order is opposite to the GBA's** -- verified,
+    not assumed.  It takes the HIGH nibble as the left pixel; the GBA
+    packs byte = (right << 4) | left.  Feeding it raw tile bytes
+    transposes every adjacent pixel pair, which renders an almost-correct
+    image.  The boot selftest in n64/n64_rdp_bench.c caught this on 256
+    synthetic pixels before any renderer existed.
+
+    Swapping on demand costs **3.78 ms/frame** for 1,500 tiles (48 KB) --
+    memory-bound at ~30 cycles a word, not the handful of ops it looks
+    like.  But VRAM barely changes:
+
+    ```
+      VRAM per frame   overworld: 1 CPU store, 0.6 KB DMA
+                       cutscene:  0 CPU stores, 1.3 KB DMA
+    ```
+
+    So keep a **nibble-swapped shadow of VRAM**, updated on write.  ~0.6 KB
+    a frame instead of 48 KB: 0.05 ms against 3.78, for 96 KB of RAM.
+    TMEM then uploads straight from the shadow with no gather at all.
 
   * **Per-tile palettes and flips still need a plan.**  Each GBA tile
     picks one of 16 sub-palettes; a CI4 TLUT holds all 16 at once, but

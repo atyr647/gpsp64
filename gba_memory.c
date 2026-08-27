@@ -1805,6 +1805,7 @@ const dma_region_type dma_region_map[17] =
   u32 wraddr = type##_ptr & 0x1FFFF;                                          \
   if (wraddr >= 0x18000) wraddr -= 0x8000;                                    \
   address##tfsize(vram_raw, wraddr) = eswap##tfsize(read_value);              \
+  N64_VRAM_DMA_TALLY(tfsize);                                                 \
 }
 
 #define dma_write_io(type, tfsize)                                            \
@@ -2226,6 +2227,7 @@ static u32 evict_gamepak_page(void)
  * BG registers hold still during HDraw.  Games that run raster effects
  * rewrite them per scanline, and then a band is simply wrong. */
 u32 prof_mid_vram = 0, prof_mid_pal = 0, prof_mid_bgreg = 0, prof_mid_frames = 0;
+u32 prof_vram_writes = 0, prof_vram_dma_bytes = 0;
 
 u32 prof_rom_page_misses = 0;
 
