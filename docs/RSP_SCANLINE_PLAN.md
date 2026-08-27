@@ -144,10 +144,35 @@ What is still unmeasured or unbuilt, in order of how much it could hurt:
     this port's rsp_gbascan blit overwrites it, so the two cannot
     coexist.  Either the blit becomes an rspq overlay or it goes back to
     rdpq_tex_blit.
-  * **Atlas construction may not even be needed.**  A GBA charblock is
-    already a linear array of 4bpp tiles in VRAM, so TMEM can likely be
-    filled straight from vram_raw in 2 KB slices, with draws batched per
-    slice -- no gather, which is what sank the RSP attempt.
+  * **No gather is needed** -- measured.  A GBA charblock is already a
+    linear array of 4bpp tiles in VRAM, and although tiles are tile-major
+    while RDP textures are row-major, an 8-pixel-wide strip lines up
+    exactly: tile k is rows 8k..8k+7, drawn with t = 8k.  TMEM fills
+    straight from vram_raw.
+
+    ```
+      VRAM strip 8x64   =  8 tiles:  512 TMEM bytes, 1247 cyc (155/tile)
+      VRAM strip 8x128  = 16 tiles: 1024 TMEM bytes, 1372 cyc  (85/tile)
+      VRAM strip 8x256  = 32 tiles: 2048 TMEM bytes, 1362 cyc  (42/tile)
+      VRAM strip 8x512  = 64 tiles: does not fit
+    ```
+
+    A tile costs 64 TMEM bytes rather than 32: TMEM rows are 8-byte
+    aligned and a CI4 row of 8 pixels is 4 bytes, so half of every line
+    is padding.  With a TLUT resident that caps a slice at 32 tiles, and
+    8x512 fails outright.  Cost is fixed per upload regardless of size,
+    so 32-tile slices are the shape to use.
+
+    Budget for a frame: ~47 slice loads (600 distinct tiles per layer,
+    2.5 layers) at ~1360 cyc = 0.7 ms, plus ~1,500 rectangles at 195 cyc
+    = 3.3 ms.  **~4 ms of CPU against 27 ms today.**
+
+  * **Per-tile palettes and flips still need a plan.**  Each GBA tile
+    picks one of 16 sub-palettes; a CI4 TLUT holds all 16 at once, but
+    the palette is a field in the tile descriptor and the RDP has only 8
+    of those, so draws want batching by (slice, palette).  Flips map to
+    flipped texture rectangles.  Neither is hard, both are fiddly, and
+    bgband_* is the reference to check them against.
 
 ## VERDICT: measured dead.  Do not build this.
 
