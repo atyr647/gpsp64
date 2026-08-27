@@ -284,7 +284,17 @@ static inline void render_tile_Nbpp(
         u8 pval = (hflip ? (tilepix >> ((7-i)*4)) : (tilepix >> (i*4))) & 0xF;
         if (pval) {
           if (rdtype == FULLCOLOR)
+#ifdef N64_BG_NOPAL
+            /* Timing probe: keep the nibble extraction, the transparency
+             * test and the store, but drop the palette load.  The image
+             * is wrong; what it isolates is how much of the renderer's
+             * ~26 cycles per layer-pixel is the palette gather versus the
+             * arithmetic around it.  Worth knowing before building a
+             * lookup table to attack one or the other. */
+            *dest_ptr = (u16)pval;
+#else
             *dest_ptr = subpal[pval];
+#endif
           else if (rdtype == INDXCOLOR)
             *dest_ptr = pxflg | pval;
           else if (rdtype == STCKCOLOR)
