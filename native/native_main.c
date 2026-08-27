@@ -618,6 +618,39 @@ int main(int argc, char **argv)
               (unsigned long)bgband_lines, (unsigned long)bgband_mismatch,
               (unsigned long)bgband_skipped); }
 #endif
+#ifdef N64_RDP_BG
+    /* The shadow must equal a nibble-swap of VRAM at every instant.  If
+     * any write path was missed -- there are four, and they were found by
+     * grep -- this catches it, and a stale shadow would otherwise show up
+     * much later as a few wrong tiles on screen. */
+    { extern u8 vram_raw[], vram_swapped[];
+      u32 i, bad = 0, first = 0;
+      for (i = 0; i < 1024 * 96; i++) {
+        u8 want = (u8)(((vram_raw[i] & 0x0F) << 4) | ((vram_raw[i] >> 4) & 0x0F));
+        if (vram_swapped[i] != want) { if (!bad) first = i; bad++; }
+      }
+      { extern u32 prof_shadow_hits[4];
+        fprintf(stderr, "  shadow writes: w8=%lu w16=%lu w32=%lu dma=%lu\n",
+                (unsigned long)prof_shadow_hits[0], (unsigned long)prof_shadow_hits[1],
+                (unsigned long)prof_shadow_hits[2], (unsigned long)prof_shadow_hits[3]); }
+      if (bad) {
+        u32 shown = 0;
+        fprintf(stderr, "\n  VRAM shadow STALE: %lu of %d bytes, first at 0x%05lx\n",
+                (unsigned long)bad, 1024 * 96, (unsigned long)first);
+        for (i = 0; i < 1024 * 96 && shown < 6; i++) {
+          u8 want = (u8)(((vram_raw[i] & 0x0F) << 4) | ((vram_raw[i] >> 4) & 0x0F));
+          if (vram_swapped[i] != want) {
+            fprintf(stderr, "    0x%05lx raw=%02x shadow=%02x want=%02x\n",
+                    (unsigned long)i, vram_raw[i], vram_swapped[i], want);
+            shown++;
+          }
+        }
+      }
+      else
+        fprintf(stderr, "\n  VRAM shadow OK: all %d bytes match a nibble-swap of VRAM\n",
+                1024 * 96);
+    }
+#endif
 #ifdef PROFILE_MIDFRAME
     { extern u32 prof_mid_vram, prof_mid_pal, prof_mid_bgreg;
       double _f = (double)(num_frames ? num_frames : 1);

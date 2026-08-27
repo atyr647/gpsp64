@@ -1192,14 +1192,18 @@ void function_cc write_backup(u32 address, u32 value)
 #define write_vram8()                                                         \
   address &= ~0x01;                                                           \
   address16(vram_raw, address) = eswap16((value << 8) | value);               \
+  N64_VRAM_SHADOW_N(16, address, (u16)(((value) << 8) | (value)), 0);              \
   N64_MIDFRAME_TALLY(vram)                                                   \
 
 #define write_vram16()                                                        \
   address16(vram_raw, address) = eswap16(value);                              \
+  N64_VRAM_SHADOW_N(16, address, (u16)(value), 1);                                 \
   N64_MIDFRAME_TALLY(vram)                                                   \
 
 #define write_vram32()                                                        \
-  address32(vram_raw, address) = eswap32(value)                               \
+  address32(vram_raw, address) = eswap32(value);                              \
+  N64_VRAM_SHADOW_N(32, address, (u32)(value), 2);                                 \
+  N64_MIDFRAME_TALLY(vram)                                                   \
 
 // RTC code derived from VBA's (due to lack of any real publically available
 // documentation...)
@@ -1805,6 +1809,7 @@ const dma_region_type dma_region_map[17] =
   u32 wraddr = type##_ptr & 0x1FFFF;                                          \
   if (wraddr >= 0x18000) wraddr -= 0x8000;                                    \
   address##tfsize(vram_raw, wraddr) = eswap##tfsize(read_value);              \
+  N64_VRAM_SHADOW_N(tfsize, wraddr, read_value, 3);                                \
   N64_VRAM_DMA_TALLY(tfsize);                                                 \
 }
 
@@ -2228,6 +2233,34 @@ static u32 evict_gamepak_page(void)
  * rewrite them per scanline, and then a band is simply wrong. */
 u32 prof_mid_vram = 0, prof_mid_pal = 0, prof_mid_bgreg = 0, prof_mid_frames = 0;
 u32 prof_vram_writes = 0, prof_vram_dma_bytes = 0;
+
+u8 vram_swapped[1024 * 96];
+u32 prof_shadow_hits[4];
+
+/* Re-swap one range of the shadow.  For writers that reach VRAM through
+ * a raw pointer instead of the write macros -- notably the BIOS CpuSet
+ * HLE, which memcpy()s straight into vram_raw. */
+void n64_vram_shadow_range(u32 off, u32 bytes)
+{
+  u32 i;
+  if (off >= 1024 * 96) return;
+  if (off + bytes > 1024 * 96) bytes = 1024 * 96 - off;
+  for (i = 0; i < bytes; i++) {
+    u8 v = vram_raw[off + i];
+    vram_swapped[off + i] = (u8)(((v & 0x0F) << 4) | ((v >> 4) & 0x0F));
+  }
+}
+
+/* Rebuild the whole shadow.  Needed after reset and after a savestate
+ * load, both of which replace VRAM wholesale without going through the
+ * write paths. */
+void n64_vram_shadow_rebuild(void)
+{
+  u32 i;
+  const u32 *src = (const u32 *)vram_raw;
+  u32 *dst = (u32 *)vram_swapped;
+  for (i = 0; i < (1024 * 96) / 4; i++) dst[i] = GBA_NIBSWAP32(src[i]);
+}
 
 u32 prof_rom_page_misses = 0;
 

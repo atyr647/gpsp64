@@ -246,6 +246,42 @@ extern u32 prof_mid_vram, prof_mid_pal, prof_mid_bgreg, prof_mid_frames;
  * 1,500 tiles) or keep a pre-swapped shadow of VRAM updated on writes --
  * the shadow wins if the game writes far less than 48 KB of VRAM a
  * frame, which is the volume the on-demand swap has to touch. */
+/* A copy of VRAM with every byte's nibbles swapped.
+ *
+ * The RDP reads 4bpp textures high-nibble-first; the GBA packs
+ * byte = (right << 4) | left, low nibble first.  Feeding the RDP raw
+ * tile bytes transposes every adjacent pixel pair (verified on 256
+ * pixels by the selftest in n64/n64_rdp_bench.c), so the bytes have to
+ * be swapped somewhere.
+ *
+ * Doing it on demand, per tile uploaded, costs 3.78 ms a frame -- 48 KB
+ * touched, memory-bound.  Doing it on write costs 0.05 ms, because VRAM
+ * barely changes: 0.6 KB/frame by DMA in the overworld, 1.3 KB in the
+ * intro, and about one CPU store.  96 KB of RAM buys back 3.7 ms.
+ *
+ * Only 4bpp tile data is ever read back through this; tilemaps and 8bpp
+ * tiles live here too and are meaningless swapped, which is harmless
+ * because the RDP path declines those cases and falls back to the CPU
+ * renderer. */
+extern u8 vram_swapped[1024 * 96];
+void n64_vram_shadow_rebuild(void);
+void n64_vram_shadow_range(u32 off, u32 bytes);
+
+#define GBA_NIBSWAP8(v)  ((u8) ((((v) & 0x0Fu)       << 4) | (((v) >> 4) & 0x0Fu)))
+#define GBA_NIBSWAP16(v) ((u16)((((v) & 0x0F0Fu)     << 4) | (((v) >> 4) & 0x0F0Fu)))
+#define GBA_NIBSWAP32(v) ((u32)((((v) & 0x0F0F0F0Fu) << 4) | (((v) >> 4) & 0x0F0F0F0Fu)))
+
+extern u32 prof_shadow_hits[4];   /* [0]=w8 [1]=w16 [2]=w32 [3]=dma */
+#if defined(N64) && defined(N64_RDP_BG)
+  #define N64_VRAM_SHADOW_N(sz, addr, val, slot) \
+    { address##sz(vram_swapped, addr) = eswap##sz(GBA_NIBSWAP##sz(val)); \
+      prof_shadow_hits[slot]++; }
+  #define N64_VRAM_SHADOW(sz, addr, val) \
+    address##sz(vram_swapped, addr) = eswap##sz(GBA_NIBSWAP##sz(val))
+#else
+  #define N64_VRAM_SHADOW(sz, addr, val)
+#endif
+
 extern u32 prof_vram_writes, prof_vram_dma_bytes;
 #if defined(N64) && defined(PROFILE_MIDFRAME)
   #define N64_VRAM_DMA_TALLY(tfsize) (prof_vram_dma_bytes += (tfsize) / 8)

@@ -145,6 +145,8 @@ bool gba_load_state(const void* src)
      palette_ram_converted[i] = convert_palette(readaddress16(palette_ram_raw, i * 2));
   }
 
+  n64_vram_shadow_rebuild();   /* VRAM was replaced wholesale */
+
   video_reload_counters();
 
   // Reset most of the frame state and dynarec state

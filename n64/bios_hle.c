@@ -87,6 +87,15 @@ static u32 hle_cpuset(void)
         if (bytes > davail) bytes = davail & ~3u;
         if (!bytes) break;
         memcpy(dp, sp, bytes);
+        /* This writes vram_raw through a raw pointer, bypassing the write
+         * macros -- and therefore the nibble-swapped shadow they maintain.
+         * Games upload sprite tiles with CpuSet, so without this the
+         * shadow silently drifts in OBJ VRAM after a few frames. */
+        if ((dest >> 24) == 0x06) {
+          u32 _o = dest & 0x1FFFF;
+          if (_o >= 0x18000) _o -= 0x8000;
+          n64_vram_shadow_range(_o, bytes);
+        }
         source += bytes; dest += bytes; count -= bytes / 4;
       }
       while (count--) {                        /* remainder / slow regions */
@@ -112,6 +121,15 @@ static u32 hle_cpuset(void)
         if (bytes > davail) bytes = davail & ~1u;
         if (!bytes) break;
         memcpy(dp, sp, bytes);
+        /* This writes vram_raw through a raw pointer, bypassing the write
+         * macros -- and therefore the nibble-swapped shadow they maintain.
+         * Games upload sprite tiles with CpuSet, so without this the
+         * shadow silently drifts in OBJ VRAM after a few frames. */
+        if ((dest >> 24) == 0x06) {
+          u32 _o = dest & 0x1FFFF;
+          if (_o >= 0x18000) _o -= 0x8000;
+          n64_vram_shadow_range(_o, bytes);
+        }
         source += bytes; dest += bytes; count -= bytes / 2;
       }
       while (count--) {
