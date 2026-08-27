@@ -161,7 +161,16 @@ typedef u32 fixed8_24;
    * byte swap, on the path every 32-bit GBA memory access takes.
    *
    * Spelling it out as shifts gives nine inline instructions and no call,
-   * and gcc does not fold it back into the builtin. */
+   * and gcc does not fold it back into the builtin.
+   *
+   * Measured 65.0 -> 55.0 ms/f, +18.2% -- seven times the 2.7% the
+   * profile attributed to it, because a sampled PC profile only ever
+   * catches the PC *inside* the callee.  It cannot see the call's real
+   * cost: every call site has to spill live registers around it, and
+   * that spill code is charged to the caller.  Both callers here are the
+   * interpreter dispatch and the tile renderer, the two most
+   * register-starved loops in the program.  .text fell 76 KB with the
+   * call sites' spill code. */
   #define eswap16(value) __builtin_bswap16(value)
   static inline u32 gpsp_bswap32(u32 v) {
     return ((v & 0x000000FFu) << 24) | ((v & 0x0000FF00u) << 8)
