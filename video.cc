@@ -1913,6 +1913,40 @@ typedef struct {
 
 static inline u8 bgb_swapnib(u8 b) { return (u8)((b >> 4) | (b << 4)); }
 
+/* Whole-tile cache, refreshed once per tile row rather than per scanline.
+ * Eight consecutive scanlines read eight different rows of the same tile,
+ * so fetching all 32 bytes once turns eight scattered 4-byte reads into
+ * one sequential read.  Safe because BG registers do not change during
+ * HDraw -- measured at 0.0 writes/frame, see docs/RSP_SCANLINE_PLAN.md. */
+typedef struct {
+  u8  tiles[BGB_MAXTILES * 32];
+  u16 attr[BGB_MAXTILES];
+  u32 key;                       /* layer | vy_row<<4 | hofs<<16, ~0 = cold */
+} bgb_tilecache_t;
+static bgb_tilecache_t bgb_cache[4];
+u32 bgband_tilefetch = 0, bgband_cachehit = 0;
+
+static void bgband_fill_cache(u32 layer, u32 bgc, u32 mw, u32 vy, u32 hofs,
+                              bgb_tilecache_t *tc)
+{
+  const u16 *map0 = (const u16 *)&vram_raw[((bgc >> 8) & 0x1F) * 2048];
+  const u8  *chr  = &vram_raw[((bgc >> 2) & 0x03) * 16384];
+  u32 rowblk = (vy >= 256) ? ((mw == 512) ? 2 : 1) : 0;
+  const u16 *maprow = map0 + rowblk * 1024 + ((vy & 255) >> 3) * 32;
+  u32 t;
+  for (t = 0; t < BGB_MAXTILES; t++) {
+    u32 vx = (hofs + (t << 3)) & (mw - 1);
+    const u16 *mp = maprow + ((vx >= 256) ? 1024 : 0) + ((vx & 255) >> 3);
+    u16 tile = gba_deref16(mp);
+    const u32 *src = (const u32 *)&chr[(tile & 0x3FF) * 32];
+    u32 *dst = (u32 *)&tc->tiles[t * 32];
+    u32 w;
+    for (w = 0; w < 8; w++) dst[w] = src[w];
+    tc->attr[t] = tile;
+  }
+  bgband_tilefetch++;
+}
+
 static void bgband_gather_layer(u32 layer, u32 width, bgb_layer_t *g)
 {
   u32 bgc    = read_ioreg(REG_BGxCNT(layer));
@@ -1922,12 +1956,13 @@ static void bgband_gather_layer(u32 layer, u32 width, bgb_layer_t *g)
   u32 hofs   = read_ioreg(REG_BGxHOFS(layer));
   u32 vofs   = read_ioreg(REG_BGxVOFS(layer));
   u32 vcount = read_ioreg(REG_VCOUNT);
-  const u16 *map0 = (const u16 *)&vram_raw[((bgc >> 8) & 0x1F) * 2048];
-  const u8  *chr  = &vram_raw[((bgc >> 2) & 0x03) * 16384];
   u32 vy = (vcount + vofs) & (mh - 1);
-  u32 rowblk = (vy >= 256) ? ((mw == 512) ? 2 : 1) : 0;
-  const u16 *maprow = map0 + rowblk * 1024 + ((vy & 255) >> 3) * 32;
+  bgb_tilecache_t *tc = &bgb_cache[layer & 3];
+  u32 key = (layer & 0xF) | ((vy >> 3) << 4) | (hofs << 16);
   u32 t;
+
+  if (tc->key != key) { bgband_fill_cache(layer, bgc, mw, vy, hofs, tc); tc->key = key; }
+  else bgband_cachehit++;
 
   g->px_off = hofs & 7;
   /* Always fill the whole buffer.  The visible span needs at most 31
@@ -1937,11 +1972,9 @@ static void bgband_gather_layer(u32 layer, u32 width, bgb_layer_t *g)
   (void)width;
 
   for (t = 0; t < g->ntiles; t++) {
-    u32 vx = (hofs + (t << 3)) & (mw - 1);
-    const u16 *mp = maprow + ((vx >= 256) ? 1024 : 0) + ((vx & 255) >> 3);
-    u16 tile = gba_deref16(mp);
+    u16 tile = tc->attr[t];
     u32 row  = (tile & 0x800) ? (7 - (vy & 7)) : (vy & 7);
-    const u8 *src = &chr[(tile & 0x3FF) * 32 + row * 4];
+    const u8 *src = &tc->tiles[t * 32 + row * 4];
     u8 *dstb = &g->bytes[t * 4];
     if (tile & 0x400) {
       dstb[0] = bgb_swapnib(src[3]); dstb[1] = bgb_swapnib(src[2]);
@@ -2052,6 +2085,42 @@ static void bgband_merge_rspmodel(const bgb_layer_t *lay, u32 nlayers,
 /* Planar -> linear, with the palette lookup.  This pass stays on the CPU:
  * resolving a 4bpp palette on the RSP measured 16.5 cyc/px against 1-2
  * here, so the gather/merge goes over and the lookup stays. */
+/* Linear variant of the same merge.  The shipped ucode writes planar
+ * output, which costs the palette pass an index computation and a strided
+ * load per pixel; this measures what linear output would be worth before
+ * anyone edits assembly to produce it. */
+static void bgband_merge_linear(const bgb_layer_t *lay, u32 nlayers, u16 *idx)
+{
+  u32 i, L;
+  const bgb_layer_t *b = &lay[0];
+  for (i = 0; i < BGB_LEN * 2; i++) {
+    u8  by  = b->bytes[i >> 1];
+    u32 nib = (i & 1) ? (by >> 4) : (by & 0xF);
+    idx[i] = (u16)(nib | b->palbase[i >> 3]);
+  }
+  for (L = 1; L < nlayers; L++) {
+    const bgb_layer_t *l = &lay[L];
+    for (i = 0; i < BGB_LEN * 2; i++) {
+      u8  by  = l->bytes[i >> 1];
+      u32 nib = (i & 1) ? (by >> 4) : (by & 0xF);
+      if (nib) idx[i] = (u16)(nib | l->palbase[i >> 3]);
+    }
+  }
+}
+
+static void bgband_palette_pass_linear(const u16 *idx, u32 px_off,
+                                       u32 start, u32 end, u16 *dst)
+{
+  const u16 *pal = palette_ram_converted;
+  u16 bg0 = pal[0];
+  const u16 *src = idx + px_off;
+  u32 x;
+  for (x = start; x < end; x++) {
+    u16 v = src[x];
+    dst[x] = (v & 0xF) ? pal[v] : bg0;
+  }
+}
+
 static void bgband_palette_pass(const u16 *planar, u32 px_off,
                                 u32 start, u32 end, u16 *dst)
 {
@@ -2070,7 +2139,7 @@ static void bgband_palette_pass(const u16 *planar, u32 px_off,
 static bool bgband_line(u32 start, u32 end, u16 *dst)
 {
   static bgb_layer_t lay[4];
-  static u16 planar[4 * (BGB_LEN / 2)];
+  static u16 planar[BGB_LEN * 2];   /* planar: 4*(LEN/2); linear: LEN*2 */
   u32 lnum, nl = 0;
 
   if ((read_ioreg(REG_DISPCNT) & 0x07) != 0) return false;   /* mode 0 only */
@@ -2088,10 +2157,17 @@ static bool bgband_line(u32 start, u32 end, u16 *dst)
   }
   if (!nl) return false;
 
+#ifdef N64_BGBAND_LINEAR
+#ifndef N64_BGBAND_NOMERGE
+  bgband_merge_linear(lay, nl, planar);
+#endif
+  bgband_palette_pass_linear(planar, lay[0].px_off, start, end, dst);
+#else
 #ifndef N64_BGBAND_NOMERGE
   bgband_merge_rspmodel(lay, nl, planar);
 #endif
   bgband_palette_pass(planar, lay[0].px_off, start, end, dst);
+#endif
   return true;
 }
 #endif  /* N64_BGBAND */
