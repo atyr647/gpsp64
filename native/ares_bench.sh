@@ -44,6 +44,15 @@ LABEL="${1:?usage: ares_bench.sh <label> [EXTRA_CFLAGS...]}"; shift || true
 EXTRA="$*"
 
 ROM="${BENCH_ROM:-$REPO/Pokemon - Emerald Version (USA, Europe).gba}"
+# NOTE: do NOT set VK_ICD_FILENAMES.  ares needs a Vulkan device for
+# paraLLEl-RDP, and the loader finds one on its own if a driver is
+# installed (mesa-vulkan-drivers provides lavapipe, a software device).
+# Pointing VK_ICD_FILENAMES at a wrong filename overrides that search and
+# silently disables the RDP -- which is why every run in this project
+# printed "Vulkan init failed: No RDP rendering support", why
+# rdpq_tex_blit quietly did nothing, and why the RDP looked
+# unvalidatable.  With it working the baseline is unchanged (55.0 ms/f,
+# nothing here issues RDP commands yet) but the RDP is now testable.
 ARES="${ARES_BIN:-/tmp/ares_src/build/rundir/bin/ares}"
 WINDOWS="${ARES_WINDOWS:-40}"      # PROF windows (60 frames each) to collect
 TIMEOUT="${ARES_TIMEOUT:-420}"     # hard wall-clock cap, seconds
