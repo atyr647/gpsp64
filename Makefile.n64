@@ -58,6 +58,14 @@ CFLAGS += -DUSE_XBGR1555_FORMAT
 # parallel with the CPU.  That +1.1% may not exist on hardware.  N64_RSP_BLIT
 # supersedes both paths and is correct on either, which is why it is the
 # default; it also leaves the RDP free for tile rendering later.
+# RE-TESTED after the blit moved to the RSP, on the reasoning that the
+# CPU no longer reads the screen buffer back so the uncached alias had
+# lost its purpose.  It had not: dropping N64_UNCACHED_SCREEN and adding
+# an explicit writeback before the blit measures 55.0 -> 61.0 ms/f, 10.9%
+# WORSE.  ~96,000 uncached layer-pixel stores per frame are cheaper than
+# the write-allocate misses and line writebacks a cached 75 KB buffer
+# costs -- the VR4300's write buffer absorbs streaming stores far better
+# than the estimate assumed.  Leave this alone.
 N64_BLIT_OPT ?= -DN64_RSP_BLIT -DN64_UNCACHED_SCREEN
 CFLAGS += $(N64_BLIT_OPT)
 
