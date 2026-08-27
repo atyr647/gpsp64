@@ -71,3 +71,12 @@
 # Measured: 68.0 -> 66.0 ms/f (14.71 -> 15.15 fps, +3.0%), interpreted
 # instructions 828K -> 671K per window (-19%).  Cost is generated code:
 # 150 -> 671 functions, 700 KB -> 2.3 MB of C, .text 1.08 -> 1.60 MB.
+#
+# Then the literal-pool fix in thumb2c.py recovered 19 more functions
+# that had been silently dropped: 66.0 -> 65.0 ms/f (15.15 -> 15.38 fps),
+# interpreted instructions 671K -> 424K per window.  Note the shape of
+# the returns -- the retarget cut 19% of interpreted instructions for
+# +3.0%, this cut a further 37% for +1.5%.  AOT'd code is cheaper than
+# interpreting but not free, so removing interpreted instructions has
+# diminishing value; do not expect the next tranche to pay like the
+# first.
