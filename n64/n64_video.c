@@ -111,6 +111,17 @@ void n64_video_render_frame(void)
     { extern void n64_rsp_blit(const void *, void *, u32, u32, u32);
       u8 *dstrow = (u8 *)disp->buffer + GBA_OFFSET_Y * disp->stride
                    + GBA_OFFSET_X * 2;
+#ifndef N64_UNCACHED_SCREEN
+      /* The RSP DMAs the GBA screen out of RDRAM, so a cached screen
+       * buffer has to be written back first.  N64_UNCACHED_SCREEN avoids
+       * needing this -- at the price of every one of the renderer's
+       * ~96,000 layer-pixel stores per frame going to RDRAM uncached.
+       * That trade was made when the blit was still on the CPU and read
+       * the buffer back; with the blit on the RSP the CPU no longer
+       * reads it at all, so it is worth re-testing. */
+      data_cache_hit_writeback(gba_screen_pixels,
+                               GBA_SCREEN_PITCH * GBA_SCREEN_HEIGHT * 2);
+#endif
       n64_rsp_blit(gba_screen_pixels, dstrow,
                    GBA_SCREEN_WIDTH * 2, GBA_SCREEN_HEIGHT, disp->stride);
       display_show(disp);
