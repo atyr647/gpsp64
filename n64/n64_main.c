@@ -231,10 +231,18 @@ int main(void)
   /* RSP: prove the offload path works before anything depends on it.
      Rendering is 85% compute, so the RSP is wanted as a second execution
      unit; this only checks that ucode load + DMA in/out + sync are sound. */
+#ifdef N64_RDP_BG
+  /* The RSP blit and the RDP renderer cannot coexist: libdragon drives
+   * rdpq from the RSP -- rspq is a command processor running as RSP
+   * ucode -- and rsp_gbascan overwrites it.  With the BG on the RDP the
+   * blit goes back to the CPU, which now only has to convert the rows
+   * the RDP declined. */
+#else
   { extern void n64_rsp_init(void); extern bool n64_rsp_selftest(void);
     n64_rsp_init();
     n64_rsp_selftest();
     { extern void n64_rsp_bench(void); n64_rsp_bench(); } }
+#endif
 
 
 
@@ -478,6 +486,40 @@ int main(void)
             prof_raster_dirty_lines = prof_raster_frames = prof_raster_worst = 0; }
 #endif
 
+#ifdef N64_RDP_BG
+          {
+            extern u32 prof_rdpbg_rows, prof_rdpbg_frames, prof_rdpbg_break;
+            extern u32 n64_rdpbg_slices, n64_rdpbg_groups, n64_rdpbg_tiles;
+            extern u32 n64_rdpbg_frames, n64_rdpbg_overflow;
+            u32 f = prof_rdpbg_frames ? prof_rdpbg_frames : 1;
+            u32 g = n64_rdpbg_frames ? n64_rdpbg_frames : 1;
+            debugf("PROF:  rdpbg: %lu frames drew %lu rows each (%lu%% of screen);"
+                   " %lu tiles, %lu TMEM slices, %lu palette groups per frame;"
+                   " %lu register breaks, %lu overflows\n",
+                   (unsigned long)prof_rdpbg_frames,
+                   (unsigned long)(prof_rdpbg_rows / f),
+                   (unsigned long)(prof_rdpbg_rows / f * 100 / 160),
+                   (unsigned long)(n64_rdpbg_tiles / g),
+                   (unsigned long)(n64_rdpbg_slices / g),
+                   (unsigned long)(n64_rdpbg_groups / g),
+                   (unsigned long)prof_rdpbg_break,
+                   (unsigned long)n64_rdpbg_overflow);
+            { extern u32 n64_rdpbg_t_sort, n64_rdpbg_t_emit, n64_rdpbg_t_wait;
+              /* COUNT ticks at CPU/2, so x2 gives cycles; /93750 gives ms. */
+              debugf("PROF:  rdpbg: per frame sort %lu.%02lu ms, emit %lu.%02lu ms,"
+                     " wait-for-RDP %lu.%02lu ms\n",
+                     (unsigned long)(n64_rdpbg_t_sort * 2 / g / 93750),
+                     (unsigned long)((n64_rdpbg_t_sort * 2 / g % 93750) * 100 / 93750),
+                     (unsigned long)(n64_rdpbg_t_emit * 2 / g / 93750),
+                     (unsigned long)((n64_rdpbg_t_emit * 2 / g % 93750) * 100 / 93750),
+                     (unsigned long)(n64_rdpbg_t_wait * 2 / g / 93750),
+                     (unsigned long)((n64_rdpbg_t_wait * 2 / g % 93750) * 100 / 93750));
+              n64_rdpbg_t_sort = n64_rdpbg_t_emit = n64_rdpbg_t_wait = 0; }
+            prof_rdpbg_rows = prof_rdpbg_frames = prof_rdpbg_break = 0;
+            n64_rdpbg_slices = n64_rdpbg_groups = n64_rdpbg_tiles = 0;
+            n64_rdpbg_frames = n64_rdpbg_overflow = 0;
+          }
+#endif
 #ifdef N64_RDPGATE
           {
             extern u32 prof_gate_lines, prof_gate_pass, prof_gate_band;
@@ -493,6 +535,25 @@ int main(void)
                    (unsigned long)(prof_gate_wholeframe * 100 / gf));
             prof_gate_lines = prof_gate_pass = prof_gate_band = 0;
             prof_gate_frames = prof_gate_wholeframe = 0;
+          }
+          {
+            extern u32 prof_slice_frames, prof_slice_draws;
+            extern u32 prof_slice_loads, prof_slice_pairs;
+            u32 sf = prof_slice_frames ? prof_slice_frames : 1;
+            u32 draws = prof_slice_draws / sf;
+            u32 loads = prof_slice_loads / sf;
+            u32 pairs = prof_slice_pairs / sf;
+            /* 1725 cyc per 32-tile TMEM slice, 195 cyc per textured rect,
+             * both measured; set_tile is assumed ~120 until measured. */
+            u32 cyc = loads * 1725 + pairs * 120 + draws * 195;
+            debugf("PROF:  rdpgate: per frame %lu tile draws, %lu TMEM slices,"
+                   " %lu (slice,palette) pairs -> ~%lu cyc = %lu.%02lu ms CPU\n",
+                   (unsigned long)draws, (unsigned long)loads,
+                   (unsigned long)pairs, (unsigned long)cyc,
+                   (unsigned long)(cyc / 93750),
+                   (unsigned long)((cyc % 93750) * 100 / 93750));
+            prof_slice_frames = prof_slice_draws = 0;
+            prof_slice_loads = prof_slice_pairs = 0;
           }
 #endif
 #ifdef PROFILE_PPU2

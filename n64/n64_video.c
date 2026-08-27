@@ -67,9 +67,33 @@ static inline u32 xbgr_pair_to_rgba_pair(u32 p) {
        | 0x00010001u;                /* A bit = 1       */
 }
 
+#ifdef N64_RDP_BG
+/* The RDP renderer needs the framebuffer from the *start* of the frame,
+ * because it draws into it as the scanlines go by rather than at blit
+ * time.  Acquiring it here and holding it until the blit keeps both
+ * halves writing to the same buffer -- disjoint rows, so no conflict,
+ * but they must be the same surface. */
+static surface_t *acquired = NULL;
+
+surface_t *n64_video_acquire(void)
+{
+  if (!acquired) acquired = display_get();
+  return acquired;
+}
+#endif
+
 void n64_video_render_frame(void)
 {
+#ifdef N64_RDP_BG
+  extern u8 n64_rdp_row[160];
+  extern void n64_rdpbg_frame_end(void);
+  surface_t *disp;
+  n64_rdpbg_frame_end();
+  disp = acquired ? acquired : display_get();
+  acquired = NULL;
+#else
   surface_t *disp = display_get();
+#endif
   { static int _once = 0;
     if (!_once && disp) { _once = 1;
       debugf("[gpSP]: framebuffer=%p stride=%d (%d KB each)\n",
@@ -132,6 +156,12 @@ void n64_video_render_frame(void)
                  + GBA_OFFSET_X * 2;
     const int pairs_per_row = GBA_SCREEN_WIDTH / 2;
     for (int y = 0; y < GBA_SCREEN_HEIGHT; y++) {
+#ifdef N64_RDP_BG
+      /* Rows the RDP drew are already in the framebuffer, in the right
+       * format, and gba_screen_pixels holds nothing for them -- the CPU
+       * rasteriser was skipped.  Blitting them would paint garbage. */
+      if (n64_rdp_row[y]) { src += pairs_per_row; dstrow += disp->stride; continue; }
+#endif
       u32 *d = (u32 *)dstrow;
       for (int i = 0; i < pairs_per_row; i++)
         d[i] = xbgr_pair_to_rgba_pair(src[i]);

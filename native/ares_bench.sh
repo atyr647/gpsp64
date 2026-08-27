@@ -80,6 +80,13 @@ cp "$ROM" "$SCRATCH/filesystem/gba/emerald.gba"
 # the Game Freak logo -- which is not the workload this port is for.
 # Produce the file with:
 #   BENCH_SAVESTATE=/path/boot.sav BENCH_WARMUP=1500 native/bench.sh mkstate
+# Default to the captured overworld state.  Booting the ROM instead
+# spends the whole run on BIOS decompression, the Game Freak logo and the
+# title screen -- a different workload with a different BG cost, which is
+# why numbers from a boot run and numbers from this state are not
+# comparable.  Every published figure for this port is from this state.
+: "${BENCH_STATE:=$REPO/bench-results/states/overworld.sav}"
+[ -f "$BENCH_STATE" ] || BENCH_STATE=""
 if [ -n "${BENCH_STATE:-}" ]; then
   [ -f "$BENCH_STATE" ] || { echo "BENCH_STATE not found: $BENCH_STATE"; exit 1; }
   cp "$BENCH_STATE" "$SCRATCH/filesystem/boot.sav"

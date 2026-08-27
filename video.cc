@@ -2230,6 +2230,8 @@ static gatest_t gate_st[160][4];
 static u8       gate_ok[160];
 static u8       gate_nl[160];
 
+static void rdpstat_frame(void);
+
 static void rdpgate_probe(u32 vcount)
 {
   u32 l, ok = 1;
@@ -2276,7 +2278,80 @@ static void rdpgate_probe(u32 vcount)
       if (good) prof_gate_band += 8; else allband = 0;
     }
     if (allband) prof_gate_wholeframe++;
+    rdpstat_frame();
   }
+}
+/* The other two numbers the renderer's cost is made of.
+ *
+ * TMEM holds 2 KB of texture with a TLUT resident -- 32 4bpp tiles -- and
+ * the 8-wide strip trick addresses tiles by their position in the
+ * charblock, so a TMEM load is a *slice*: 32 consecutive tiles, 1725
+ * cycles regardless of how many of them get drawn.  A charblock is 16 KB,
+ * so 16 slices cover everything a layer can reference.
+ *
+ * Palette is a tile-descriptor field, and the GBA's 256-colour BG palette
+ * maps exactly onto the RDP's 256-entry TLUT: 16 sub-palettes, 16 windows.
+ * But the descriptor also carries the TMEM address, so a descriptor is
+ * really a (slice, palette) pair, and there are only 8 of them.
+ *
+ * So the per-frame CPU cost is roughly:
+ *     slices * 1725  +  (slice,palette) pairs * set_tile  +  draws * 195
+ * and the two multipliers that are not yet known are counted here.
+ */
+u32 prof_slice_frames = 0, prof_slice_draws = 0;
+u32 prof_slice_loads = 0, prof_slice_pairs = 0;
+
+static void rdpstat_frame(void)
+{
+  u32 l;
+  u8  slice_seen[64];      /* 16 KB charblock / 32 tiles, x2 charblocks */
+  u16 pair_seen[64];       /* bitmask of palettes used per slice        */
+  u32 nslice = 0, npair = 0, ndraw = 0;
+
+  memset(slice_seen, 0, sizeof(slice_seen));
+  memset(pair_seen, 0, sizeof(pair_seen));
+
+  for (l = 0; l < layer_count; l++) {
+    u32 layer = layer_order[l];
+    u32 bgc, msz, mw, mh, hofs, vofs, ty, tx, cb;
+    const u16 *map0;
+    if (layer & 0x04) continue;
+    bgc  = read_ioreg(REG_BGxCNT(layer));
+    msz  = (bgc >> 14) & 3;
+    mw   = (msz & 1) ? 512 : 256;
+    mh   = (msz & 2) ? 512 : 256;
+    hofs = read_ioreg(REG_BGxHOFS(layer));
+    vofs = read_ioreg(REG_BGxVOFS(layer));
+    cb   = (bgc >> 2) & 3;
+    map0 = (const u16 *)&vram_raw[((bgc >> 8) & 0x1F) * 2048];
+
+    /* 31x21 tiles: the visible 240x160 window plus the partial tile that
+     * a non-multiple-of-8 scroll pulls in on each edge. */
+    for (ty = 0; ty < 21; ty++) {
+      u32 vy = (ty * 8 + vofs) & (mh - 1);
+      u32 rowblk = (vy >= 256) ? ((mw == 512) ? 2 : 1) : 0;
+      const u16 *maprow = map0 + rowblk * 1024 + ((vy & 255) >> 3) * 32;
+      for (tx = 0; tx < 31; tx++) {
+        u32 vx = (hofs + (tx << 3)) & (mw - 1);
+        u16 tile = gba_deref16(maprow + ((vx >= 256) ? 1024 : 0)
+                                      + ((vx & 255) >> 3));
+        u32 idx  = tile & 0x3FF;
+        u32 slot = (cb * 512 + idx) >> 5;      /* which 32-tile slice */
+        u32 pal  = tile >> 12;
+        if (slot >= 64) continue;
+        ndraw++;
+        if (!slice_seen[slot]) { slice_seen[slot] = 1; nslice++; }
+        if (!(pair_seen[slot] & (1u << pal))) {
+          pair_seen[slot] |= (u16)(1u << pal); npair++;
+        }
+      }
+    }
+  }
+
+  prof_slice_frames++;
+  prof_slice_draws += ndraw;
+  prof_slice_loads += nslice;
+  prof_slice_pairs += npair;
 }
 #endif  /* N64_RDPGATE */
 
@@ -2883,6 +2958,177 @@ static void raster_check(u32 vcount)
 }
 #endif
 
+#ifdef N64_RDP_BG
+/* Which rows does the RDP own this frame, and what does it draw on them?
+ *
+ * gpSP rasterises one scanline at a time against the live BG registers,
+ * but the RDP draws whole 8x8 tiles, so a tile is only drawable if the
+ * state holds across all the rows it covers.  Measured on the overworld,
+ * that costs almost nothing: 55.3% of scanlines are BG-only tiled and
+ * 52.5% sit in a stable 8-line band, so scroll registers essentially do
+ * not move mid-frame.  What actually gates the RDP is sprites -- OBJ
+ * compositing is still the CPU's job, so any row carrying a sprite falls
+ * back.  That is the 45% this version leaves on the table.
+ *
+ * Eligibility is exactly knowable at line 0, which is the whole reason
+ * this works without prediction or fixup: order_obj() builds a per-row
+ * OBJ table for the entire frame before line 0 renders, so a row's
+ * sprite status is not a guess.  Only the BG registers have to be
+ * verified as the frame goes, and a mismatch simply hands the rest of
+ * the frame back to the CPU.
+ */
+extern "C" {
+  int  n64_rdpbg_begin(void);
+  void n64_rdpbg_add(int x, int y, int y0, int y1, u32 vt, u32 pal, u32 flip);
+  void n64_rdpbg_backdrop(int y0, int y1);
+  void n64_rdpbg_build_tlut(const u16 *pal_converted);
+  void n64_rdpbg_flush(void);
+}
+
+u8 n64_rdp_row[160];               /* 1 = RDP drew it, CPU must not blit */
+u32 prof_rdpbg_rows = 0, prof_rdpbg_frames = 0, prof_rdpbg_break = 0;
+
+static u8  rdpbg_elig[160];
+static u32 rdpbg_active = 0;
+static u32 rdpbg_snap[4][3];       /* per layer: cnt, hofs, vofs */
+static u32 rdpbg_snap_n = 0;
+static u32 rdpbg_snap_layer[4];
+
+static int rdpbg_regs_match(void)
+{
+  u32 i;
+  for (i = 0; i < rdpbg_snap_n; i++) {
+    u32 l = rdpbg_snap_layer[i];
+    if (read_ioreg(REG_BGxCNT(l))  != rdpbg_snap[i][0]) return 0;
+    if (read_ioreg(REG_BGxHOFS(l)) != rdpbg_snap[i][1]) return 0;
+    if (read_ioreg(REG_BGxVOFS(l)) != rdpbg_snap[i][2]) return 0;
+  }
+  return 1;
+}
+
+/* The frame-wide gate, evaluated once at line 0.  Everything here is
+ * either constant for the frame or verified per row afterwards. */
+static void rdpbg_frame_begin(void)
+{
+  u16 dispcnt = read_ioreg(REG_DISPCNT);
+  u32 y, p, i;
+
+  rdpbg_active = 0;
+  memset(n64_rdp_row, 0, sizeof(n64_rdp_row));
+
+  if ((dispcnt & 0x07) != 0) return;            /* tiled mode 0 only     */
+  if (dispcnt & 0xE000) return;                 /* windows: not modelled */
+  if (((read_ioreg(REG_BLDCNT) >> 6) & 3) != 0) return;  /* colour effect */
+  if (!layer_count) return;
+
+  rdpbg_snap_n = 0;
+  for (i = 0; i < layer_count; i++) {
+    u32 layer = layer_order[i];
+    u16 c;
+    if (layer & 0x04) continue;                 /* OBJ handled per row   */
+    c = read_ioreg(REG_BGxCNT(layer));
+    if (c & 0x80) return;                                    /* 8bpp     */
+    if ((c & 0x40) && (read_ioreg(REG_MOSAIC) & 0xFF)) return; /* mosaic */
+    rdpbg_snap_layer[rdpbg_snap_n] = layer;
+    rdpbg_snap[rdpbg_snap_n][0] = c;
+    rdpbg_snap[rdpbg_snap_n][1] = read_ioreg(REG_BGxHOFS(layer));
+    rdpbg_snap[rdpbg_snap_n][2] = read_ioreg(REG_BGxVOFS(layer));
+    rdpbg_snap_n++;
+  }
+  if (!rdpbg_snap_n) return;
+
+  /* A row is the RDP's iff no sprite touches it.  order_obj() has
+   * already filled this table for all 160 rows. */
+  for (y = 0; y < 160; y++) {
+    u32 ok = 1;
+    for (p = 0; p < 5; p++) if (obj_priority_count[p][y]) { ok = 0; break; }
+    rdpbg_elig[y] = (u8)ok;
+  }
+
+  if (!n64_rdpbg_begin()) return;
+  n64_rdpbg_build_tlut(palette_ram_converted);
+  rdpbg_active = 1;
+}
+
+/* Emit the whole visible BG for the rows the RDP owns.
+ *
+ * Draws are collected here and sorted by (slice, palette) before they
+ * reach the RDP, because a TMEM load is a 32-tile slice of the VRAM
+ * shadow at ~1725 cycles regardless of how many of its tiles are used.
+ * Emitting in tilemap order would reload TMEM per tile; emitting in
+ * slice order loads each slice once. */
+static void rdpbg_frame_end(void)
+{
+  u32 i, y, nrows = 0;
+
+  if (!rdpbg_active) return;
+
+  for (y = 0; y < 160; y++) if (n64_rdp_row[y]) nrows++;
+  if (!nrows) { rdpbg_active = 0; return; }
+  prof_rdpbg_rows += nrows;
+  prof_rdpbg_frames++;
+
+  /* Backdrop under each run of owned rows. */
+  for (y = 0; y < 160; ) {
+    u32 s;
+    if (!n64_rdp_row[y]) { y++; continue; }
+    s = y;
+    while (y < 160 && n64_rdp_row[y]) y++;
+    n64_rdpbg_backdrop((int)s, (int)y);
+  }
+
+  for (i = 0; i < rdpbg_snap_n; i++) {
+    u32 bgc  = rdpbg_snap[i][0];
+    u32 hofs = rdpbg_snap[i][1];
+    u32 vofs = rdpbg_snap[i][2];
+    u32 msz  = (bgc >> 14) & 3;
+    u32 mw   = (msz & 1) ? 512 : 256;
+    u32 mh   = (msz & 2) ? 512 : 256;
+    u32 cb   = (bgc >> 2) & 3;
+    const u16 *map0 = (const u16 *)&vram_raw[((bgc >> 8) & 0x1F) * 2048];
+    s32 ysub = (s32)(vofs & 7), xsub = (s32)(hofs & 7);
+    u32 ty;
+
+    for (ty = 0; ty < 21; ty++) {
+      s32 sy = (s32)(ty * 8) - ysub;          /* screen row of tile top */
+      u32 vy = ((ty * 8) + (vofs & ~7u)) & (mh - 1);
+      u32 rowblk = (vy >= 256) ? ((mw == 512) ? 2 : 1) : 0;
+      const u16 *maprow = map0 + rowblk * 1024 + ((vy & 255) >> 3) * 32;
+      u32 tx;
+      s32 r0 = 0;
+
+      /* Split the tile's 8 rows into the runs the RDP owns.  Runs are
+       * long, so this is normally one span and occasionally two. */
+      while (r0 < 8) {
+        s32 r1;
+        s32 gy = sy + r0;
+        if (gy < 0 || gy >= 160 || !n64_rdp_row[gy]) { r0++; continue; }
+        r1 = r0;
+        while (r1 < 8) {
+          s32 g = sy + r1;
+          if (g < 0 || g >= 160 || !n64_rdp_row[g]) break;
+          r1++;
+        }
+        for (tx = 0; tx < 31; tx++) {
+          u32 vx = (hofs + (tx << 3)) & (mw - 1);
+          u16 tile = gba_deref16(maprow + ((vx >= 256) ? 1024 : 0)
+                                        + ((vx & 255) >> 3));
+          u32 vt = (cb * 512 + (tile & 0x3FF)) & 0x7FF;
+          n64_rdpbg_add((int)(tx * 8) - xsub, (int)sy, (int)r0, (int)r1,
+                        vt, tile >> 12, (tile >> 10) & 3);
+        }
+        r0 = r1;
+      }
+    }
+  }
+
+  n64_rdpbg_flush();
+  rdpbg_active = 0;
+}
+
+extern "C" void n64_rdpbg_frame_end(void) { rdpbg_frame_end(); }
+#endif  /* N64_RDP_BG */
+
 void update_scanline(void)
 {
   u32 pitch = get_screen_pitch();
@@ -2916,6 +3162,9 @@ void update_scanline(void)
   u32 _t1 = PROF_PPU_TICK();
 #endif
   order_layers((dispcnt >> 8) & active_layers[video_mode], vcount);
+#ifdef N64_RDP_BG
+  if (vcount == 0) rdpbg_frame_begin();
+#endif
 #ifdef N64_RDPGATE
   rdpgate_probe(vcount);
 #endif
@@ -2937,7 +3186,24 @@ void update_scanline(void)
 #if defined(N64) && defined(PROFILE_PPU)
     u32 _t2 = PROF_PPU_TICK();
 #endif
+#ifdef N64_RDP_BG
+    /* If the RDP owns this row, the CPU rasteriser is skipped outright --
+     * that is the entire point.  The register check is what keeps the
+     * skip honest: the frame-start snapshot decided what the RDP will
+     * draw, so once the game moves a scroll register the rest of the
+     * frame goes back to the CPU. */
+    if (rdpbg_active && rdpbg_elig[vcount] && rdpbg_regs_match()) {
+      n64_rdp_row[vcount] = 1;
+    } else {
+      if (rdpbg_active && rdpbg_elig[vcount]) {
+        prof_rdpbg_break++;
+        memset(rdpbg_elig, 0, sizeof(rdpbg_elig));  /* stop skipping */
+      }
+      render_scanline_window(screen_offset);
+    }
+#else
     render_scanline_window(screen_offset);
+#endif
 #if defined(N64) && defined(PROFILE_PPU)
     prof_ppu_render_ticks += PROF_PPU_TICK() - _t2;
 #endif

@@ -66,7 +66,15 @@ CFLAGS += -DUSE_XBGR1555_FORMAT
 # the write-allocate misses and line writebacks a cached 75 KB buffer
 # costs -- the VR4300's write buffer absorbs streaming stores far better
 # than the estimate assumed.  Leave this alone.
+# N64_RDP_BG moves BG rasterisation onto the RDP, and takes the RSP blit
+# with it: rspq is a command processor running as RSP ucode, so
+# rsp_gbascan and rdpq cannot both be loaded.  The blit returns to the
+# CPU, where it now only has to convert the rows the RDP declined.
+ifneq ($(findstring N64_RDP_BG,$(EXTRA_CFLAGS)),)
+N64_BLIT_OPT ?= -DN64_FUSED_BLIT -DN64_UNCACHED_SCREEN
+else
 N64_BLIT_OPT ?= -DN64_RSP_BLIT -DN64_UNCACHED_SCREEN
+endif
 CFLAGS += $(N64_BLIT_OPT)
 
 # The game's own software audio mixer.  Two thirds of every emulated
@@ -281,6 +289,7 @@ OBJS = main.o \
        n64/m4a_hle.o \
        n64/n64_savestate.o \
        n64/n64_rdp_bench.o \
+       n64/n64_rdp_bg.o \
        n64/aot_generated.o
 
 # Build rules
