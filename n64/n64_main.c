@@ -217,6 +217,16 @@ int main(void)
   gba_screen_pixels = (u16 *)UncachedAddr(screen_buf);
 #endif
 
+#ifdef N64_RDP_BENCH
+  /* Must run BEFORE n64_rsp_init(): libdragon drives rdpq from the RSP
+   * (rspq), and loading our own rsp_gbascan ucode overwrites rspq's, so
+   * any rdpq call afterwards hangs in rspq_next_buffer waiting for a
+   * command processor that is no longer there.  That conflict is a real
+   * constraint on an RDP renderer, not just on this benchmark -- see
+   * n64/n64_rdp_bench.c. */
+  { extern void n64_rdp_bench(void); n64_rdp_bench(); }
+#endif
+
   /* RSP: prove the offload path works before anything depends on it.
      Rendering is 85% compute, so the RSP is wanted as a second execution
      unit; this only checks that ucode load + DMA in/out + sync are sound. */
@@ -225,11 +235,7 @@ int main(void)
     n64_rsp_selftest();
     { extern void n64_rsp_bench(void); n64_rsp_bench(); } }
 
-#ifdef N64_RDP_BENCH
-  /* Is an RDP background renderer affordable on the CPU side?  See
-   * n64/n64_rdp_bench.c. */
-  { extern void n64_rdp_bench(void); n64_rdp_bench(); }
-#endif
+
 
   /* Initialize sound */
   init_sound();

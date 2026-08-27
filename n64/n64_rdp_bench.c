@@ -27,6 +27,19 @@
  * up.  The RDP's own time has to come from the fill-rate arithmetic above
  * and, ultimately, from console.
  *
+ * NOTE ON ORDERING: this must run before n64_rsp_init().  libdragon
+ * drives rdpq from the RSP -- rspq is a command processor running as RSP
+ * ucode -- and this port loads its own rsp_gbascan ucode for the
+ * framebuffer blit, which overwrites it.  Any rdpq call after that hangs
+ * in rspq_next_buffer waiting for a processor that is no longer running.
+ *
+ * That is a genuine constraint on any RDP renderer here, not merely on
+ * this benchmark: the custom RSP blit (worth +7.1% when it landed) and
+ * the RDP cannot both be used as things stand.  Either the blit ucode
+ * becomes a proper rspq overlay, or the blit goes back to rdpq -- which
+ * is what the original non-fused path did with rdpq_tex_blit, and which
+ * only looked useless because Vulkan was never initialising in ares.
+ *
  * N64 port Copyright (C) 2026
  */
 
