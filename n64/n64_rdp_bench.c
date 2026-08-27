@@ -131,6 +131,37 @@ void n64_rdp_bench(void)
            (unsigned long)(cyc_atlas / 64), (unsigned long)cyc_single);
   }
 
+  /* (d) Can TMEM be filled straight from GBA VRAM, with no gather?
+   *
+   *     This is what separates the RDP idea from the RSP one that failed:
+   *     that attempt had to copy tile bytes into a staging buffer, and
+   *     the copying cost more than the rasterisation it replaced.
+   *
+   *     GBA tiles are tile-major -- 32 consecutive bytes per 8x8 tile,
+   *     4 bytes a row -- while an RDP texture is row-major, so a 64x64
+   *     view of a tile run would scramble it.  An 8-pixel-wide strip
+   *     lines up exactly: tile k is rows 8k..8k+7, drawn with t = 8k.
+   *     The open question is how many tiles fit, since TMEM rows are
+   *     8-byte aligned and a CI4 row of 8 pixels is only 4 bytes. */
+  {
+    static u8 vramlike[8 * 1024] __attribute__((aligned(16)));
+    u32 h, j, t0b, t1b;
+    for (j = 0; j < sizeof(vramlike); j++) vramlike[j] = (u8)(j * 11 + 5);
+    for (h = 64; h <= 1024; h <<= 1) {
+      surface_t strip = surface_make_linear(vramlike, FMT_CI4, 8, h);
+      int bytes = rdpq_tex_upload(TILE0, &strip, NULL);
+      rdpq_tex_upload(TILE0, &strip, NULL);            /* warm */
+      t0b = RDPB_TICK();
+      for (j = 0; j < 25; j++) rdpq_tex_upload(TILE0, &strip, NULL);
+      t1b = RDPB_TICK();
+      debugf("[gpSP]:   VRAM strip 8x%-4lu = %-3lu tiles: %lu TMEM bytes, "
+             "%lu cyc (%lu cyc/tile)\n",
+             (unsigned long)h, (unsigned long)(h / 8), (unsigned long)bytes,
+             (unsigned long)(((t1b - t0b) * 2) / 25),
+             (unsigned long)((((t1b - t0b) * 2) / 25) / (h / 8)));
+    }
+  }
+
   rdpq_detach_wait();
 
   debugf("[gpSP]: RDP bench, %d tiles (one GBA frame of BG):\n",
