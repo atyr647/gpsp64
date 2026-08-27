@@ -1900,6 +1900,8 @@ static void render_backdrop(u32 start, u32 end, u16 *scanline) {
  * mismatches; it is a correctness harness, not a fast path.
  * ------------------------------------------------------------------ */
 u32 bgband_lines = 0, bgband_mismatch = 0, bgband_skipped = 0;
+u32 prof_tile_total = 0, prof_tile_hflip = 0, prof_tile_vflip = 0;
+u32 prof_line_total = 0, prof_line_flip = 0;
 
 static bool bgband_layer_ok(u32 l)
 {
@@ -1919,6 +1921,7 @@ typedef struct {
   u8  bytes[BGB_MAXTILES * 4];
   u16 palbase[BGB_MAXTILES];
   u32 px_off, ntiles;
+  u32 anyflip;      /* any visible tile flipped: an RDP path may decline */
 } bgb_layer_t;
 
 static inline u8 bgb_swapnib(u8 b) { return (u8)((b >> 4) | (b << 4)); }
@@ -1953,6 +1956,15 @@ static void bgband_fill_cache(u32 layer, u32 bgc, u32 mw, u32 vy, u32 hofs,
     u32 w;
     for (w = 0; w < 8; w++) dst[w] = src[w];
     tc->attr[t] = tile;
+#ifdef PROFILE_PPU2
+    /* How often are tiles flipped?  An RDP renderer can decline flipped
+     * tiles and fall back to the CPU for those scanlines, so the cost of
+     * not supporting flips is exactly their frequency. */
+    { extern u32 prof_tile_total, prof_tile_hflip, prof_tile_vflip;
+      prof_tile_total++;
+      if (tile & 0x400) prof_tile_hflip++;
+      if (tile & 0x800) prof_tile_vflip++; }
+#endif
   }
   bgband_tilefetch++;
 }
@@ -1974,6 +1986,7 @@ static void bgband_gather_layer(u32 layer, u32 width, bgb_layer_t *g)
   if (tc->key != key) { bgband_fill_cache(layer, bgc, mw, vy, hofs, tc); tc->key = key; }
   else bgband_cachehit++;
 
+  g->anyflip = 0;
   g->px_off = hofs & 7;
   /* Always fill the whole buffer.  The visible span needs at most 31
    * tiles, but the RSP DMAs a fixed 128 bytes per layer, so leaving the
@@ -1986,6 +1999,7 @@ static void bgband_gather_layer(u32 layer, u32 width, bgb_layer_t *g)
     u32 row  = (tile & 0x800) ? (7 - (vy & 7)) : (vy & 7);
     const u8 *src = &tc->tiles[t * 32 + row * 4];
     u8 *dstb = &g->bytes[t * 4];
+    if ((tile & 0xC00) && t <= 30) g->anyflip = 1;
     if (tile & 0x400) {
       dstb[0] = bgb_swapnib(src[3]); dstb[1] = bgb_swapnib(src[2]);
       dstb[2] = bgb_swapnib(src[1]); dstb[3] = bgb_swapnib(src[0]);
@@ -2174,6 +2188,11 @@ static bool bgband_line(u32 start, u32 end, u16 *dst)
   bgband_palette_pass_linear(planar, lay[0].px_off, start, end, dst);
 #else
 #ifndef N64_BGBAND_NOMERGE
+#ifdef PROFILE_PPU2
+  { extern u32 prof_line_total, prof_line_flip;
+    u32 li; prof_line_total++;
+    for (li = 0; li < nl; li++) if (lay[li].anyflip) { prof_line_flip++; break; } }
+#endif
   bgband_merge_rspmodel(lay, nl, planar);
 #endif
   bgband_palette_pass(planar, lay[0].px_off, start, end, dst);

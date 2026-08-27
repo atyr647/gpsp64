@@ -612,6 +612,20 @@ int main(int argc, char **argv)
               (unsigned long)(prof_ppu2_objblend*100/c),
               (unsigned long)(prof_ppu2_fastok*100/ft)); }
 #endif
+#if defined(N64_BGBAND) && defined(PROFILE_PPU2)
+    { extern u32 prof_tile_total, prof_tile_hflip, prof_tile_vflip;
+      u32 tt = prof_tile_total ? prof_tile_total : 1;
+      { extern u32 prof_line_total, prof_line_flip;
+        u32 lt = prof_line_total ? prof_line_total : 1;
+        fprintf(stderr, "  scanlines containing any flipped tile: %lu of %lu (%lu%%)\n",
+                (unsigned long)prof_line_flip, (unsigned long)prof_line_total,
+                (unsigned long)(prof_line_flip * 100 / lt)); }
+      fprintf(stderr, "\n  tile flips: %lu of %lu hflip (%lu%%), %lu vflip (%lu%%)\n",
+              (unsigned long)prof_tile_hflip, (unsigned long)prof_tile_total,
+              (unsigned long)(prof_tile_hflip * 100 / tt),
+              (unsigned long)prof_tile_vflip,
+              (unsigned long)(prof_tile_vflip * 100 / tt)); }
+#endif
 #ifdef N64_BGBAND_VERIFY
     { extern u32 bgband_lines, bgband_mismatch, bgband_skipped;
       fprintf(stderr, "\n  bgband: %lu lines checked, %lu mismatched, %lu skipped\n",

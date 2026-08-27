@@ -280,6 +280,7 @@ extern u32 prof_shadow_hits[4];   /* [0]=w8 [1]=w16 [2]=w32 [3]=dma */
     address##sz(vram_swapped, addr) = eswap##sz(GBA_NIBSWAP##sz(val))
 #else
   #define N64_VRAM_SHADOW(sz, addr, val)
+  #define N64_VRAM_SHADOW_N(sz, addr, val, slot)
 #endif
 
 extern u32 prof_vram_writes, prof_vram_dma_bytes;
