@@ -46,3 +46,24 @@
 # once the idle detector was tuned -- combined with IDLE_DETECT_ITERS=3
 # it scored the same as the idle change alone, for 70 KB of extra .text.
 # Not worth adding.
+
+# Added from profiling actual OVERWORLD GAMEPLAY (not the title screen).
+# The ranges above were chosen from the animated title screen, which runs
+# a different instruction mix entirely -- the AOT was targeted at the
+# wrong workload.  Regenerated with:
+#   BENCH_LOADSTATE=overworld.sav BENCH_INPUT=walk ./native/bench.sh cov
+#   tools/suggest_targets.py bench-results/cov.pages
+#
+# 0x08000000 is deliberately NOT here despite being 19% of interpreted
+# instructions: it holds the game's idle loop (idle_loop_target_pc =
+# 0x080008CE) and AOT covering that page starves the idle-skip check,
+# measured at 6.9 -> 3.3 FPS.  cpu.cc guards against it anyway.
+0x08088000  0x08089000        #  4.0% of interpreted insns
+0x082E7000  0x082E8000        #  2.8%
+0x08001000  0x08002000        #  2.7%
+0x0808A000  0x0808B000        #  2.6%
+0x0808B000  0x0808C000        #  2.1%
+0x0806F000  0x08070000        #  2.1%
+0x080B3000  0x080B4000        #  1.9%
+0x08096000  0x08097000        #  1.8%
+0x08089000  0x0808A000        #  1.8%
