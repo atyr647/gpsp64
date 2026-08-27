@@ -109,6 +109,46 @@ The 1.7 palette writes per frame in the overworld are the one hazard: a
 deferred palette pass would apply a late palette to earlier scanlines.
 Either snapshot the palette per band or detect the write and fall back.
 
+## The RDP can do what the RSP could not (measured)
+
+The RSP verdict below still stands, but it is a verdict about *splitting
+the fused per-pixel loop into passes*, not about hardware offload as
+such.  The RDP moves the whole loop instead, and it measures completely
+differently.  Numbers from n64/n64_rdp_bench.c, on hardware terms:
+
+```
+  BG rasterisation on the VR4300 today            27 ms
+  issuing the same frame as RDP textured rects   3.33 ms CPU (195 cyc/tile)
+  TMEM upload, one 8x8 tile at a time            1472 cyc  -> 37 ms/frame
+  TMEM upload, one 64x64 atlas (64 tiles, 2 KB)  1214 cyc  -> 19 cyc/tile
+```
+
+Per-tile uploads would sink it; the atlas does not, because the cost is
+fixed command overhead and not bandwidth -- 2 KB uploads for less than
+32 bytes does.  A frame becomes a handful of atlas uploads plus ~1,600
+rectangles: **~3.4 ms of CPU replacing 27 ms**, with the RDP's own fill
+running in parallel.  That is a 55 ms frame going to roughly 31.
+
+What is still unmeasured or unbuilt, in order of how much it could hurt:
+
+  * **RDP fill time is invisible in ares** (its RDP thread advances a
+    clock in fixed chunks).  96,000 pixels/frame is 1.5 ms at a pixel per
+    cycle and ~6 ms at 4 cycles/px, so it should fit a 31 ms frame with
+    room -- but that is arithmetic, and it needs console to confirm.
+  * **Semantics.**  Four priority layers, per-tile palettes, h/v flip,
+    the blend modes and windows all have to map onto RDP primitives with
+    a CPU fallback for what does not.  bgband_* in video.cc is a
+    pixel-exact reference for exactly these, verified over 300K+
+    scanlines.
+  * **rspq owns the RSP.**  libdragon drives rdpq from RSP ucode, and
+    this port's rsp_gbascan blit overwrites it, so the two cannot
+    coexist.  Either the blit becomes an rspq overlay or it goes back to
+    rdpq_tex_blit.
+  * **Atlas construction may not even be needed.**  A GBA charblock is
+    already a linear array of 4bpp tiles in VRAM, so TMEM can likely be
+    filled straight from vram_raw in 2 KB slices, with draws batched per
+    slice -- no gather, which is what sank the RSP attempt.
+
 ## VERDICT: measured dead.  Do not build this.
 
 The BG offload cannot pay, and the reason is structural rather than a
