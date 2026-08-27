@@ -55,6 +55,82 @@
  * ~2.5 layers with anything to draw. */
 #define RDPB_TILES_PER_FRAME 1600
 
+/* Prove the RDP mechanics before any renderer depends on them.
+ *
+ * Four things have to be right and none of them are obvious from the
+ * documentation:
+ *
+ *   - which nibble of a 4bpp byte is the LEFT pixel.  The GBA packs
+ *     byte = (right << 4) | left; if the RDP unpacks the other way every
+ *     pair of pixels comes out swapped, which is subtle enough to survive
+ *     a casual look at a screenshot.
+ *   - that a tile-major VRAM run really does address as an 8-wide strip,
+ *     tile k at t = 8k.
+ *   - that the TLUT resolves indices to the colours we loaded.
+ *   - that per-tile palette selection works, since a GBA tile picks one
+ *     of 16 sub-palettes and that is a tile-descriptor field.
+ *
+ * Renders into a scratch surface and reads it back, so this reports a
+ * verdict rather than needing someone to look at a screen.
+ */
+void n64_rdp_selftest(void)
+{
+  enum { NTILES = 4, W = NTILES * 8, H = 8 };
+  static u8  strip[NTILES * 32] __attribute__((aligned(16)));
+  static u16 tlut[16]           __attribute__((aligned(16)));
+  surface_t tex, target;
+  u32 k, x, y, bad = 0, checked = 0;
+
+  /* index(x,y,k) = (x + y + k) & 15, packed GBA-style: low nibble left */
+  for (k = 0; k < NTILES; k++)
+    for (y = 0; y < 8; y++)
+      for (x = 0; x < 8; x += 2) {
+        u32 lo = (x + y + k) & 15, hi = (x + 1 + y + k) & 15;
+        strip[k * 32 + y * 4 + x / 2] = (u8)((hi << 4) | lo);
+      }
+  for (k = 0; k < 16; k++) tlut[k] = (u16)((k << 11) | (k << 6) | (k << 1) | 1);
+
+  tex    = surface_make_linear(strip, FMT_CI4, 8, NTILES * 8);
+  target = surface_alloc(FMT_RGBA16, W, H);
+  if (!target.buffer) { debugf("[gpSP]: RDP selftest: no surface\n"); return; }
+
+  data_cache_hit_writeback_invalidate(strip, sizeof(strip));
+  data_cache_hit_writeback_invalidate(tlut, sizeof(tlut));
+
+  rdpq_attach_clear(&target, NULL);
+  rdpq_set_mode_standard();
+  rdpq_mode_tlut(TLUT_RGBA16);
+  rdpq_tex_upload_tlut(tlut, 0, 16);
+  rdpq_tex_upload(TILE0, &tex, NULL);
+  for (k = 0; k < NTILES; k++)
+    rdpq_texture_rectangle(TILE0, k * 8, 0, k * 8 + 8, 8, 0, k * 8);
+  rdpq_detach_wait();
+
+  data_cache_hit_invalidate(target.buffer, target.stride * H);
+
+  for (k = 0; k < NTILES; k++)
+    for (y = 0; y < 8; y++)
+      for (x = 0; x < 8; x++) {
+        u16 got = ((u16 *)((u8 *)target.buffer + y * target.stride))[k * 8 + x];
+        u16 want = tlut[(x + y + k) & 15];
+        checked++;
+        if (got != want && bad++ < 4)
+          debugf("[gpSP]: RDP selftest mismatch tile%lu (%lu,%lu): "
+                 "got %04x want %04x\n",
+                 (unsigned long)k, (unsigned long)x, (unsigned long)y, got, want);
+      }
+
+  if (!bad)
+    debugf("[gpSP]: RDP selftest OK -- CI4 nibble order, 8-wide VRAM strip "
+           "addressing and TLUT all verified over %lu px\n",
+           (unsigned long)checked);
+  else
+    debugf("[gpSP]: RDP selftest FAILED: %lu of %lu px\n",
+           (unsigned long)bad, (unsigned long)checked);
+
+  surface_free(&target);
+}
+
 void n64_rdp_bench(void)
 {
   static u8 tilemem[8 * 8 / 2] __attribute__((aligned(16)));   /* 8x8 @ 4bpp */

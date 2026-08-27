@@ -224,6 +224,7 @@ int main(void)
    * command processor that is no longer there.  That conflict is a real
    * constraint on an RDP renderer, not just on this benchmark -- see
    * n64/n64_rdp_bench.c. */
+  { extern void n64_rdp_selftest(void); n64_rdp_selftest(); }
   { extern void n64_rdp_bench(void); n64_rdp_bench(); }
 #endif
 
