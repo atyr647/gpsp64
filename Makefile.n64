@@ -280,6 +280,7 @@ OBJS = main.o \
        n64/bios_hle.o \
        n64/m4a_hle.o \
        n64/n64_savestate.o \
+       n64/n64_rdp_bench.o \
        n64/aot_generated.o
 
 # Build rules

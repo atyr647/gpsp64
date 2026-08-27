@@ -225,6 +225,12 @@ int main(void)
     n64_rsp_selftest();
     { extern void n64_rsp_bench(void); n64_rsp_bench(); } }
 
+#ifdef N64_RDP_BENCH
+  /* Is an RDP background renderer affordable on the CPU side?  See
+   * n64/n64_rdp_bench.c. */
+  { extern void n64_rdp_bench(void); n64_rdp_bench(); }
+#endif
+
   /* Initialize sound */
   init_sound();
 
