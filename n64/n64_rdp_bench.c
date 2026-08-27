@@ -81,12 +81,23 @@ void n64_rdp_selftest(void)
   surface_t tex, target;
   u32 k, x, y, bad = 0, checked = 0;
 
-  /* index(x,y,k) = (x + y + k) & 15, packed GBA-style: low nibble left */
+  /* index(x,y,k) = (x + y + k) & 15, packed GBA-style: low nibble left.
+   *
+   * The RDP disagrees: it takes the HIGH nibble as the left pixel, so raw
+   * GBA tile bytes come out with every adjacent pair transposed.  Verified
+   * by running this test without the swap below -- all 256 pixels wrong,
+   * each one holding its neighbour's colour.
+   *
+   * So tiles cannot be handed to TMEM straight from VRAM after all; they
+   * need a nibble swap first.  That is much cheaper than it sounds and
+   * nothing like the copy that sank the RSP attempt: this is one pass per
+   * distinct *tile* per frame (~1,500 tiles, 48 KB, 3 ops a word), not a
+   * per-scanline gather of every layer-pixel. */
   for (k = 0; k < NTILES; k++)
     for (y = 0; y < 8; y++)
       for (x = 0; x < 8; x += 2) {
         u32 lo = (x + y + k) & 15, hi = (x + 1 + y + k) & 15;
-        strip[k * 32 + y * 4 + x / 2] = (u8)((hi << 4) | lo);
+        strip[k * 32 + y * 4 + x / 2] = (u8)((lo << 4) | hi);  /* swapped */
       }
   for (k = 0; k < 16; k++) tlut[k] = (u16)((k << 11) | (k << 6) | (k << 1) | 1);
 
@@ -105,6 +116,23 @@ void n64_rdp_selftest(void)
   for (k = 0; k < NTILES; k++)
     rdpq_texture_rectangle(TILE0, k * 8, 0, k * 8 + 8, 8, 0, k * 8);
   rdpq_detach_wait();
+
+  /* How much does that swap cost for a frame's worth of tiles?  1,500
+   * distinct tiles is 48 KB, transformed a word at a time. */
+  {
+    static u32 swapbuf[1500 * 8] __attribute__((aligned(16)));
+    u32 j, t0c, t1c, cyc;
+    t0c = RDPB_TICK();
+    for (j = 0; j < 1500 * 8; j++) {
+      u32 w = swapbuf[j];
+      swapbuf[j] = ((w & 0x0F0F0F0Fu) << 4) | ((w >> 4) & 0x0F0F0F0Fu);
+    }
+    t1c = RDPB_TICK();
+    cyc = (t1c - t0c) * 2;
+    debugf("[gpSP]:   nibble swap, 1500 tiles (48 KB): %lu cyc = %lu.%02lu ms\n",
+           (unsigned long)cyc, (unsigned long)(cyc / 93750),
+           (unsigned long)((cyc % 93750) * 100 / 93750));
+  }
 
   data_cache_hit_invalidate(target.buffer, target.stride * H);
 
