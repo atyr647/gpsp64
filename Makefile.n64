@@ -194,14 +194,6 @@ N64_OPT ?= -O2
 AOT_OPT ?=
 n64/aot_generated.o: CFLAGS += $(AOT_OPT)
 
-# The two hand-written AOT entry points are checked with inline compares
-# on every interpreted instruction and fire zero times in gameplay, in the
-# intro cutscene, and from a cold boot.  Dropping the compares measured
-# 69.0 -> 68.0 ms/f.  The auto-generated dispatch table is untouched and
-# is emphatically worth its cost: disabling it is 69.0 -> 75.0 ms/f,
-# because it covers 42% of the interpreted instruction stream.
-CFLAGS += -DAOT_NO_HANDWRITTEN
-
 # Same knob for the interpreter alone.  cpu.cc is one enormous switch per
 # instruction set, and a host-side PC profile (GPSP_PCPROF, see
 # native/ares_bench.sh) puts 33.6% of the frame inside execute_arm for
