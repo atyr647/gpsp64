@@ -91,12 +91,16 @@ void n64_rdpbg_build_tlut(const u16 *pal_converted)
   }
 }
 
+/* Deliberately does NOT acquire the framebuffer.  This runs at scanline
+ * 0, inside the PPU timer, and display_get() blocks until the VI releases
+ * a buffer -- so acquiring here charged a vsync wait to BG rendering and
+ * made the PPU look *more* expensive with 45% of its rows skipped.  The
+ * buffer is taken at flush time, at the end of the frame, exactly where
+ * the blit always took it. */
 int n64_rdpbg_begin(void)
 {
-  extern surface_t *n64_video_acquire(void);
   rdpbg_ndraws = 0;
-  rdpbg_disp = n64_video_acquire();
-  return rdpbg_disp != NULL;
+  return 1;
 }
 
 void n64_rdpbg_add(int x, int y, int y0, int y1, u32 vt, u32 pal, u32 flip)
@@ -120,11 +124,13 @@ static u16 rdpbg_order[RDPBG_MAX_DRAWS];
 
 void n64_rdpbg_flush(void)
 {
+  extern surface_t *n64_video_acquire(void);
   u32 i, n = rdpbg_ndraws, sum = 0;
   u32 cur_slice = 0xFFFF, cur_key = 0xFFFF;
 
-  if (!rdpbg_disp) return;
   if (!n) return;
+  rdpbg_disp = n64_video_acquire();
+  if (!rdpbg_disp) return;
 
   u32 _t0 = RDPBG_TICK();
   memset(rdpbg_count, 0, sizeof(rdpbg_count));
@@ -196,7 +202,10 @@ void n64_rdpbg_flush(void)
  * so the floor has to be laid first. */
 void n64_rdpbg_backdrop(int y0, int y1)
 {
-  if (!rdpbg_disp || y0 >= y1) return;
+  extern surface_t *n64_video_acquire(void);
+  if (y0 >= y1) return;
+  if (!rdpbg_disp) rdpbg_disp = n64_video_acquire();
+  if (!rdpbg_disp) return;
   if (!rdpbg_attached) { rdpq_attach(rdpbg_disp, NULL); rdpbg_attached = 1; }
   rdpq_set_mode_fill(color_from_packed16(rdpbg_tlut[0] | 1));
   rdpq_fill_rectangle(GBA_OFFSET_X, GBA_OFFSET_Y + y0, GBA_OFFSET_X + 240, GBA_OFFSET_Y + y1);

@@ -3008,34 +3008,72 @@ static int rdpbg_regs_match(void)
 
 /* The frame-wide gate, evaluated once at line 0.  Everything here is
  * either constant for the frame or verified per row afterwards. */
+/* Why a frame is refused, so a zero coverage number says which
+ * assumption was wrong rather than just that something was. */
+u32 prof_rdpbg_why[8];
+u32 prof_rdpbg_win[6];
+
+/* The layer-enable flags the CPU renderer will actually use for every
+ * pixel of the frame, or 0xFFFFFFFF if they are not uniform.
+ *
+ * WIN0 has priority over WIN1 and the OBJ window, so a WIN0 that covers
+ * the whole screen makes the others irrelevant.  The bounds tests mirror
+ * render_window_n_pass and in_window_y exactly rather than reasoning
+ * about GBA window semantics independently -- the point is to agree with
+ * the renderer being replaced, not with the hardware manual. */
+static u32 rdpbg_window_flags(u16 dispcnt)
+{
+  u32 wc = dispcnt >> 13;
+  if (!wc) return 0x3F;                        /* no window at all       */
+  if (wc & 1) {
+    u32 v = read_ioreg(REG_WIN0V), h = read_ioreg(REG_WIN0H);
+    u32 top = v >> 8, bot = v & 0xFF, l = h >> 8, r = h & 0xFF;
+    if (top <= 227 && bot > 227 && l < r && l == 0 && r >= 240)
+      return read_ioreg(REG_WININ) & 0x3F;     /* WIN0 covers the screen */
+  }
+  return 0xFFFFFFFFu;                          /* genuinely windowed     */
+}
+
 static void rdpbg_frame_begin(void)
 {
   u16 dispcnt = read_ioreg(REG_DISPCNT);
-  u32 y, p, i;
+  u32 y, p, i, eff;
 
   rdpbg_active = 0;
   memset(n64_rdp_row, 0, sizeof(n64_rdp_row));
 
-  if ((dispcnt & 0x07) != 0) return;            /* tiled mode 0 only     */
-  if (dispcnt & 0xE000) return;                 /* windows: not modelled */
-  if (((read_ioreg(REG_BLDCNT) >> 6) & 3) != 0) return;  /* colour effect */
-  if (!layer_count) return;
+  if ((dispcnt & 0x07) != 0) { prof_rdpbg_why[0]++; return; } /* not mode 0 */
+  /* Refusing every windowed frame threw away the whole overworld: Emerald
+   * runs it with WIN0 spanning the entire screen and WININ = 0x1F1F, so
+   * the "window" enables all five layers everywhere and its only real
+   * effect is to clear the effects bit.  What matters is not whether a
+   * window is on but whether it does anything, so ask for the enable
+   * flags the CPU renderer would end up using and carry on if they are
+   * uniform across the screen. */
+  eff = rdpbg_window_flags(dispcnt);
+  if (eff == 0xFFFFFFFFu)    { prof_rdpbg_why[1]++; return; } /* real window */
+  if ((eff & 0x20) && ((read_ioreg(REG_BLDCNT) >> 6) & 3) != 0)
+                             { prof_rdpbg_why[2]++; return; } /* colour fx  */
+  if (!layer_count || !(eff & 0x1F))
+                             { prof_rdpbg_why[3]++; return; }
 
   rdpbg_snap_n = 0;
   for (i = 0; i < layer_count; i++) {
     u32 layer = layer_order[i];
     u16 c;
     if (layer & 0x04) continue;                 /* OBJ handled per row   */
+    if (!((eff >> layer) & 1)) continue;        /* window hides it       */
     c = read_ioreg(REG_BGxCNT(layer));
-    if (c & 0x80) return;                                    /* 8bpp     */
-    if ((c & 0x40) && (read_ioreg(REG_MOSAIC) & 0xFF)) return; /* mosaic */
+    if (c & 0x80) { prof_rdpbg_why[4]++; return; }              /* 8bpp   */
+    if ((c & 0x40) && (read_ioreg(REG_MOSAIC) & 0xFF))
+                  { prof_rdpbg_why[5]++; return; }              /* mosaic */
     rdpbg_snap_layer[rdpbg_snap_n] = layer;
     rdpbg_snap[rdpbg_snap_n][0] = c;
     rdpbg_snap[rdpbg_snap_n][1] = read_ioreg(REG_BGxHOFS(layer));
     rdpbg_snap[rdpbg_snap_n][2] = read_ioreg(REG_BGxVOFS(layer));
     rdpbg_snap_n++;
   }
-  if (!rdpbg_snap_n) return;
+  if (!rdpbg_snap_n) { prof_rdpbg_why[6]++; return; }
 
   /* A row is the RDP's iff no sprite touches it.  order_obj() has
    * already filled this table for all 160 rows. */
@@ -3048,6 +3086,7 @@ static void rdpbg_frame_begin(void)
   if (!n64_rdpbg_begin()) return;
   n64_rdpbg_build_tlut(palette_ram_converted);
   rdpbg_active = 1;
+  prof_rdpbg_why[7]++;                          /* accepted */
 }
 
 /* Emit the whole visible BG for the rows the RDP owns.

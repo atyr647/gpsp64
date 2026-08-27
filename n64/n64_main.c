@@ -180,6 +180,34 @@ static void run_frame(void)
   }
 }
 
+/* A deliberate shift of every function that links after this one.
+ *
+ * The VR4300's 16 KB instruction cache is direct-mapped, so which lines
+ * of the interpreter collide with which lines of the renderer is decided
+ * purely by where the linker happened to put them.  This port has hit
+ * that before -- dropping 417 KB of dead text measured 1.4% SLOWER -- but
+ * it becomes a measurement problem the moment a change adds code: two
+ * builds of the same source, differing only in profiling counters, have
+ * measured 66 ms and 53 ms.  A change worth 5 ms cannot be read off a
+ * single run against a single baseline when layout alone is worth 13.
+ *
+ * -DN64_TEXT_PAD=<bytes> resamples the layout without changing behaviour,
+ * so a configuration can be measured two or three times and quoted with
+ * an honest range instead of a number that happens to be a lucky
+ * alignment.
+ */
+#define N64_STR2(x) #x
+#define N64_STR(x) N64_STR2(x)
+#ifdef N64_TEXT_PAD
+/* Called once at init so --gc-sections keeps it.  The filler assembles to
+ * zero words, which on MIPS is SLL $0,$0,0 -- nop -- so running through
+ * it is harmless. */
+__attribute__((noinline)) void n64_text_pad(void)
+{
+  __asm__ volatile(".space " N64_STR(N64_TEXT_PAD));
+}
+#endif
+
 int main(void)
 {
   /* Initialize N64 hardware subsystems via libdragon */
@@ -245,6 +273,10 @@ int main(void)
 #endif
 
 
+
+#ifdef N64_TEXT_PAD
+  { extern void n64_text_pad(void); n64_text_pad(); }
+#endif
 
   /* Initialize sound */
   init_sound();
@@ -504,6 +536,20 @@ int main(void)
                    (unsigned long)(n64_rdpbg_groups / g),
                    (unsigned long)prof_rdpbg_break,
                    (unsigned long)n64_rdpbg_overflow);
+            { extern u32 prof_rdpbg_why[8];
+              debugf("PROF:  rdpbg: refused frames: mode%lu window%lu fx%lu"
+                     " nolayer%lu 8bpp%lu mosaic%lu objonly%lu | accepted %lu\n",
+                     (unsigned long)prof_rdpbg_why[0], (unsigned long)prof_rdpbg_why[1],
+                     (unsigned long)prof_rdpbg_why[2], (unsigned long)prof_rdpbg_why[3],
+                     (unsigned long)prof_rdpbg_why[4], (unsigned long)prof_rdpbg_why[5],
+                     (unsigned long)prof_rdpbg_why[6], (unsigned long)prof_rdpbg_why[7]);
+              memset(prof_rdpbg_why, 0, sizeof(prof_rdpbg_why)); }
+            { extern u32 prof_rdpbg_win[6];
+              debugf("PROF:  rdpbg: window state: dispcnt%04lx win0h=%04lx"
+                     " win0v=%04lx win1h=%04lx winin=%04lx winout=%04lx\n",
+                     (unsigned long)prof_rdpbg_win[0], (unsigned long)prof_rdpbg_win[1],
+                     (unsigned long)prof_rdpbg_win[2], (unsigned long)prof_rdpbg_win[3],
+                     (unsigned long)prof_rdpbg_win[4], (unsigned long)prof_rdpbg_win[5]); }
             { extern u32 n64_rdpbg_t_sort, n64_rdpbg_t_emit, n64_rdpbg_t_wait;
               /* COUNT ticks at CPU/2, so x2 gives cycles; /93750 gives ms. */
               debugf("PROF:  rdpbg: per frame sort %lu.%02lu ms, emit %lu.%02lu ms,"
