@@ -478,6 +478,23 @@ int main(void)
             prof_raster_dirty_lines = prof_raster_frames = prof_raster_worst = 0; }
 #endif
 
+#ifdef N64_RDPGATE
+          {
+            extern u32 prof_gate_lines, prof_gate_pass, prof_gate_band;
+            extern u32 prof_gate_frames, prof_gate_wholeframe;
+            u32 gl = prof_gate_lines ? prof_gate_lines : 1;
+            u32 gf = prof_gate_frames ? prof_gate_frames : 1;
+            debugf("PROF:  rdpgate: %lu%% of lines are BG-only tiled "
+                   "(%lu of %lu); %lu%% sit in a stable 8-line tile band; "
+                   "%lu%% of frames are band-drawable end to end\n",
+                   (unsigned long)(prof_gate_pass * 100 / gl),
+                   (unsigned long)prof_gate_pass, (unsigned long)prof_gate_lines,
+                   (unsigned long)(prof_gate_band * 100 / gl),
+                   (unsigned long)(prof_gate_wholeframe * 100 / gf));
+            prof_gate_lines = prof_gate_pass = prof_gate_band = 0;
+            prof_gate_frames = prof_gate_wholeframe = 0;
+          }
+#endif
 #ifdef PROFILE_PPU2
           {
             extern u32 prof_ppu2_effect[4], prof_ppu2_mode[8];

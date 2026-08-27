@@ -2201,6 +2201,85 @@ static bool bgband_line(u32 start, u32 end, u16 *dst)
 }
 #endif  /* N64_BGBAND */
 
+#ifdef N64_RDPGATE
+/* An RDP background renderer draws whole 8x8 tiles, but gpSP rasterises
+ * one scanline at a time against whatever the BG registers hold at that
+ * moment.  A tile band is only drawable if the state is unchanged across
+ * all 8 of its lines -- and games do change scroll mid-frame, that is how
+ * the GBA does parallax and wavy water.
+ *
+ * So before designing anything, measure how much of a real frame is
+ * actually band-shaped.  Three numbers decide it:
+ *
+ *   - how many scanlines pass the BG-only gate at all (no OBJ, mode 0,
+ *     4bpp, no window, no colour effect);
+ *   - how many of those sit in a run of 8 gate-passing lines with
+ *     *identical* BG registers, aligned to the tile grid;
+ *   - and the same again allowing vofs to advance with the scanline,
+ *     which is the ordinary "no scroll change" case.
+ *
+ * If the second number is near the first, the renderer is a frame-level
+ * batch job.  If it collapses, the RDP can only ever draw fragments and
+ * the CPU renderer stays on the critical path regardless.
+ */
+u32 prof_gate_lines = 0, prof_gate_pass = 0, prof_gate_band = 0;
+u32 prof_gate_frames = 0, prof_gate_wholeframe = 0;
+
+typedef struct { u16 cnt, hofs, vofs; } gatest_t;
+static gatest_t gate_st[160][4];
+static u8       gate_ok[160];
+static u8       gate_nl[160];
+
+static void rdpgate_probe(u32 vcount)
+{
+  u32 l, ok = 1;
+  u16 dispcnt = read_ioreg(REG_DISPCNT);
+
+  if (vcount >= 160) return;
+  prof_gate_lines++;
+
+  if ((dispcnt & 0x07) != 0)              ok = 0;   /* tiled mode 0 only  */
+  if (dispcnt & 0xE000)                   ok = 0;   /* any window active  */
+  if (((read_ioreg(REG_BLDCNT) >> 6) & 3) != 0) ok = 0;  /* colour effect */
+  if (!layer_count)                       ok = 0;
+  for (l = 0; ok && l < layer_count; l++) {
+    u32 layer = layer_order[l];
+    if (layer & 0x04) ok = 0;                       /* OBJ present        */
+    else {
+      u16 c = read_ioreg(REG_BGxCNT(layer));
+      if (c & 0x80) ok = 0;                                     /* 8bpp   */
+      if ((c & 0x40) && (read_ioreg(REG_MOSAIC) & 0xFF)) ok = 0; /* mosaic */
+    }
+  }
+
+  gate_ok[vcount] = (u8)ok;
+  gate_nl[vcount] = (u8)layer_count;
+  for (l = 0; l < 4; l++) {
+    gate_st[vcount][l].cnt  = read_ioreg(REG_BGxCNT(l));
+    gate_st[vcount][l].hofs = read_ioreg(REG_BGxHOFS(l));
+    gate_st[vcount][l].vofs = read_ioreg(REG_BGxVOFS(l));
+  }
+  if (ok) prof_gate_pass++;
+
+  if (vcount == 159) {
+    u32 y, band, allband = 1;
+    prof_gate_frames++;
+    for (band = 0; band < 20; band++) {
+      u32 base = band * 8, good = 1;
+      for (y = base; good && y < base + 8; y++) {
+        if (!gate_ok[y] || gate_nl[y] != gate_nl[base]) good = 0;
+        else for (l = 0; l < 4; l++)
+          if (gate_st[y][l].cnt  != gate_st[base][l].cnt ||
+              gate_st[y][l].hofs != gate_st[base][l].hofs ||
+              gate_st[y][l].vofs != gate_st[base][l].vofs) { good = 0; break; }
+      }
+      if (good) prof_gate_band += 8; else allband = 0;
+    }
+    if (allband) prof_gate_wholeframe++;
+  }
+}
+#endif  /* N64_RDPGATE */
+
 // Renders all the available and enabled layers (in tiled mode).
 // Walks the list of layers in visibility order and renders them in the
 // specified mode (taking into consideration the first layer, etc).
@@ -2837,6 +2916,9 @@ void update_scanline(void)
   u32 _t1 = PROF_PPU_TICK();
 #endif
   order_layers((dispcnt >> 8) & active_layers[video_mode], vcount);
+#ifdef N64_RDPGATE
+  rdpgate_probe(vcount);
+#endif
 #if defined(N64) && defined(PROFILE_PPU)
   prof_ppu_layer_order_ticks += PROF_PPU_TICK() - _t1;
 #endif

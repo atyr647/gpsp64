@@ -73,6 +73,122 @@
  * Renders into a scratch surface and reads it back, so this reports a
  * verdict rather than needing someone to look at a screen.
  */
+/* Two mechanics the renderer's shape depends on, neither of them free to
+ * guess wrong about.
+ *
+ * (1) Flips.  1% of Emerald's tiles are flipped, but 38% of *scanlines*
+ *     contain at least one flipped tile, so a renderer that declines
+ *     flipped tiles falls back to the CPU for more than a third of the
+ *     screen and keeps most of the 27 ms.  Flips have to be drawn.
+ *
+ *     The obvious answer is the tile descriptor's mirror bit, but mirror
+ *     wraps on a power-of-2 mask, and masking t to 8 rows would fold the
+ *     whole VRAM strip back onto its first tile -- the strip addressing
+ *     and t-mirroring cannot coexist.  So test the cheaper mechanism
+ *     instead: a texture rectangle carries its own signed ds/dx and dt/dy,
+ *     so walking the texture backwards flips it with no descriptor change
+ *     at all, which means no extra TMEM, no extra descriptors, and no
+ *     batching constraint -- flipped tiles just draw inline.
+ *
+ * (2) Per-tile palette.  A GBA tile picks one of 16 sub-palettes.  If that
+ *     needs a TMEM reload the renderer is dead; if it is only a tile
+ *     descriptor field, several descriptors can share one uploaded strip
+ *     and draws batch by palette.  Test a second descriptor aimed at the
+ *     same TMEM address with a different palette number.
+ */
+static void rdp_selftest_pass2(void)
+{
+  enum { NTILES = 4, W = NTILES * 8, H = 32 };
+  static u8  strip[NTILES * 32] __attribute__((aligned(16)));
+  static u16 tlut[32]           __attribute__((aligned(16)));
+  surface_t tex, target;
+  u32 k, x, y, band, checked = 0;
+  u32 bad[4] = { 0, 0, 0, 0 };
+  static const char *bandname[4] = { "normal", "hflip", "vflip", "palette1" };
+
+  for (k = 0; k < NTILES; k++)
+    for (y = 0; y < 8; y++)
+      for (x = 0; x < 8; x += 2) {
+        u32 lo = (x + y + k) & 15, hi = (x + 1 + y + k) & 15;
+        strip[k * 32 + y * 4 + x / 2] = (u8)((lo << 4) | hi);
+      }
+  /* Two sub-palettes with no colour in common, so a draw that silently
+   * ignores the palette field cannot pass by luck. */
+  for (k = 0; k < 16; k++) {
+    tlut[k]      = (u16)((k << 11) | (k << 6) | (k << 1) | 1);
+    tlut[16 + k] = (u16)(((15 - k) << 11) | (k << 6) | ((15 - k) << 1) | 1);
+  }
+
+  tex    = surface_make_linear(strip, FMT_CI4, 8, NTILES * 8);
+  target = surface_alloc(FMT_RGBA16, W, H);
+  if (!target.buffer) { debugf("[gpSP]: RDP selftest2: no surface\n"); return; }
+
+  data_cache_hit_writeback_invalidate(strip, sizeof(strip));
+  data_cache_hit_writeback_invalidate(tlut, sizeof(tlut));
+
+  rdpq_attach_clear(&target, NULL);
+  rdpq_set_mode_standard();
+  rdpq_mode_tlut(TLUT_RGBA16);
+  rdpq_tex_upload_tlut(tlut, 0, 32);
+  rdpq_tex_upload(TILE0, &tex, NULL);
+
+  /* A second descriptor over the same 2 KB of TMEM, differing only in the
+   * palette field -- no reupload. */
+  {
+    rdpq_tileparms_t p = {0};
+    p.palette = 1;
+    rdpq_set_tile(TILE1, FMT_CI4, 0, 8, &p);
+    rdpq_set_tile_size(TILE1, 0, 0, 8, NTILES * 8);
+  }
+
+  for (k = 0; k < NTILES; k++) {
+    u32 x0 = k * 8, t = k * 8;
+    /* band 0: the plain draw, as a control in the same frame */
+    rdpq_texture_rectangle_raw(TILE0, x0, 0, x0 + 8, 8, 0, t, 1, 1);
+    /* band 1: horizontal flip -- start at the right texel, step back */
+    rdpq_texture_rectangle_raw(TILE0, x0, 8, x0 + 8, 16, 7, t, -1, 1);
+    /* band 2: vertical flip -- start at the tile's last row, step up */
+    rdpq_texture_rectangle_raw(TILE0, x0, 16, x0 + 8, 24, 0, t + 7, 1, -1);
+    /* band 3: same texels, second palette */
+    rdpq_texture_rectangle_raw(TILE1, x0, 24, x0 + 8, 32, 0, t, 1, 1);
+  }
+  rdpq_detach_wait();
+
+  data_cache_hit_invalidate(target.buffer, target.stride * H);
+
+  for (band = 0; band < 4; band++)
+    for (k = 0; k < NTILES; k++)
+      for (y = 0; y < 8; y++)
+        for (x = 0; x < 8; x++) {
+          u32 sx = (band == 1) ? 7 - x : x;
+          u32 sy = (band == 2) ? 7 - y : y;
+          u32 pal = (band == 3) ? 16 : 0;
+          u16 want = tlut[pal + ((sx + sy + k) & 15)];
+          u16 got  = ((u16 *)((u8 *)target.buffer
+                              + (band * 8 + y) * target.stride))[k * 8 + x];
+          checked++;
+          if (got != want) {
+            if (!bad[band])
+              debugf("[gpSP]: RDP %s mismatch tile%lu (%lu,%lu): "
+                     "got %04x want %04x\n", bandname[band],
+                     (unsigned long)k, (unsigned long)x, (unsigned long)y,
+                     got, want);
+            bad[band]++;
+          }
+        }
+
+  for (band = 0; band < 4; band++)
+    debugf("[gpSP]:   %-8s : %s (%lu/%lu px wrong)\n", bandname[band],
+           bad[band] ? "FAILED" : "ok",
+           (unsigned long)bad[band], (unsigned long)(checked / 4));
+
+  if (!bad[0] && !bad[1] && !bad[2] && !bad[3])
+    debugf("[gpSP]: RDP selftest2 OK -- signed ds/dt flips both axes with no "
+           "descriptor change, and one TMEM upload serves several palettes\n");
+
+  surface_free(&target);
+}
+
 void n64_rdp_selftest(void)
 {
   enum { NTILES = 4, W = NTILES * 8, H = 8 };
@@ -157,6 +273,8 @@ void n64_rdp_selftest(void)
            (unsigned long)bad, (unsigned long)checked);
 
   surface_free(&target);
+
+  rdp_selftest_pass2();
 }
 
 void n64_rdp_bench(void)
