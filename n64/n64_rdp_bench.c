@@ -98,6 +98,39 @@ void n64_rdp_bench(void)
   t1 = RDPB_TICK();
   cyc_upload = (t1 - t0) * 2;
 
+  /* (c) The number the design actually turns on.  Per-tile uploads cost
+   *     ~2200 cycles for 32 bytes, which is command overhead rather than
+   *     bandwidth -- so one bulk upload of many tiles should cost about
+   *     the same as one tile.  TMEM's texture half is 2 KB with a TLUT
+   *     resident, which is 64 4bpp tiles; if a whole atlas loads for the
+   *     price of one tile, the renderer uploads a few times per frame
+   *     instead of 1,600 times, and the 37 ms collapses. */
+  {
+    static u8 atlasmem[64 * 64 / 2] __attribute__((aligned(16)));  /* 2 KB */
+    surface_t atlas;
+    u32 j, t0a, t1a, cyc_atlas, cyc_single;
+    for (j = 0; j < sizeof(atlasmem); j++) atlasmem[j] = (u8)(j * 7 + 1);
+    atlas = surface_make_linear(atlasmem, FMT_CI4, 64, 64);
+
+    rdpq_tex_upload(TILE0, &atlas, NULL);          /* warm */
+    t0a = RDPB_TICK();
+    for (j = 0; j < 25; j++) rdpq_tex_upload(TILE0, &atlas, NULL);
+    t1a = RDPB_TICK();
+    cyc_atlas = ((t1a - t0a) * 2) / 25;
+
+    rdpq_tex_upload(TILE0, &tile, NULL);           /* warm */
+    t0a = RDPB_TICK();
+    for (j = 0; j < 25; j++) rdpq_tex_upload(TILE0, &tile, NULL);
+    t1a = RDPB_TICK();
+    cyc_single = ((t1a - t0a) * 2) / 25;
+
+    debugf("[gpSP]:   TMEM upload: 8x8 tile (32 B) %lu cyc, "
+           "64x64 atlas (2 KB, 64 tiles) %lu cyc\n",
+           (unsigned long)cyc_single, (unsigned long)cyc_atlas);
+    debugf("[gpSP]:   -> %lu cyc per tile via atlas vs %lu individually\n",
+           (unsigned long)(cyc_atlas / 64), (unsigned long)cyc_single);
+  }
+
   rdpq_detach_wait();
 
   debugf("[gpSP]: RDP bench, %d tiles (one GBA frame of BG):\n",
