@@ -438,6 +438,31 @@ def disasm_function(rom, md, pc):
                 seen_return = True
                 break
 
+        # Nothing falls through an unconditional transfer.  So if no
+        # branch points at what follows one, what follows is not code --
+        # it is a constant pool the compiler dropped inline mid-function.
+        # Resume at the next address something actually branches to.
+        #
+        # Walking into those pools dropped 19 functions here, among them
+        # the hottest one still interpreted in gameplay (0x08006B5C, pool
+        # at 0x08006C24: 020217F4 FFFFFF00 02020630, EWRAM addresses).
+        # The check has to happen here rather than where decoding fails,
+        # because a pool's leading words often decode as plausible junk
+        # -- 0x020217F4 disassembles quite happily -- so the error
+        # surfaces a word or two into the data, by which point the
+        # instruction stream is already wrong.
+        if (m in UNCOND_BRANCH or m == 'bx' or
+                (m == 'pop' and any(
+                    op.type == ARM_OP_REG and op.reg == ARM_REG_PC
+                    for op in ins.operands))):
+            cur_pc = ROM_BASE + cur
+            if cur_pc not in branch_targets:
+                nxt = min((t for t in branch_targets if t > cur_pc),
+                          default=None)
+                if nxt is not None and nxt - ROM_BASE < end:
+                    cur = nxt - ROM_BASE
+                    continue
+
     if not seen_return:
         return None, f"no terminator found within {MAX_FN_BYTES} bytes"
     return (insns, branch_targets), None
