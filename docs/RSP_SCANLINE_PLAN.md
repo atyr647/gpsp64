@@ -109,6 +109,64 @@ The 1.7 palette writes per frame in the overworld are the one hazard: a
 deferred palette pass would apply a late palette to earlier scanlines.
 Either snapshot the palette per band or detect the write and fall back.
 
+## VERDICT: measured dead.  Do not build this.
+
+The BG offload cannot pay, and the reason is structural rather than a
+matter of ucode quality.  Every number below is from ares on the
+overworld savestate; the offload's CPU half was built and verified
+pixel-exact first, so these measure the real thing.
+
+```
+  gpSP renderer (baseline)                          68.0 ms
+  BG rasterisation skipped entirely                 49.0 ms   -> BG = 19.0
+
+  offload floor, first attempt                      79.0 ms
+  offload floor, + band tile cache                  82.0 ms   WORSE
+  offload floor, + band cache + linear output       81.0 ms   <- the floor
+  offload complete (merge on CPU)                   94.0 ms
+```
+
+The floor is what the CPU still pays with a **free, instantaneous RSP**:
+81 ms against a 68 ms baseline.  The offload loses 13 ms before the RSP
+does anything at all.
+
+Why: gpSP's renderer fetches a tile byte, extracts the nibble, looks up
+the palette and stores, in one pass with the tile pointer live in a
+register.  Any offload must instead write tile bytes out to memory, read
+them back, and walk the result again for the palette.  Those two extra
+round-trips per pixel cost more than the entire fused rasterisation they
+were meant to accelerate, and the RSP never touches either of them.
+
+Both obvious repairs were tried and both failed:
+
+  * **Band tile cache** (fetch whole 32-byte tiles once per tile row
+    instead of a 4-byte row per scanline) made it *worse*, 79 -> 82 ms.
+    It removes fetch misses but adds a 32-byte copy per tile per row
+    while the per-scanline 4bpp packing remains -- a copy added, none
+    removed.  The VRAM reads were evidently already cheap enough that the
+    misses were not the cost.
+  * **Linear ucode output** instead of planar bought 1 ms of 14.  The
+    planar index arithmetic was not the cost either; the palette pass is
+    dominated by the per-pixel load, gather and store, which no layout
+    changes.
+
+Estimate history, worth reading before trusting a projection here: +25%
+predicted, floor predicted at 54 ms against an actual 79, then the two
+"corrections" above predicted to recover most of it and delivering -3 ms
+and +1 ms.  Four consecutive wrong estimates, every one of them about
+memory behaviour; the instruction-count predictions in the same exercise
+were all correct.
+
+What survives: `bgband_*` in video.cc, a pixel-exact reference
+implementation of gpSP's BG semantics (300K+ scanlines across three game
+states, 0 mismatches), including the discovery that the ucode writes
+`nibble | palette` for the base layer where gpSP wants the backdrop --
+resolvable in the palette pass with `(v & 0xF) ? pal[v] : pal[0]`.  It is
+compiled out by default and kept as documentation for any future attempt
+at a *different* design.  A design that keeps the fused per-pixel loop and
+moves it wholesale -- the RDP, say -- is not refuted by any of this; one
+that splits the loop into passes is.
+
 ## What the offload actually costs (measured, not modelled)
 
 Building the CPU half first and measuring each piece separately:
