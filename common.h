@@ -154,8 +154,20 @@ typedef u32 fixed8_24;
 
 #define eswap8(value)  (value)
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  /* __builtin_bswap16 inlines to three instructions on the VR4300, but
+   * __builtin_bswap32 does not: MIPS III has no byte-swap instruction and
+   * gcc emits a *call* to libgcc's __bswapsi2, stack frame and all.  A PC
+   * profile put 2.7% of the whole frame inside that function -- for a
+   * byte swap, on the path every 32-bit GBA memory access takes.
+   *
+   * Spelling it out as shifts gives nine inline instructions and no call,
+   * and gcc does not fold it back into the builtin. */
   #define eswap16(value) __builtin_bswap16(value)
-  #define eswap32(value) __builtin_bswap32(value)
+  static inline u32 gpsp_bswap32(u32 v) {
+    return ((v & 0x000000FFu) << 24) | ((v & 0x0000FF00u) << 8)
+         | ((v & 0x00FF0000u) >>  8) | ((v & 0xFF000000u) >> 24);
+  }
+  #define eswap32(value) gpsp_bswap32(value)
 #else
   #define eswap16(value) (value)
   #define eswap32(value) (value)
