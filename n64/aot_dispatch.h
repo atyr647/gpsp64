@@ -22,4 +22,15 @@ struct aot_page_ent {
  * path needs no compare.  Entries for pages without AOT code are zero. */
 extern const struct aot_page_ent aot_page_tab[8192];
 
+/* Fast reject: one bit per 4KB page, set if the page has AOT code.
+ *
+ * aot_page_tab is 64KB and is indexed by PC on every interpreted
+ * instruction; against an 8KB direct-mapped D-cache it cannot stay
+ * resident, and it measured 4.7% of all D-cache misses (cpu.cc:3373 and
+ * :3374 in the DMISSPC attribution).  Only ~14 of its 8192 entries are
+ * ever non-NULL, so the question asked on nearly every instruction --
+ * "is there any AOT code here?" -- is answered from 1KB that does stay
+ * resident, and the big table is touched only on a hit. */
+extern const u8 aot_page_bits[1024];
+
 #endif

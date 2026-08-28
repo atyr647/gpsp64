@@ -27,6 +27,29 @@ const u32 sound_frequency = GBA_SOUND_FREQUENCY;
 
 u32 sound_on;
 static s16 sound_buffer[BUFFER_SIZE];
+
+/* With audio output off, fold every access into the first 1KB.
+ *
+ * sound_buffer is 128KB and both the DirectSound mixer and the PSG
+ * synthesis stream writes across all of it, evicting the 8KB
+ * direct-mapped D-cache as they go -- measured at 6.3% of all D-cache
+ * misses across sound.c:64, :127 and :436.  When N64_AUDIO_OUT is off
+ * nothing ever reads those samples back, so the *contents* are dead
+ * weight while the *indices* still have to advance exactly as before:
+ * they drive the DirectSound FIFO, its DMA refills and the GBC channel
+ * state, all of which the game can observe.
+ *
+ * Masking the address and nothing else keeps every code path, every
+ * state update and every index identical, and collapses the footprint
+ * from 128KB to 1KB.  With audio on the mask is the real one and this is
+ * a no-op, since BUFFER_SIZE is a power of two and the indices are
+ * already reduced modulo it. */
+#if defined(N64) && !defined(N64_AUDIO_OUT)
+  #define SNDBUF_MASK 0x1FFu
+#else
+  #define SNDBUF_MASK BUFFER_SIZE_MASK
+#endif
+#define SNDBUF(i) sound_buffer[(i) & SNDBUF_MASK]
 static u32 sound_buffer_base;
 
 static fixed16_16 gbc_sound_tick_step;
@@ -96,7 +119,7 @@ unsigned sound_timer(fixed8_24 frequency_step, u32 channel)
            s16 dest_sample = current_sample +
               fp16_16_to_u32((next_sample - current_sample) * (fifo_fractional >> 8));
 
-           sound_buffer[buffer_index + 1]     += dest_sample;
+           SNDBUF(buffer_index + 1)     += dest_sample;
 
            fifo_fractional += frequency_step;
            buffer_index = (buffer_index + 2) % BUFFER_SIZE;
@@ -110,7 +133,7 @@ unsigned sound_timer(fixed8_24 frequency_step, u32 channel)
            s16 dest_sample = current_sample +
               fp16_16_to_u32((next_sample - current_sample) * (fifo_fractional >> 8));
 
-           sound_buffer[buffer_index]     += dest_sample;
+           SNDBUF(buffer_index)     += dest_sample;
 
            fifo_fractional += frequency_step;
            buffer_index = (buffer_index + 2) % BUFFER_SIZE;
@@ -124,8 +147,8 @@ unsigned sound_timer(fixed8_24 frequency_step, u32 channel)
            s16 dest_sample = current_sample +
               fp16_16_to_u32((next_sample - current_sample) * (fifo_fractional >> 8));
 
-           sound_buffer[buffer_index]     += dest_sample;
-           sound_buffer[buffer_index + 1] += dest_sample;
+           SNDBUF(buffer_index)     += dest_sample;
+           SNDBUF(buffer_index + 1) += dest_sample;
            fifo_fractional += frequency_step;
            buffer_index = (buffer_index + 2) % BUFFER_SIZE;
         }
@@ -316,10 +339,10 @@ u32 gbc_sound_master_volume;
   }                                                                           \
 
 #define gbc_sound_render_sample_right()                                       \
-  sound_buffer[buffer_index + 1] += (current_sample * volume_right) >> 22     \
+  SNDBUF(buffer_index + 1) += (current_sample * volume_right) >> 22     \
 
 #define gbc_sound_render_sample_left()                                        \
-  sound_buffer[buffer_index] += (current_sample * volume_left) >> 22          \
+  SNDBUF(buffer_index) += (current_sample * volume_left) >> 22          \
 
 #define gbc_sound_render_sample_both()                                        \
   gbc_sound_render_sample_right();                                            \
@@ -811,9 +834,9 @@ u32 sound_read_samples(s16 *out, u32 frames)
    for(i = 0; i < samples_to_read; i++)
    {
       u32 source_index   = (sound_buffer_base + i) & BUFFER_SIZE_MASK;
-      s32 current_sample = sound_buffer[source_index];
+      s32 current_sample = SNDBUF(source_index);
 
-      sound_buffer[source_index] = 0;
+      SNDBUF(source_index) = 0;
 
       if(current_sample > 2047)
          current_sample = 2047;

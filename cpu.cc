@@ -3368,6 +3368,21 @@ thumb_loop:
            }
          }
 #else
+         /* TRIED AND REVERTED: a 1KB bitmap fast-reject in front of this
+          * table.  The reasoning was sound -- aot_page_tab is 64KB,
+          * indexed by PC on every interpreted instruction, and measured
+          * 4.7% of all D-cache misses, while one bit per page answers the
+          * same question out of 1KB.  It measured 35.5 -> 38.0 ms and
+          * *raised* D-cache misses by 44%, with the bitmap load itself
+          * becoming the single worst miss site in the build: 834K against
+          * the 152K for the two loads it replaced.
+          *
+          * On a direct-mapped cache a small hot array is only cheap if
+          * its lines do not collide with something hotter, and .rodata
+          * here is already crowded -- the interpreter's jump tables were
+          * a top miss source before this was added.  Concentrating an
+          * access into a smaller region can make it collide harder, not
+          * less.  Size is not the variable; index conflict is. */
          const struct aot_page_ent *_pg =
              &aot_page_tab[(reg[REG_PC] >> 12) & 0x1FFF];
          if (__builtin_expect(_pg->slots != NULL, 0)) {

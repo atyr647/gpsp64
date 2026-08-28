@@ -324,6 +324,25 @@ def emit_dispatch(out, entry_to_func):
         out.write(f'    [0x{pidx:04X}] = {{ aot_fns_{pidx:04X}, aot_slots_{pidx:04X} }},\n')
     out.write('};\n')
 
+    # 1KB bitmap fast-reject.  Measured: the 64KB page table above was 4.7%
+    # of all D-cache misses, because it is indexed by PC on every
+    # interpreted instruction and 64KB against an 8KB direct-mapped cache
+    # cannot stay resident.  Only ~14 of its 8192 entries are ever
+    # non-NULL, so one bit per page answers the common question -- "is
+    # there any AOT code on this page?" -- out of 1KB that does stay
+    # resident, and the big table is touched only on a hit.
+    out.write('\n/* One bit per 4KB page: set if the page has AOT code.  1KB, so it\n'
+              ' * stays in the 8KB D-cache; the 64KB table above does not, and\n'
+              ' * was 4.7% of all D-cache misses when consulted per instruction. */\n')
+    bitmap = bytearray(1024)
+    for pidx, _ in pages.items():
+        bitmap[pidx >> 3] |= 1 << (pidx & 7)
+    out.write('const u8 aot_page_bits[1024] = {\n')
+    for i in range(0, 1024, 16):
+        row = ', '.join(f'0x{b:02X}' for b in bitmap[i:i+16])
+        out.write(f'    {row},\n')
+    out.write('};\n')
+
     out.write('\n/* Out-of-line dispatch: returns 1 if PC matched and ran AOT, 0\n'
               ' * otherwise.  On a match, *cycles_used is set to the actual number\n'
               ' * of GBA cycles the translated function consumed (accumulated per\n'
