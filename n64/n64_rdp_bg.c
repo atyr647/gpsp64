@@ -54,14 +54,28 @@ static int rdpbg_attached = 0;
  * not a multiple of 8 pulls in a partial tile on each edge, so the
  * visible grid is 31x21 = 651 per layer and ~1600 for a typical frame. */
 #define RDPBG_MAX_DRAWS 2600
+/* 8 bytes, packed.
+ *
+ * This list is written once and read back through an index gather, so
+ * its size is memory traffic twice over -- 1,217 draws a frame, and the
+ * gather is random over the whole array.  It showed up in the D-cache
+ * attribution at 7% of all misses.
+ *
+ * The sort key does not need storing: it is (slice << 4) | palette and
+ * the slice is just vt >> 5, so it is two shifts from fields already
+ * here.  y0/y1 are 0..8 and palette is 0..15, so they pack into a nibble
+ * each.  12 bytes -> 8. */
 typedef struct {
   s16 x, y;        /* screen position of the tile's top-left corner */
-  u8  y0, y1;      /* rows [y0,y1) of the tile to actually draw      */
-  u16 key;         /* (slice << 4) | palette -- the sort key         */
-  u16 vt;          /* absolute VRAM tile number                      */
-  u8  flip;        /* bit0 = h, bit1 = v                             */
-  u8  pad;
+  u8  yy;          /* y0 | (y1 << 4): rows [y0,y1) of the tile to draw */
+  u8  pf;          /* palette | (flip << 4); flip bit0 = h, bit1 = v */
+  u16 vt;          /* absolute VRAM tile number */
 } rdpbg_draw_t;
+
+#define RDPBG_KEY(d)  ((u16)((((d)->vt >> 5) << 4) | ((d)->pf & 15)))
+#define RDPBG_Y0(d)   ((d)->yy & 15)
+#define RDPBG_Y1(d)   ((d)->yy >> 4)
+#define RDPBG_FLIP(d) ((d)->pf >> 4)
 
 static rdpbg_draw_t rdpbg_draws[RDPBG_MAX_DRAWS];
 static u32 rdpbg_ndraws = 0;
@@ -186,10 +200,9 @@ void n64_rdpbg_add(int x, int y, int y0, int y1, u32 vt, u32 pal, u32 flip)
   if (rdpbg_ndraws >= RDPBG_MAX_DRAWS) { n64_rdpbg_overflow++; return; }
   d = &rdpbg_draws[rdpbg_ndraws++];
   d->x = (s16)x; d->y = (s16)y;
-  d->y0 = (u8)y0; d->y1 = (u8)y1;
+  d->yy = (u8)(y0 | (y1 << 4));
+  d->pf = (u8)(pal | (flip << 4));
   d->vt = (u16)vt;
-  d->flip = (u8)flip;
-  d->key = (u16)(((vt >> 5) << 4) | pal);   /* slice 0..95, palette 0..15 */
 }
 
 /* Counting sort by (slice, palette).  1024 buckets is 2 KB of counters,
@@ -237,7 +250,7 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
     u32 nk = 0, k, j;
     u16 keys[RDPBG_MAX_KEYS];
     for (i = 0; i < n; i++) {
-      k = rdpbg_draws[i].key;
+      k = RDPBG_KEY(&rdpbg_draws[i]);
       if (!rdpbg_count[k]) {
         if (nk >= RDPBG_MAX_KEYS) { sortable = 0; break; }
         keys[nk++] = (u16)k;
@@ -255,7 +268,8 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
         rdpbg_count[keys[i]] = (u16)sum;
         sum += c;
       }
-      for (i = 0; i < n; i++) rdpbg_order[rdpbg_count[rdpbg_draws[i].key]++] = (u16)i;
+      for (i = 0; i < n; i++)
+        rdpbg_order[rdpbg_count[RDPBG_KEY(&rdpbg_draws[i])]++] = (u16)i;
       for (i = 0; i < nk; i++) rdpbg_count[keys[i]] = 0;
     } else {
       for (i = 0; i < nk; i++) rdpbg_count[keys[i]] = 0;
@@ -282,7 +296,9 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
 
   for (i = 0; i < n; i++) {
     const rdpbg_draw_t *d = &rdpbg_draws[rdpbg_order[i]];
-    u32 slice = d->key >> 4;
+    u32 key = RDPBG_KEY(d), y0f = RDPBG_Y0(d), y1f = RDPBG_Y1(d);
+    u32 flip = RDPBG_FLIP(d);
+    u32 slice = key >> 4;
     int x0, y0, x1, y1, s0, t0, dsdx, dtdy;
 
     if (slice != cur_slice) {
@@ -293,13 +309,13 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
       cur_slice = slice; cur_key = 0xFFFF;
       n64_rdpbg_slices++;
     }
-    if (d->key != cur_key) {
+    if (key != cur_key) {
       rdpq_tileparms_t p = {0};
-      p.palette = (u8)(d->key & 15);
+      p.palette = (u8)(key & 15);
       RDPBG_SUBMIT();
       rdpq_set_tile(TILE0, FMT_CI4, 0, 8, &p);
       rdpq_set_tile_size(TILE0, 0, 0, 8, 256);
-      cur_key = d->key;
+      cur_key = key;
       n64_rdpbg_groups++;
     }
 
@@ -308,12 +324,12 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
      * clip against the 240-pixel screen the same way, since a scrolled
      * layer's first and last tiles hang off the edges. */
     x0 = d->x; x1 = d->x + 8;
-    y0 = d->y + d->y0; y1 = d->y + d->y1;
-    s0 = 0; t0 = (int)((d->vt & 31) * 8) + d->y0;
+    y0 = d->y + (int)y0f; y1 = d->y + (int)y1f;
+    s0 = 0; t0 = (int)((d->vt & 31) * 8) + (int)y0f;
     dsdx = 1; dtdy = 1;
 
-    if (d->flip & 1) { s0 = 7; dsdx = -1; }
-    if (d->flip & 2) { t0 = (int)((d->vt & 31) * 8) + (7 - d->y0); dtdy = -1; }
+    if (flip & 1) { s0 = 7; dsdx = -1; }
+    if (flip & 2) { t0 = (int)((d->vt & 31) * 8) + (7 - (int)y0f); dtdy = -1; }
 
     if (x0 < 0)   { if (dsdx > 0) s0 -= x0; else s0 += x0; x0 = 0; }
     if (x1 > 240) x1 = 240;

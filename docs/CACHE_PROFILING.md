@@ -209,6 +209,44 @@ locally sound can land anywhere in that range.
 The practical consequence: sweep, do not deduce. And quote means over
 several layouts, never a single run.
 
+## The PC profile is not a to-do list
+
+A related trap, and the more expensive one. The direct PC profile says
+`execute_arm` is 42% of the frame, `update_gba` 13%, `update_scanline`
+6%. Every attempt to act on those numbers by removing work from the named
+function has measured neutral:
+
+| change | work removed | result |
+| --- | --- | --- |
+| expand AOT coverage | 25% of interpreted instructions | neutral |
+| merge HBlank events | 228 of 672 timeslice yields | neutral |
+| delete the cheat-hook compare | 5.6% of `execute_arm` samples | neutral |
+| idle-detector fast path | a compare per instruction | neutral |
+| skip `order_layers` on RDP rows | 160 sorts per frame | neutral |
+| BG-register dirty flag | ~1,900 ioreg reads per frame | neutral |
+| 8-byte draw record | 5 KB per frame of list traffic | neutral |
+
+Seven in a row. The reason is that a third of the frame is cache stalls,
+and **a sample lands on the instruction that stalls, not on the code that
+caused the stall to be expensive**. `execute_arm` is 42% of samples
+because it is where the CPU is standing when the memory system makes it
+wait; the waiting is caused by the working set as a whole. Deleting
+instructions from the function does not shrink the working set.
+
+What has actually worked, every time, is removing **tens of kilobytes per
+frame of memory traffic**, or changing code layout materially:
+
+| change | traffic removed | result |
+| --- | --- | --- |
+| BG and sprites to the RDP | ~96,000 layer-pixel writes/frame | -19 ms |
+| `-O3` on cpu.cc, `-Os` on the AOT | I-cache footprint | -6.5 ms |
+| `rdpq_exec` | 44,000 uncached accesses/frame | -1 ms |
+| fold `sound_buffer` to 1 KB | ~128 KB/frame of dead writes | -0.5 ms |
+
+The threshold is real: 5 KB a frame is 0.2 ms, which is under the noise
+floor. So the question to ask of a proposed change is not "does this run
+fewer instructions" but "does this move less memory, by tens of KB".
+
 ## Reading the counters from inside the ROM
 
 `n64/emux_prof.h` reads the same counters through ares's `emux`
