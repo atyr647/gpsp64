@@ -145,6 +145,24 @@ CFLAGS += $(N64_M4A)
 #     JIT frame takes.  The real fix is -G0 (no gp-relative code, needs
 #     libdragon rebuilt) or freeing $gp in the register allocator.
 #
+# RESOLVED -- do not re-attempt.  The note below was acted on: commit
+# 5f129fe restored the patcher with the cache maintenance the original
+# lacked, and 2fba215 reverted it again because it measured 1.9x SLOWER
+# (dynarec without patcher ~20.5 N64 cycles per GBA cycle, with it ~39.4,
+# eight consecutive readings within 0.5%).  The reasoning below was
+# correct -- the patcher really was innocent of the 0x04fffed8 crash --
+# and restoring it still lost, most likely because the patch does not
+# stick: gpSP patches the JAL to a region-specific handler, so ordinary
+# pointer-chasing code lands on the wrong one, returns to the dispatcher
+# and is re-patched.  See the long note at mips/mips_emit.h:2779.
+#
+# Note also from those measurements: the interpreter runs at ~7.9 N64
+# cycles per GBA cycle and the dynarec at ~20.5, so the dynarec is
+# currently 2.6x SLOWER than the interpreter it would replace.  Full
+# speed is 5.56 (93.75 MHz host / 16.78 MHz GBA), so the interpreter is
+# within 42% of real-time and the dynarec is nowhere near.
+#
+# Original note, kept because the diagnosis in it is still right:
 # Known standing cost, worth revisiting: commit bd2f569 disabled gpSP's
 # memory-access JAL patcher on N64 ("Completely disable patcher sw").
 # Normally a GBA load/store goes through a region dispatcher once and then
@@ -222,20 +240,41 @@ n64/aot_generated.o: CFLAGS += $(AOT_OPT)
 #   (-O3)         61.0 ms/f   execute_arm 79,076 bytes
 #   CPU_OPT=-O1   62.0 ms/f
 #
-# Note what that ordering is NOT.  The obvious story -- 79 KB of dispatch
-# against a 16 KB direct-mapped I-cache -- predicts -Os wins, and it does
-# not: -Os is the smallest build and the second slowest.  Spills per
-# instruction are also lowest at -Os (4.6% vs 5.0% at -O2 vs 5.5% at -O3)
-# and the stack frame is the same size at -O2 and -O3, so neither code
-# size nor register pressure predicts the result either.  ares's I-cache
-# counters report nothing because it recompiles and never runs the
-# accounting path.  The measurement is solid and repeatable (five ms/f
-# apart in every one of six windows); the mechanism is not established.
-# Do not "fix" this by reasoning about it -- measure.
+# MECHANISM, now established.  The claim above that "ares's I-cache
+# counters report nothing because it recompiles" is wrong: ares models
+# both caches fully -- 16 KB direct-mapped I-cache, 8 KB direct-mapped
+# D-cache, 16-byte lines, 48 cycles to fill an I-line and 40+40 for a
+# dirty D-line -- and charges those cycles in the recompiled path too.
+# Only the *hit* counter is gated on homebrew mode.  It also prints a
+# D-cache miss histogram and per-PC attribution on stderr for every run,
+# needing nothing from the ROM (see docs/CACHE_PROFILING.md).
 #
-# CPU_OPT builds just that file at a different level; empty means it
-# follows N64_OPT.
-CPU_OPT ?=
+# Measured on the overworld at 37 ms/frame: ~9,550 D-cache misses per
+# frame, about 5.7 ms, with I-cache fills on top.  A third of the frame
+# is cache-miss stalls.  That is why the interpreter costs ~200 cycles
+# per interpreted instruction where scalar work alone predicts 20-40, and
+# why four separate attempts to remove work from that loop -- expanding
+# AOT coverage, merging HBlank events, deleting the cheat-hook compare,
+# giving the idle detector a fast path -- all measured neutral.  The cost
+# is not in the instruction stream.
+#
+# The -Os result is still not fully explained, but it no longer needs a
+# special theory: at these miss rates, layout decides the outcome and
+# code size does not.
+#
+# RE-MEASURED after backgrounds and sprites moved to the RDP, and the
+# ordering INVERTED.  Four link layouts each, same tree:
+#
+#   CPU_OPT=-O3   34 / 35 / 38 / 39 ms   mean 36.5
+#   CPU_OPT=-O2   37 / 37 / 39 / 51 ms   mean 41.0
+#
+# -O3 wins on min, median, mean and max.  The old ordering was measured
+# while the CPU still rasterised the backgrounds -- a 1,019-instruction
+# hot loop competing for the same 16 KB direct-mapped I-cache on every
+# scanline.  With that gone the interpreter has the cache mostly to
+# itself and can afford the bigger code.  So -O3 is the default here now,
+# while N64_OPT stays at -O2 for everything else (not re-tested).
+CPU_OPT ?= -O3
 cpu.o: CXXFLAGS += $(CPU_OPT)
 
 # The two hand-written AOT entry points (0x0806F160, 0x08005ED8) cost an
