@@ -26,14 +26,47 @@ layouts (see *Measuring* below for why that matters):
 
 | build | frame | fps |
 | --- | --- | --- |
-| CPU renderer (baseline) | 58.0 ms | 17.24 |
-| RDP, backgrounds only | 54.25 ms | 18.44 |
-| RDP, + sprites | 46.7 ms | 21.41 |
-| RDP, + correct frame boundary | 41.7 ms | 23.98 |
-| RDP, + blank-tile skip | 41.3 ms | 24.20 |
+| CPU renderer (baseline) | 60.2 ms | 16.61 |
+| RDP renderer | 41.2 ms | 24.27 |
+
+**-31.6% frame time, +46% fps**, from five link layouts each on the same
+tree.  The two distributions have the same shape -- 56/57/59/61/68
+against 37/37/39/42/51 -- so the means are comparable; medians give
+59 -> 39 ms, +51%.
+
+Getting there, each step measured over three or four layouts:
+
+| step | frame | fps |
+| --- | --- | --- |
+| CPU renderer | 58.0 ms | 17.24 |
+| RDP, backgrounds only (45% of rows) | 54.25 ms | 18.44 |
+| + sprites (100% of rows) | 46.7 ms | 21.41 |
+| + correct frame boundary | 41.7 ms | 23.98 |
+| + blank-tile skip | 41.3 ms | 24.20 |
+| + sort only the live keys | 38.7 ms | 25.86 |
 
 PPU time falls from 48% of emulated time to 5%.  100% of scanlines are
 drawn by the RDP on this workload.
+
+## Where the frame goes now
+
+Measured directly, by sampling the emulated PC (`native/ares_pcprof.sh`)
+rather than by deriving it from counters:
+
+| | share |
+| --- | --- |
+| `execute_arm` (the interpreter loop) | 43.8% |
+| `update_gba` (the event engine) | 12.1% |
+| this renderer, across its five functions | ~16% |
+| `update_scanline` | 5.6% |
+| `render_gbc_sound` | 3.1% |
+| `bios_hle_swi` | 2.4% |
+| `sound_timer` | 2.3% |
+
+The emulator core is 56% of the frame and does not respond to having
+work removed from it -- see *What the emulation half is not* below.  The
+renderer's own 16% is 1,217 textured rectangles a frame plus the tilemap
+and OAM walk that produces them.
 
 ## The five things that had to be true
 
@@ -150,6 +183,43 @@ by drawing the wrong thing, or nothing.  `native/ares_shot.sh <label>
 it takes six captures and keeps the one with the most distinct colours,
 because at 24 fps against a 60 Hz refresh most captures catch the
 framebuffer mid-write.
+
+## What the emulation half is not
+
+Four separate attempts to make the other 56% cheaper all measured
+neutral, and together they say something useful about the shape of the
+problem.
+
+**Not interpreted instructions.** Adding the largest remaining
+contiguous run of hot ROM pages to the AOT cut interpreted instructions
+by exactly the predicted 25% (426K -> 320K per window) and moved the
+frame time not at all, for 790 KB of extra `.text`.
+
+**Not timeslice transitions.** The emulator leaves the interpreter 672
+times a frame.  The HBlank half of each scanline exists as a scheduling
+point only so an HBlank IRQ or DMA can fire at the right cycle, and
+neither is ever armed on this workload -- so merging the two halves
+removed 228 of those 672 yields.  No change.
+(`-DN64_MERGE_HBLANK`, off by default: it trades away HBlank
+observability for nothing.)
+
+**Not the per-instruction checks.** A line-level profile of
+`execute_arm` shows ~60% of it is bookkeeping rather than instruction
+execution -- the idle-page guard, the runtime idle detector,
+`check_pc_region`, the cheat-hook compare, the AOT page lookup, the alert
+check -- with the 256-way dispatch switch itself at 6%.  Deleting the
+cheat-hook compare (`-DN64_NO_CHEATS`, 5.6% of samples, can never match
+in this port) and giving the idle detector a sequential fast path
+(`-DN64_FAST_IDLE_DETECT`) both measured slightly worse.
+
+**Not the audio.** The m4a mixer does not appear in the profile at all,
+which retires an old suspicion: the native substitution in
+`n64/m4a_hle.c` really did make it free.  Skipping gpSP's own
+DirectSound interpolation while audio output is off -- 128 KB of ring
+buffer a frame that nothing reads -- also measured neutral.
+
+What is left is memory behaviour, and the direct profile has no more
+resolution to offer on it.
 
 **ares does not model uncached store stalls either.** It models D-cache
 misses -- which is why every cache experiment in this port has read true
