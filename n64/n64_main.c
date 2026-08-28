@@ -431,15 +431,19 @@ int main(void)
             u32 interp     = prof_emu > accounted ? prof_emu - accounted : 0;
             u32 e = prof_emu ? prof_emu : 1;
             debugf("PROF:  cyc: interp %lu%% aot %lu%% event %lu%% ppu %lu%%"
-                   " snd %lu%% | yields/frame %lu | aot-calls %lu gba-cyc %luK\n",
+                   " snd %lu%% | yields/frame %lu | aot-calls/f %lu gba-cyc/f %luK\n",
                    (unsigned long)((u64)interp       * 100 / e),
                    (unsigned long)((u64)prof_aot_ticks * 100 / e),
                    (unsigned long)((u64)upd_ex_ppu   * 100 / e),
                    (unsigned long)((u64)prof_ppu_ticks * 100 / e),
                    (unsigned long)((u64)prof_snd_ticks * 100 / e),
                    (unsigned long)(prof_update_calls / PROF_FRAMES),
-                   (unsigned long)prof_aot_hits,
-                   (unsigned long)(prof_aot_gba_cycles / 1000));
+                   (unsigned long)(prof_aot_hits / PROF_FRAMES),
+                   (unsigned long)(prof_aot_gba_cycles / PROF_FRAMES / 1000));
+            /* These two were never reset, so "aot-calls" was a running
+             * total since boot and every per-call figure derived from it
+             * was meaningless. */
+            prof_aot_hits = prof_aot_gba_cycles = 0;
             prof_update_ticks = prof_update_calls = prof_aot_ticks = 0;
             prof_snd_ticks = 0;
           }
@@ -518,6 +522,16 @@ int main(void)
             prof_raster_dirty_lines = prof_raster_frames = prof_raster_worst = 0; }
 #endif
 
+#ifdef N64_VIDEO_PROBE
+          { extern u32 prof_hb_irq, prof_hb_dma, prof_hb_calls;
+            u32 c = prof_hb_calls ? prof_hb_calls : 1;
+            debugf("PROF:  video: %lu update_gba calls, hblank IRQ armed %lu%%,"
+                   " hblank DMA armed %lu%%\n",
+                   (unsigned long)(prof_hb_calls / PROF_FRAMES),
+                   (unsigned long)(prof_hb_irq * 100 / c),
+                   (unsigned long)(prof_hb_dma * 100 / c));
+            prof_hb_irq = prof_hb_dma = prof_hb_calls = 0; }
+#endif
 #ifdef N64_RDP_BG
           {
             extern u32 prof_rdpbg_rows, prof_rdpbg_frames, prof_rdpbg_break;
@@ -729,15 +743,18 @@ int main(void)
             typedef struct { u32 pc; u32 count; } bl_target_t;
             extern bl_target_t prof_bl_targets[];
 
-            /* Top-5 hot pages */
-            u32 pg_idx[5] = {0};
-            u32 pg_cnt[5] = {0};
+            /* Top-5 hot pages, plus a wider list below.  Five was enough
+             * to pick the first AOT targets; choosing the next tranche
+             * needs to see where the tail actually is. */
+            #define PROF_PG_N 20
+            u32 pg_idx[PROF_PG_N] = {0};
+            u32 pg_cnt[PROF_PG_N] = {0};
             for (u32 i = 0; i < 6144; i++) {
               u32 c = prof_page_hist[i];
               if (c == 0) continue;
-              for (u32 j = 0; j < 5; j++) {
+              for (u32 j = 0; j < PROF_PG_N; j++) {
                 if (c > pg_cnt[j]) {
-                  for (u32 k = 4; k > j; k--) {
+                  for (u32 k = PROF_PG_N - 1; k > j; k--) {
                     pg_cnt[k] = pg_cnt[k-1];
                     pg_idx[k] = pg_idx[k-1];
                   }
@@ -763,6 +780,55 @@ int main(void)
                    (unsigned long)((pg_idx[2]+0x8000)*0x1000), (unsigned long)((pg_cnt[2]*100)/ti),
                    (unsigned long)((pg_idx[3]+0x8000)*0x1000), (unsigned long)((pg_cnt[3]*100)/ti),
                    (unsigned long)((pg_idx[4]+0x8000)*0x1000), (unsigned long)((pg_cnt[4]*100)/ti));
+
+            /* The whole ranked list, in a form tools/suggest_targets.py
+             * can read: page address, then share of interpreted
+             * instructions in tenths of a percent. */
+            for (u32 j = 0; j < PROF_PG_N; j += 5)
+              debugf("PROF:  aot-pgN %lu: 0x%05lx:%lu 0x%05lx:%lu 0x%05lx:%lu"
+                     " 0x%05lx:%lu 0x%05lx:%lu\n", (unsigned long)j,
+                     (unsigned long)((pg_idx[j+0]+0x8000)*0x1000), (unsigned long)((pg_cnt[j+0]*1000)/ti),
+                     (unsigned long)((pg_idx[j+1]+0x8000)*0x1000), (unsigned long)((pg_cnt[j+1]*1000)/ti),
+                     (unsigned long)((pg_idx[j+2]+0x8000)*0x1000), (unsigned long)((pg_cnt[j+2]*1000)/ti),
+                     (unsigned long)((pg_idx[j+3]+0x8000)*0x1000), (unsigned long)((pg_cnt[j+3]*1000)/ti),
+                     (unsigned long)((pg_idx[j+4]+0x8000)*0x1000), (unsigned long)((pg_cnt[j+4]*1000)/ti));
+
+            /* Instruction-level view of one page.
+             *
+             * Page 0x08000000 is 33.7% of all interpreted instructions --
+             * more than the next six pages together -- and it is the one
+             * page that must never be AOT-translated, because an AOT
+             * function whose internal loop covers idle_loop_target_pc
+             * (0x080008CE) never returns to the interpreter and the
+             * idle-skip fast path can never fire.  So the question is
+             * what *else* is on it, and whether that can be reached
+             * another way.  -DN64_PCHIST_PAGE=0x8000 answers it. */
+#ifdef N64_PCHIST_PAGE
+            { extern u32 prof_pc_hist[], prof_pc_hist_page;
+              u32 hi[8] = {0}, hc[8] = {0}, i2, j2, k2;
+              prof_pc_hist_page = N64_PCHIST_PAGE;
+              for (i2 = 0; i2 < 2048; i2++) {
+                u32 c = prof_pc_hist[i2];
+                if (!c) continue;
+                for (j2 = 0; j2 < 8; j2++)
+                  if (c > hc[j2]) {
+                    for (k2 = 7; k2 > j2; k2--) { hc[k2] = hc[k2-1]; hi[k2] = hi[k2-1]; }
+                    hc[j2] = c; hi[j2] = i2; break;
+                  }
+              }
+              debugf("PROF:  pc-hist 0x%05lx000: %04lx:%lu %04lx:%lu %04lx:%lu %04lx:%lu"
+                     " %04lx:%lu %04lx:%lu %04lx:%lu %04lx:%lu\n",
+                     (unsigned long)prof_pc_hist_page,
+                     (unsigned long)(hi[0]*2), (unsigned long)hc[0],
+                     (unsigned long)(hi[1]*2), (unsigned long)hc[1],
+                     (unsigned long)(hi[2]*2), (unsigned long)hc[2],
+                     (unsigned long)(hi[3]*2), (unsigned long)hc[3],
+                     (unsigned long)(hi[4]*2), (unsigned long)hc[4],
+                     (unsigned long)(hi[5]*2), (unsigned long)hc[5],
+                     (unsigned long)(hi[6]*2), (unsigned long)hc[6],
+                     (unsigned long)(hi[7]*2), (unsigned long)hc[7]);
+              memset(prof_pc_hist, 0, sizeof(u32) * 2048); }
+#endif
 
             /* Top-5 BL targets */
             u32 bl_idx[5] = {0};

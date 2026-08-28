@@ -80,3 +80,34 @@
 # interpreting but not free, so removing interpreted instructions has
 # diminishing value; do not expect the next tranche to pay like the
 # first.
+
+# Re-measured after backgrounds and sprites moved to the RDP.
+#
+# Every rejection above ("AOT coverage is not monotonically good on N64:
+# past a point the extra code costs more in VR4300 I-cache pressure than
+# it saves in interpretation") was measured while the CPU still
+# rasterised the backgrounds -- a 1,019-instruction hot loop competing
+# for the same direct-mapped 16 KB cache, every scanline.  That renderer
+# is gone from the CPU now, so the premise the rejections rested on no
+# longer holds and the tranche is worth re-testing.
+#
+# What the profile says now (PROFILE_AOT, overworld savestate): 7,100
+# instructions per frame are still interpreted, and a third of those are
+# the five-instruction idle loop that must stay interpreted.  Of the
+# rest, this contiguous run is the largest single block -- pages 0x8092,
+# 0x8093, 0x8097, 0x8098, 0x8099, 0x809b, 0x809c, 0x809d, 0x809e are
+# together 25% of interpreted instructions.
+# MEASURED AND REJECTED AGAIN.  Interpreted instructions fell 426K ->
+# 320K per window, exactly the predicted 25%, and the frame time did not
+# move: 37.0 / 40.0 / 40.5 ms over three link layouts, mean 39.2 against
+# 38.7 without it, for 790 KB of extra .text (1.59 -> 2.38 MB).
+#
+# The useful part is what that rules out.  If deleting a quarter of the
+# interpreted instructions is worth nothing, then interpreted
+# instructions are not what the emulator is spending its time on -- and
+# the "interp 50%" line in the cycle profile is not interpretation.  With
+# only ~24,000 GBA instructions executed per frame (the game spends most
+# of its frame in the idle loop) against 672 timeslice yields, the
+# residual works out at ~2,200 host cycles per yield.  The cost is the
+# transitions, not the work between them.
+# 0x08092000  0x0809F000      # 25% of interpreted insns -- no gain, 790 KB

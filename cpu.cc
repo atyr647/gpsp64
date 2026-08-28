@@ -1743,8 +1743,10 @@ void execute_arm(u32 cycles)
 arm_loop:
 
        /* Process cheats if we are about to execute the cheat hook */
+#ifndef N64_NO_CHEATS
        if (reg[REG_PC] == _cheat_hook)
           process_cheats();
+#endif
 
        /* Execute ARM instruction */
        using_instruction(arm);
@@ -3301,8 +3303,10 @@ thumb_loop:
        /* Flags kept lazy — see arm_loop comment */
 
        /* Process cheats if we are about to execute the cheat hook */
+#ifndef N64_NO_CHEATS
        if (reg[REG_PC] == _cheat_hook)
           process_cheats();
+#endif
 
        /* AOT HLE: check for known hot function entry points.
         * Hand-written PCs (semantic shortcuts ~10x faster than 1:1)
@@ -3992,6 +3996,18 @@ thumb_loop:
        #endif
        {
          s32 _pc_delta = (s32)(reg[REG_PC] - _idle_pc_before);
+#ifdef N64_FAST_IDLE_DETECT
+         /* Almost every instruction is sequential, and a sequential
+          * Thumb step is exactly +2.  Testing that first turns the
+          * detector's per-instruction cost into one subtract, one
+          * compare and a predicted-not-taken branch, instead of the
+          * signed range chain below.  The detector fires 144 times a
+          * frame; it is the ~426,000 instructions that do NOT interest
+          * it that decide what it costs. */
+         if (__builtin_expect(_pc_delta == 2, 1)) {
+           /* sequential: detector state unchanged */
+         } else
+#endif
          if (_pc_delta < 0 && _pc_delta >= -10) {
            /* Tight backward branch — candidate busy-wait back-edge */
            if (reg[REG_PC] == idle_detect_pc) {

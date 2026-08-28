@@ -47,6 +47,9 @@ timer_type timer[4];
 u32 frame_counter = 0;
 u32 cpu_ticks = 0;
 u32 execute_cycles = 0;
+#ifdef N64_VIDEO_PROBE
+u32 prof_hb_irq = 0, prof_hb_dma = 0, prof_hb_calls = 0;
+#endif
 s32 video_count = 0;
 
 u32 last_frame = 0;
@@ -224,6 +227,23 @@ u32 function_cc update_gba(int remaining_cycles)
     if (update_serial(completed_cycles))
       irq_raised |= IRQ_SERIAL;
 
+#ifdef N64_VIDEO_PROBE
+    /* Is the HBlank half of each scanline's video event doing anything?
+     *
+     * The emulator yields out of the interpreter 672 times a frame, and
+     * with only ~24,000 GBA instructions executed per frame that works
+     * out at ~2,200 host cycles per yield -- the transitions, not the
+     * work between them, are what the emulation half costs.  456 of
+     * those yields are video events, two per scanline.  If neither an
+     * HBlank IRQ nor an HBlank DMA is ever armed, the HBlank boundary
+     * does not need to be a scheduling point at all and the two halves
+     * of a scanline could be one 1232-cycle event. */
+    { extern u32 prof_hb_irq, prof_hb_dma, prof_hb_calls;
+      u32 _i; prof_hb_calls++;
+      if (read_ioreg(REG_DISPSTAT) & 0x10) prof_hb_irq++;
+      for (_i = 0; _i < 4; _i++)
+        if (dma[_i].start_type == DMA_START_HBLANK) { prof_hb_dma++; break; } }
+#endif
     // Video count tracks the video cycles remaining until the next event
     video_count -= completed_cycles;
 
@@ -233,6 +253,34 @@ u32 function_cc update_gba(int remaining_cycles)
       u32 vcount = read_ioreg(REG_VCOUNT);
       u32 dispstat = read_ioreg(REG_DISPSTAT);
 
+#ifdef N64_MERGE_HBLANK
+      /* Run both halves of the scanline as one event when the HBlank
+       * boundary is not observable.
+       *
+       * The emulator leaves the interpreter 672 times a frame and only
+       * executes ~24,000 GBA instructions in between -- the game spends
+       * most of its frame in a five-instruction idle loop -- so the cost
+       * of the emulation half is the transitions, not the work.  456 of
+       * those 672 are video events, two per scanline, and the second of
+       * each pair exists only so that an HBlank IRQ or an HBlank DMA can
+       * fire at the right cycle.  Measured on the overworld: neither is
+       * ever armed, 0% of update_gba calls.
+       *
+       * So when both are disarmed, the HDraw->HBlank and HBlank->line
+       * transitions are done together and the CPU is given the whole
+       * 1232-cycle scanline.  The condition is re-checked every scanline,
+       * so a game (or a scene) that does arm one drops straight back to
+       * the two-phase schedule.
+       *
+       * What this trades away: the CPU no longer runs with the HBlank
+       * flag set, so code that polls DISPSTAT bit 1 would never see it,
+       * and a VRAM write made "during HBlank" now lands before the line
+       * it precedes is rendered rather than after.  Both only matter to
+       * code synchronised to HBlank, which is the same code that would
+       * have armed the IRQ or the DMA.
+       */
+      u32 merge_hblank = 0;
+#endif
       // Check if we are in hrefresh (0) or hblank (1)
       if ((dispstat & 0x02) == 0)
       {
@@ -264,8 +312,21 @@ u32 function_cc update_gba(int remaining_cycles)
         // Trigger the hblank interrupt, if enabled in DISPSTAT
         if (dispstat & 0x10)
           irq_raised |= IRQ_HBLANK;
+
+#ifdef N64_MERGE_HBLANK
+        if (!(dispstat & 0x10)) {
+          u32 i;
+          merge_hblank = 1;
+          for (i = 0; i < 4; i++)
+            if (dma[i].start_type == DMA_START_HBLANK) { merge_hblank = 0; break; }
+        }
+#endif
       }
+#ifdef N64_MERGE_HBLANK
+      if ((dispstat & 0x02) != 0 || merge_hblank)
+#else
       else
+#endif
       {
         // Transition from hblank to the next scan line (vdraw or vblank)
         video_count += 960;
