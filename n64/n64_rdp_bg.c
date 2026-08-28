@@ -67,6 +67,7 @@ static rdpbg_draw_t rdpbg_draws[RDPBG_MAX_DRAWS];
 static u32 rdpbg_ndraws = 0;
 
 u32 n64_rdpbg_slices = 0, n64_rdpbg_groups = 0, n64_rdpbg_tiles = 0;
+u32 n64_rdpbg_tluts = 0;
 u32 n64_rdpbg_frames = 0, n64_rdpbg_overflow = 0;
 /* Where the CPU half of the frame actually goes.  The whole point of
  * this renderer is to move work off the VR4300, so it matters which of
@@ -79,16 +80,23 @@ u32 n64_rdpbg_t_sort = 0, n64_rdpbg_t_emit = 0, n64_rdpbg_t_wait = 0;
  * what a 16-bit N64 framebuffer wants.  Index 0 of every sub-palette is
  * the GBA's transparent colour, so its alpha bit is cleared and the RDP
  * discards it on alpha compare. */
-static u16 rdpbg_tlut[256] __attribute__((aligned(16)));
+static u16 rdpbg_tlut[2][256] __attribute__((aligned(16)));
+static int rdpbg_tlut_loaded = -1;
 
+/* Two TLUTs, because the GBA has 256 BG colours and 256 OBJ colours and
+ * the RDP has one 256-entry TLUT.  Whichever the current group needs is
+ * uploaded when it changes, which is a handful of times per frame at the
+ * BG/OBJ boundaries of the painter order. */
 void n64_rdpbg_build_tlut(const u16 *pal_converted)
 {
-  u32 i;
-  for (i = 0; i < 256; i++) {
-    u16 v = pal_converted[i];
-    u16 r = (u16)(v & 0x1F), g = (u16)((v >> 5) & 0x1F), b = (u16)((v >> 10) & 0x1F);
-    rdpbg_tlut[i] = (u16)((r << 11) | (g << 6) | (b << 1) | ((i & 15) ? 1 : 0));
-  }
+  u32 h, i;
+  for (h = 0; h < 2; h++)
+    for (i = 0; i < 256; i++) {
+      u16 v = pal_converted[h * 256 + i];
+      u16 r = (u16)(v & 0x1F), g = (u16)((v >> 5) & 0x1F), b = (u16)((v >> 10) & 0x1F);
+      rdpbg_tlut[h][i] = (u16)((r << 11) | (g << 6) | (b << 1) | ((i & 15) ? 1 : 0));
+    }
+  rdpbg_tlut_loaded = -1;
 }
 
 /* Deliberately does NOT acquire the framebuffer.  This runs at scanline
@@ -112,17 +120,27 @@ void n64_rdpbg_add(int x, int y, int y0, int y1, u32 vt, u32 pal, u32 flip)
   d->y0 = (u8)y0; d->y1 = (u8)y1;
   d->vt = (u16)vt;
   d->flip = (u8)flip;
-  d->key = (u16)(((vt >> 5) << 4) | pal);
+  d->key = (u16)(((vt >> 5) << 4) | pal);   /* slice 0..95, palette 0..15 */
 }
 
 /* Counting sort by (slice, palette).  1024 buckets is 2 KB of counters,
  * cheaper to clear than any comparison sort is to run on 1600 items --
  * and the emit loop then walks slices in order, so each 1 KB slice of
- * the VRAM shadow is uploaded to TMEM exactly once per frame. */
-static u16 rdpbg_count[1024];
+ * the VRAM shadow is uploaded to TMEM once per layer.
+ *
+ * Once per *layer*, not once per frame: the RDP has no per-pixel priority
+ * beyond draw order, so the GBA's back-to-front layer order has to survive
+ * into the command stream.  Sorting the whole frame by slice was cheaper
+ * -- 5 TMEM loads instead of 20 -- and wrong, because it let a background
+ * layer be drawn after the one that should cover it.  Anywhere two layers
+ * both had an opaque pixel, whichever happened to sort later won.  So the
+ * caller flushes per layer and the sort only ever reorders within one. */
+/* 96 slices (the whole 96 KB VRAM shadow, OBJ tiles included) times 16
+ * palettes. */
+static u16 rdpbg_count[96 * 16];
 static u16 rdpbg_order[RDPBG_MAX_DRAWS];
 
-void n64_rdpbg_flush(void)
+void n64_rdpbg_flush(int obj_palette, int sortable)
 {
   extern surface_t *n64_video_acquire(void);
   u32 i, n = rdpbg_ndraws, sum = 0;
@@ -133,10 +151,20 @@ void n64_rdpbg_flush(void)
   if (!rdpbg_disp) return;
 
   u32 _t0 = RDPBG_TICK();
-  memset(rdpbg_count, 0, sizeof(rdpbg_count));
-  for (i = 0; i < n; i++) rdpbg_count[rdpbg_draws[i].key]++;
-  for (i = 0; i < 1024; i++) { u32 c = rdpbg_count[i]; rdpbg_count[i] = (u16)sum; sum += c; }
-  for (i = 0; i < n; i++) rdpbg_order[rdpbg_count[rdpbg_draws[i].key]++] = (u16)i;
+  /* Sorting is only safe within a background layer.  A layer's own tiles
+   * never overlap each other, so reordering them by TMEM slice is free --
+   * but two sprites can overlap, and the GBA resolves that by OAM index,
+   * so the order they were added in *is* the answer.  Sprites are emitted
+   * as they come and pay for the extra TMEM loads; a sprite's tiles are
+   * consecutive under 1D mapping, so that is a load or two per sprite. */
+  if (sortable) {
+    memset(rdpbg_count, 0, sizeof(rdpbg_count));
+    for (i = 0; i < n; i++) rdpbg_count[rdpbg_draws[i].key]++;
+    for (i = 0; i < 96 * 16; i++) { u32 c = rdpbg_count[i]; rdpbg_count[i] = (u16)sum; sum += c; }
+    for (i = 0; i < n; i++) rdpbg_order[rdpbg_count[rdpbg_draws[i].key]++] = (u16)i;
+  } else {
+    for (i = 0; i < n; i++) rdpbg_order[i] = (u16)i;
+  }
 
   n64_rdpbg_t_sort += RDPBG_TICK() - _t0;
   _t0 = RDPBG_TICK();
@@ -145,8 +173,12 @@ void n64_rdpbg_flush(void)
   rdpq_set_mode_standard();
   rdpq_mode_tlut(TLUT_RGBA16);
   rdpq_mode_alphacompare(1);          /* index 0 of each sub-palette is transparent */
-  data_cache_hit_writeback(rdpbg_tlut, sizeof(rdpbg_tlut));
-  rdpq_tex_upload_tlut(rdpbg_tlut, 0, 256);
+  if (rdpbg_tlut_loaded != obj_palette) {
+    data_cache_hit_writeback(rdpbg_tlut[obj_palette], 512);
+    rdpq_tex_upload_tlut(rdpbg_tlut[obj_palette], 0, 256);
+    rdpbg_tlut_loaded = obj_palette;
+    n64_rdpbg_tluts++;
+  }
 
   for (i = 0; i < n; i++) {
     const rdpbg_draw_t *d = &rdpbg_draws[rdpbg_order[i]];
@@ -193,7 +225,6 @@ void n64_rdpbg_flush(void)
 
   n64_rdpbg_t_emit += RDPBG_TICK() - _t0;
   rdpbg_ndraws = 0;
-  n64_rdpbg_frames++;
 }
 
 /* Backdrop: GBA palette entry 0, painted under the layers for the rows
@@ -207,7 +238,7 @@ void n64_rdpbg_backdrop(int y0, int y1)
   if (!rdpbg_disp) rdpbg_disp = n64_video_acquire();
   if (!rdpbg_disp) return;
   if (!rdpbg_attached) { rdpq_attach(rdpbg_disp, NULL); rdpbg_attached = 1; }
-  rdpq_set_mode_fill(color_from_packed16(rdpbg_tlut[0] | 1));
+  rdpq_set_mode_fill(color_from_packed16(rdpbg_tlut[0][0] | 1));
   rdpq_fill_rectangle(GBA_OFFSET_X, GBA_OFFSET_Y + y0, GBA_OFFSET_X + 240, GBA_OFFSET_Y + y1);
 }
 
@@ -217,6 +248,11 @@ void n64_rdpbg_backdrop(int y0, int y1)
 surface_t *n64_rdpbg_end(void)
 {
   surface_t *d = rdpbg_disp;
+  /* Count frames here, not in flush().  flush() runs once per layer and
+   * once per sprite priority group, so counting there divided every
+   * per-frame figure by the number of groups -- which is why the tile
+   * count appeared to *fall* when coverage went from 45% to 100%. */
+  if (d) n64_rdpbg_frames++;
   if (rdpbg_attached) {
     u32 _t = RDPBG_TICK();
     rdpq_detach_wait();

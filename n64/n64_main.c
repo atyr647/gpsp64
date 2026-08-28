@@ -522,6 +522,8 @@ int main(void)
           {
             extern u32 prof_rdpbg_rows, prof_rdpbg_frames, prof_rdpbg_break;
             extern u32 n64_rdpbg_slices, n64_rdpbg_groups, n64_rdpbg_tiles;
+            extern u32 n64_rdpbg_tluts;
+            extern u32 prof_rdpbg_spr, prof_rdpbg_sprno;
             extern u32 n64_rdpbg_frames, n64_rdpbg_overflow;
             u32 f = prof_rdpbg_frames ? prof_rdpbg_frames : 1;
             u32 g = n64_rdpbg_frames ? n64_rdpbg_frames : 1;
@@ -536,6 +538,14 @@ int main(void)
                    (unsigned long)(n64_rdpbg_groups / g),
                    (unsigned long)prof_rdpbg_break,
                    (unsigned long)n64_rdpbg_overflow);
+            { u32 st = prof_rdpbg_spr + prof_rdpbg_sprno;
+              debugf("PROF:  rdpbg: sprites %lu drawn, %lu refused (%lu%%);"
+                     " %lu TLUT swaps per frame\n",
+                     (unsigned long)(prof_rdpbg_spr / f),
+                     (unsigned long)(prof_rdpbg_sprno / f),
+                     (unsigned long)(st ? prof_rdpbg_sprno * 100 / st : 0),
+                     (unsigned long)(n64_rdpbg_tluts / g));
+              prof_rdpbg_spr = prof_rdpbg_sprno = n64_rdpbg_tluts = 0; }
             { extern u32 prof_rdpbg_why[8];
               debugf("PROF:  rdpbg: refused frames: mode%lu window%lu fx%lu"
                      " nolayer%lu 8bpp%lu mosaic%lu objonly%lu | accepted %lu\n",

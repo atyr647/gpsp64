@@ -2982,7 +2982,7 @@ extern "C" {
   void n64_rdpbg_add(int x, int y, int y0, int y1, u32 vt, u32 pal, u32 flip);
   void n64_rdpbg_backdrop(int y0, int y1);
   void n64_rdpbg_build_tlut(const u16 *pal_converted);
-  void n64_rdpbg_flush(void);
+  void n64_rdpbg_flush(int obj_palette, int sortable);
 }
 
 u8 n64_rdp_row[160];               /* 1 = RDP drew it, CPU must not blit */
@@ -3034,6 +3034,140 @@ static u32 rdpbg_window_flags(u16 dispcnt)
   return 0xFFFFFFFFu;                          /* genuinely windowed     */
 }
 
+#define RDPBG_MAXSPR 128
+typedef struct {
+  s16 x, y;
+  u8  wt, ht;          /* size in tiles */
+  u16 base;            /* first tile byte offset within OBJ VRAM */
+  u16 pitch;           /* bytes per tile row: 1D = wt*32, 2D = 1024 */
+  u8  pal, flip, prio, pad;
+} rdpbg_spr_t;
+
+static rdpbg_spr_t rdpbg_spr[RDPBG_MAXSPR];
+static u32 rdpbg_nspr = 0;
+u32 prof_rdpbg_spr = 0, prof_rdpbg_sprno = 0;
+
+/* Mirrors order_obj(): same OAM order, same visibility tests, same
+ * per-row cycle budget.  The budget matters because gpSP drops sprites
+ * once a row exceeds it, and a row where that happens would render
+ * differently here -- so those rows are handed back rather than guessed
+ * at. */
+static void rdpbg_scan_objs(u16 dispcnt, u8 *elig)
+{
+  const t_oam *oam_base = (const t_oam *)oam_ram_raw;
+  bool hblank_free = dispcnt & 0x20;
+  bool obj1dmap    = dispcnt & 0x40;
+  u16  max_cyc = !sprite_limit ? REND_CYC_MAX
+               : hblank_free  ? REND_CYC_REDUCED : REND_CYC_SCANLINE;
+  const u32 mosreg = read_ioreg(REG_MOSAIC) & 0xFF00;
+  u16 rend[160];
+  u32 n;
+
+  rdpbg_nspr = 0;
+  memset(rend, 0, sizeof(rend));
+
+  for (n = 0; n < 128; n++) {
+    const t_oam *o = &oam_base[n];
+    u16 a0 = gba_deref16(&o->attr0), a1, a2;
+    u32 mode, shape, size, prio, row, starty, endy;
+    s32 x, y, w, h, maxw;
+    u32 cyc, ok;
+
+    if ((a0 & 0x0300) == 0x0200) continue;      /* disabled */
+    shape = a0 >> 14;
+    mode  = (a0 >> 10) & 3;
+    if (shape == 3 || mode == OBJ_MOD_INVALID) continue;
+
+    a1 = gba_deref16(&o->attr1);
+    a2 = gba_deref16(&o->attr2);
+    size = a1 >> 14;
+    w = obj_dim_table[shape][size][0];
+    h = obj_dim_table[shape][size][1];
+    y = a0 & 0xFF;
+    if (y > 160) y -= 256;
+    if (a0 & 0x200) { w *= 2; h *= 2; }         /* affine double size */
+    if (y + h <= 0 || y >= 160) continue;
+    x = (s32)(a1 << 23) >> 23;
+    maxw = w;
+    if (x + maxw <= 0 || x >= 240) continue;
+
+    prio   = (a2 >> 10) & 3;
+    starty = MAX(y, 0);
+    endy   = MIN(y + h, 160);
+    cyc    = (a0 & 0x100) ? (10 + w * 2) : w;
+
+    /* Everything this renderer cannot draw itself. */
+    ok = !(a0 & 0x100)                       /* affine            */
+      && mode == OBJ_MOD_NORMAL              /* not ST, not window */
+      && !(a0 & 0x2000)                      /* 8bpp              */
+      && !((a0 & 0x1000) && mosreg);         /* mosaic            */
+
+    for (row = starty; row < endy; row++) {
+      if (rend[row] < max_cyc) rend[row] += (u16)cyc;
+      else elig[row] = 0;                    /* gpSP would drop it here */
+      if (!ok) elig[row] = 0;
+    }
+
+    if (!ok) { prof_rdpbg_sprno++; continue; }
+    if (rdpbg_nspr >= RDPBG_MAXSPR) continue;
+    {
+      rdpbg_spr_t *s = &rdpbg_spr[rdpbg_nspr++];
+      s->x = (s16)x; s->y = (s16)y;
+      s->wt = (u8)(w >> 3); s->ht = (u8)(h >> 3);
+      s->base  = (u16)((a2 & 0x3FF) * 32);
+      s->pitch = (u16)(obj1dmap ? (w >> 3) * 32 : 1024);
+      s->pal   = (u8)(a2 >> 12);
+      s->flip  = (u8)(((a1 >> 12) & 1) | ((a1 >> 12) & 2));
+      s->prio  = (u8)prio;
+    }
+    prof_rdpbg_spr++;
+  }
+}
+
+/* Emit one priority group, back to front.  gpSP draws its per-row list
+ * from the end backwards so that OAM index 0 lands on top; iterating the
+ * captured list in reverse does the same thing frame-wide. */
+static void rdpbg_emit_objs(u32 prio)
+{
+  s32 i;
+  for (i = (s32)rdpbg_nspr - 1; i >= 0; i--) {
+    const rdpbg_spr_t *s = &rdpbg_spr[i];
+    u32 tx, ty;
+    if (s->prio != prio) continue;
+    for (ty = 0; ty < s->ht; ty++) {
+      s32 sy = s->y + (s32)(ty * 8);
+      u32 sty = (s->flip & 2) ? (u32)(s->ht - 1 - ty) : ty;
+      s32 r0 = 0;
+      if (sy >= 160 || sy + 8 <= 0) continue;
+      while (r0 < 8) {
+        s32 r1, gy = sy + r0;
+        if (gy < 0 || gy >= 160 || !n64_rdp_row[gy]) { r0++; continue; }
+        r1 = r0;
+        while (r1 < 8) {
+          s32 g = sy + r1;
+          if (g < 0 || g >= 160 || !n64_rdp_row[g]) break;
+          r1++;
+        }
+        for (tx = 0; tx < s->wt; tx++) {
+          u32 stx = (s->flip & 1) ? (u32)(s->wt - 1 - tx) : tx;
+          u32 off = (s->base + sty * s->pitch + stx * 32) & 0x7FFF;
+          n64_rdpbg_add((int)(s->x + (s32)(tx * 8)), (int)sy, (int)r0, (int)r1,
+                        2048 + (off >> 5), s->pal, s->flip);
+        }
+        r0 = r1;
+      }
+    }
+  }
+}
+
+/* Emit the whole visible BG for the rows the RDP owns.
+ *
+ * Draws are collected here and sorted by (slice, palette) before they
+ * reach the RDP, because a TMEM load is a 32-tile slice of the VRAM
+ * shadow at ~1725 cycles regardless of how many of its tiles are used.
+ * Emitting in tilemap order would reload TMEM per tile; emitting in
+ * slice order loads each slice once. */
+
 static void rdpbg_frame_begin(void)
 {
   u16 dispcnt = read_ioreg(REG_DISPCNT);
@@ -3075,13 +3209,17 @@ static void rdpbg_frame_begin(void)
   }
   if (!rdpbg_snap_n) { prof_rdpbg_why[6]++; return; }
 
-  /* A row is the RDP's iff no sprite touches it.  order_obj() has
-   * already filled this table for all 160 rows. */
-  for (y = 0; y < 160; y++) {
-    u32 ok = 1;
-    for (p = 0; p < 5; p++) if (obj_priority_count[p][y]) { ok = 0; break; }
-    rdpbg_elig[y] = (u8)ok;
-  }
+  /* A row is the RDP's unless something on it cannot be drawn here.
+   * Sprites used to disqualify a row outright, which capped coverage at
+   * 45%; now only the ones this renderer cannot draw do -- affine, 8bpp,
+   * mosaic, semi-transparent, OBJ-window, or dropped by gpSP's per-row
+   * sprite budget. */
+  memset(rdpbg_elig, 1, sizeof(rdpbg_elig));
+  if (eff & 0x10)
+    rdpbg_scan_objs(dispcnt, rdpbg_elig);
+  else
+    rdpbg_nspr = 0;
+  (void)p;
 
   if (!n64_rdpbg_begin()) return;
   n64_rdpbg_build_tlut(palette_ram_converted);
@@ -3089,16 +3227,86 @@ static void rdpbg_frame_begin(void)
   prof_rdpbg_why[7]++;                          /* accepted */
 }
 
-/* Emit the whole visible BG for the rows the RDP owns.
+/* Sprites.
  *
- * Draws are collected here and sorted by (slice, palette) before they
- * reach the RDP, because a TMEM load is a 32-tile slice of the VRAM
+ * The BG-only renderer covered 45% of rows and stopped there, because any
+ * row carrying a sprite went back to the CPU whole -- and that 55% is
+ * where the remaining PPU time lives.  Sprites are the same machinery as
+ * backgrounds: 4bpp 8x8 tiles out of the same nibble-swapped VRAM shadow,
+ * a palette per tile, flips as signed ds/dt.  Only three things differ.
+ *
+ *   - They live in OBJ VRAM at 0x10000, so their absolute tile numbers
+ *     run 2048..3071 and the TMEM slice index goes up to 95 rather than
+ *     63.  The shadow already covers all 96 KB.
+ *   - They use the second half of palette RAM, and the RDP has exactly
+ *     one 256-entry TLUT.  So the TLUT is swapped at each BG/OBJ boundary
+ *     in the painter order -- a handful of uploads per frame.
+ *   - Their layout is a sprite grid rather than a tilemap: 1D mapping
+ *     puts a sprite's tiles consecutively, 2D mapping keeps the 32-tile
+ *     charblock rows, and a flip reverses the tile order as well as
+ *     flipping each tile.
+ *
+ * Affine, 8bpp, mosaic, semi-transparent and OBJ-window sprites are not
+ * drawn here; the rows they touch fall back to the CPU exactly as every
+ * sprite row did before.
+ */
+static void rdpbg_emit_bg(u32 i)
+{
+  u32 bgc  = rdpbg_snap[i][0];
+  u32 hofs = rdpbg_snap[i][1];
+  u32 vofs = rdpbg_snap[i][2];
+  u32 msz  = (bgc >> 14) & 3;
+  u32 mw   = (msz & 1) ? 512 : 256;
+  u32 mh   = (msz & 2) ? 512 : 256;
+  u32 cb   = (bgc >> 2) & 3;
+  const u16 *map0 = (const u16 *)&vram_raw[((bgc >> 8) & 0x1F) * 2048];
+  s32 ysub = (s32)(vofs & 7), xsub = (s32)(hofs & 7);
+  u32 ty;
+
+  for (ty = 0; ty < 21; ty++) {
+    s32 sy = (s32)(ty * 8) - ysub;            /* screen row of tile top */
+    u32 vy = ((ty * 8) + (vofs & ~7u)) & (mh - 1);
+    u32 rowblk = (vy >= 256) ? ((mw == 512) ? 2 : 1) : 0;
+    const u16 *maprow = map0 + rowblk * 1024 + ((vy & 255) >> 3) * 32;
+    u32 tx;
+    s32 r0 = 0;
+
+    /* Split the tile's 8 rows into the runs the RDP owns.  Runs are
+     * long, so this is normally one span and occasionally two. */
+    while (r0 < 8) {
+      s32 r1, gy = sy + r0;
+      if (gy < 0 || gy >= 160 || !n64_rdp_row[gy]) { r0++; continue; }
+      r1 = r0;
+      while (r1 < 8) {
+        s32 g = sy + r1;
+        if (g < 0 || g >= 160 || !n64_rdp_row[g]) break;
+        r1++;
+      }
+      for (tx = 0; tx < 31; tx++) {
+        u32 vx = (hofs + (tx << 3)) & (mw - 1);
+        u16 tile = gba_deref16(maprow + ((vx >= 256) ? 1024 : 0)
+                                      + ((vx & 255) >> 3));
+        u32 vt = (cb * 512 + (tile & 0x3FF)) & 0x7FF;
+        n64_rdpbg_add((int)(tx * 8) - xsub, (int)sy, (int)r0, (int)r1,
+                      vt, tile >> 12, (tile >> 10) & 3);
+      }
+      r0 = r1;
+    }
+  }
+}
+
+/* Emit the whole visible frame for the rows the RDP owns.
+ *
+ * Draws are collected per layer and sorted by (slice, palette) before
+ * they reach the RDP, because a TMEM load is a 32-tile slice of the VRAM
  * shadow at ~1725 cycles regardless of how many of its tiles are used.
- * Emitting in tilemap order would reload TMEM per tile; emitting in
- * slice order loads each slice once. */
+ * Sorting per layer rather than per frame costs a few extra loads and is
+ * the only way the GBA's back-to-front order survives: the RDP has no
+ * per-pixel priority beyond the order commands arrive in. */
 static void rdpbg_frame_end(void)
 {
-  u32 i, y, nrows = 0;
+  u32 y, nrows = 0, pos = 0;
+  s32 pr;
 
   if (!rdpbg_active) return;
 
@@ -3107,61 +3315,34 @@ static void rdpbg_frame_end(void)
   prof_rdpbg_rows += nrows;
   prof_rdpbg_frames++;
 
-  /* Backdrop under each run of owned rows. */
+  /* Backdrop under each run of owned rows.  gpSP's CPU renderer gets this
+   * free by having the bottom layer write opaquely; here every layer is
+   * alpha-tested, so the floor has to be laid first. */
   for (y = 0; y < 160; ) {
-    u32 s;
+    u32 st;
     if (!n64_rdp_row[y]) { y++; continue; }
-    s = y;
+    st = y;
     while (y < 160 && n64_rdp_row[y]) y++;
-    n64_rdpbg_backdrop((int)s, (int)y);
+    n64_rdpbg_backdrop((int)st, (int)y);
   }
 
-  for (i = 0; i < rdpbg_snap_n; i++) {
-    u32 bgc  = rdpbg_snap[i][0];
-    u32 hofs = rdpbg_snap[i][1];
-    u32 vofs = rdpbg_snap[i][2];
-    u32 msz  = (bgc >> 14) & 3;
-    u32 mw   = (msz & 1) ? 512 : 256;
-    u32 mh   = (msz & 2) ? 512 : 256;
-    u32 cb   = (bgc >> 2) & 3;
-    const u16 *map0 = (const u16 *)&vram_raw[((bgc >> 8) & 0x1F) * 2048];
-    s32 ysub = (s32)(vofs & 7), xsub = (s32)(hofs & 7);
-    u32 ty;
-
-    for (ty = 0; ty < 21; ty++) {
-      s32 sy = (s32)(ty * 8) - ysub;          /* screen row of tile top */
-      u32 vy = ((ty * 8) + (vofs & ~7u)) & (mh - 1);
-      u32 rowblk = (vy >= 256) ? ((mw == 512) ? 2 : 1) : 0;
-      const u16 *maprow = map0 + rowblk * 1024 + ((vy & 255) >> 3) * 32;
-      u32 tx;
-      s32 r0 = 0;
-
-      /* Split the tile's 8 rows into the runs the RDP owns.  Runs are
-       * long, so this is normally one span and occasionally two. */
-      while (r0 < 8) {
-        s32 r1;
-        s32 gy = sy + r0;
-        if (gy < 0 || gy >= 160 || !n64_rdp_row[gy]) { r0++; continue; }
-        r1 = r0;
-        while (r1 < 8) {
-          s32 g = sy + r1;
-          if (g < 0 || g >= 160 || !n64_rdp_row[g]) break;
-          r1++;
-        }
-        for (tx = 0; tx < 31; tx++) {
-          u32 vx = (hofs + (tx << 3)) & (mw - 1);
-          u16 tile = gba_deref16(maprow + ((vx >= 256) ? 1024 : 0)
-                                        + ((vx & 255) >> 3));
-          u32 vt = (cb * 512 + (tile & 0x3FF)) & 0x7FF;
-          n64_rdpbg_add((int)(tx * 8) - xsub, (int)sy, (int)r0, (int)r1,
-                        vt, tile >> 12, (tile >> 10) & 3);
-        }
-        r0 = r1;
-      }
+  /* Frame-level painter order: for each priority from 3 down to 0, the
+   * BG layers at that priority, then the sprites at that priority.  That
+   * is exactly the rule order_layers() applies per scanline, applied once
+   * for the whole frame -- and rdpbg_snap is already in that order, so
+   * the BG entries only have to be walked forwards. */
+  for (pr = 3; pr >= 0; pr--) {
+    while (pos < rdpbg_snap_n && (s32)(rdpbg_snap[pos][0] & 3) == pr) {
+      rdpbg_emit_bg(pos);
+      n64_rdpbg_flush(0, 1);
+      pos++;
+    }
+    if (rdpbg_nspr) {
+      rdpbg_emit_objs((u32)pr);
+      n64_rdpbg_flush(1, 0);
     }
   }
 
-  n64_rdpbg_flush();
   rdpbg_active = 0;
 }
 
