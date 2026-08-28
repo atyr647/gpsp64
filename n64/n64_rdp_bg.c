@@ -136,8 +136,9 @@ void n64_rdpbg_add(int x, int y, int y0, int y1, u32 vt, u32 pal, u32 flip)
  * both had an opaque pixel, whichever happened to sort later won.  So the
  * caller flushes per layer and the sort only ever reorders within one. */
 /* 96 slices (the whole 96 KB VRAM shadow, OBJ tiles included) times 16
- * palettes. */
+ * palettes.  Kept zeroed between calls so it never has to be memset. */
 static u16 rdpbg_count[96 * 16];
+#define RDPBG_MAX_KEYS 64
 static u16 rdpbg_order[RDPBG_MAX_DRAWS];
 
 void n64_rdpbg_flush(int obj_palette, int sortable)
@@ -158,10 +159,40 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
    * as they come and pay for the extra TMEM loads; a sprite's tiles are
    * consecutive under 1D mapping, so that is a load or two per sprite. */
   if (sortable) {
-    memset(rdpbg_count, 0, sizeof(rdpbg_count));
-    for (i = 0; i < n; i++) rdpbg_count[rdpbg_draws[i].key]++;
-    for (i = 0; i < 96 * 16; i++) { u32 c = rdpbg_count[i]; rdpbg_count[i] = (u16)sum; sum += c; }
-    for (i = 0; i < n; i++) rdpbg_order[rdpbg_count[rdpbg_draws[i].key]++] = (u16)i;
+    /* Only a handful of (slice, palette) keys are ever live in one layer
+     * -- 27 across a whole frame -- so clearing and prefix-summing all
+     * 1536 buckets costs far more than the sort itself.  Collect the
+     * distinct keys instead, sort those, and prefix-sum over them; the
+     * bucket array is left clean for the next call by zeroing exactly the
+     * entries that were touched. */
+    u32 nk = 0, k, j;
+    u16 keys[RDPBG_MAX_KEYS];
+    for (i = 0; i < n; i++) {
+      k = rdpbg_draws[i].key;
+      if (!rdpbg_count[k]) {
+        if (nk >= RDPBG_MAX_KEYS) { sortable = 0; break; }
+        keys[nk++] = (u16)k;
+      }
+      rdpbg_count[k]++;
+    }
+    if (sortable) {
+      for (i = 1; i < nk; i++) {              /* insertion sort, nk is tiny */
+        u16 v = keys[i];
+        for (j = i; j && keys[j - 1] > v; j--) keys[j] = keys[j - 1];
+        keys[j] = v;
+      }
+      for (i = 0; i < nk; i++) {
+        u32 c = rdpbg_count[keys[i]];
+        rdpbg_count[keys[i]] = (u16)sum;
+        sum += c;
+      }
+      for (i = 0; i < n; i++) rdpbg_order[rdpbg_count[rdpbg_draws[i].key]++] = (u16)i;
+      for (i = 0; i < nk; i++) rdpbg_count[keys[i]] = 0;
+    } else {
+      for (i = 0; i < nk; i++) rdpbg_count[keys[i]] = 0;
+      memset(rdpbg_count, 0, sizeof(rdpbg_count));
+      for (i = 0; i < n; i++) rdpbg_order[i] = (u16)i;
+    }
   } else {
     for (i = 0; i < n; i++) rdpbg_order[i] = (u16)i;
   }
