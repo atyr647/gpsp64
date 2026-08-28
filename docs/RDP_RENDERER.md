@@ -28,9 +28,18 @@ layouts (see *Measuring* below for why that matters):
 | --- | --- | --- |
 | CPU renderer (baseline) | 60.2 ms | 16.61 |
 | RDP renderer | 41.2 ms | 24.27 |
+| shipped default today | 35.5 ms | 28.17 |
 
-**-31.6% frame time, +46% fps**, from five link layouts each on the same
-tree.  The two distributions have the same shape -- 56/57/59/61/68
+The last row is the renderer plus the compiler settings it unlocked --
+`cpu.cc` at -O3 and `aot_generated.c` at -Os, both of which lost to the
+old defaults while the CPU still rasterised backgrounds and win now that
+it does not -- and `rdpq_exec`, which ares could not evaluate until it
+was taught to charge for uncached stores.  **60.2 -> 35.5 ms, 16.6 ->
+28.2 fps, +70%.**  The spread across link layouts also collapsed, from
+12 ms to 1.
+
+**-31.6% frame time, +46% fps** for the renderer alone, from five link
+layouts each on the same tree.  The two distributions have the same shape -- 56/57/59/61/68
 against 37/37/39/42/51 -- so the means are comparable; medians give
 59 -> 39 ms, +51%.
 

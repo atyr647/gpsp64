@@ -1,0 +1,539 @@
+diff --git a/ares/n64/cpu/cpu.cpp b/ares/n64/cpu/cpu.cpp
+index 330d3d6..5df7adf 100644
+--- a/ares/n64/cpu/cpu.cpp
++++ b/ares/n64/cpu/cpu.cpp
+@@ -35,7 +35,146 @@ auto CPU::unload() -> void {
+ }
+ 
+ auto CPU::main() -> void {
++  // gpsp64 debugging: sample the PC once per VI frame.  This has to live
++  // here rather than in instructionEpilogue<0>: ares recompiles, so the
++  // interpreted epilogue barely runs and a counter there never trips.
++  {
++    extern u64 gpsp_dmiss_hist[128], gpsp_dmiss_total, gpsp_dwb_total;
++    static u64 n2 = 0, prev_total = 0;
++    if(++n2 % 600 == 0 && n2 <= 6000) {
++      // top 6 buckets since the last report
++      static u64 prev[128] = {0};
++      u64 d[128]; u64 sum = 0;
++      for(u32 i = 0; i < 128; i++) { d[i] = gpsp_dmiss_hist[i] - prev[i]; prev[i] = gpsp_dmiss_hist[i]; sum += d[i]; }
++      /* I-cache too: the VR4300's is 16 KB direct-mapped, and gpSP's
++       * interpreter is one huge switch, so a miss rate here would explain
++       * a per-instruction cost that scalar work alone cannot. */
++      { static s64 pmiss = 0, phit = 0;
++        s64 dm = profile.icacheMisses - pmiss, dh = profile.icacheHits - phit;
++        pmiss = profile.icacheMisses; phit = profile.icacheHits;
++        fprintf(stderr, "IMISS +%lld hits +%lld (%lld%% miss)\n",
++                (long long)dm, (long long)dh,
++                (long long)((dm + dh) ? dm * 100 / (dm + dh) : 0)); }
++      fprintf(stderr, "DMISS total=%llu (+%llu) wb=%llu | top:",
++              (unsigned long long)gpsp_dmiss_total,
++              (unsigned long long)(gpsp_dmiss_total - prev_total),
++              (unsigned long long)gpsp_dwb_total);
++      prev_total = gpsp_dmiss_total;
++      for(u32 k = 0; k < 6; k++) {
++        u32 best = 0; for(u32 i = 1; i < 128; i++) if(d[i] > d[best]) best = i;
++        if(!d[best]) break;
++        fprintf(stderr, " %02x:%llu(%llu%%)", best, (unsigned long long)d[best],
++                (unsigned long long)(sum ? d[best]*100/sum : 0));
++        d[best] = 0;
++      }
++      fprintf(stderr, "\n");
++      /* gpsp64: RDP workload since the last report.
++       *
++       * ares does not model RDP fill time -- RDP::main() advances the
++       * clock in fixed chunks -- so this is the only way to see what a
++       * renderer is asking the RDP to do.  Counts are exact; the cycle
++       * figure is an ESTIMATE from a stated model, printed so the two
++       * cannot be confused:
++       *
++       *   1-cycle mode   1 cycle per covered pixel
++       *   2-cycle mode   2
++       *   copy/fill      1 cycle per 4 pixels (64 bits written per cycle)
++       *   TMEM loads     1 cycle per 64-bit word
++       *   per primitive  GPSP_RDP_SETUP cycles, default 30
++       *
++       * at the RDP's 62.5 MHz.  Real hardware has span setup, TMEM
++       * conflicts and RDRAM contention on top, so read the estimate as a
++       * floor. */
++      {
++        extern u64 gpsp_rdp_prims, gpsp_rdp_px1, gpsp_rdp_px2, gpsp_rdp_pxfast;
++        extern u64 gpsp_rdp_tmem_words, gpsp_rdp_tris, gpsp_rdp_syncs;
++        extern u64 gpsp_rdp_charge_cycles;
++        static u64 pp = 0, p1 = 0, p2 = 0, pf = 0, pt = 0, ptr = 0, ps = 0;
++        static s64 setup = -1;
++        if(setup < 0) { const char* e = getenv("GPSP_RDP_SETUP"); setup = e ? strtol(e, nullptr, 0) : 30; }
++        u64 dprim = gpsp_rdp_prims - pp,  d1 = gpsp_rdp_px1 - p1;
++        u64 d2 = gpsp_rdp_px2 - p2,       df = gpsp_rdp_pxfast - pf;
++        u64 dt = gpsp_rdp_tmem_words - pt, dtr = gpsp_rdp_tris - ptr;
++        u64 ds = gpsp_rdp_syncs - ps;
++        pp = gpsp_rdp_prims; p1 = gpsp_rdp_px1; p2 = gpsp_rdp_px2;
++        pf = gpsp_rdp_pxfast; pt = gpsp_rdp_tmem_words; ptr = gpsp_rdp_tris;
++        ps = gpsp_rdp_syncs;
++        u64 cyc = d1 + d2 * 2 + df / 4 + dt + dprim * (u64)setup;
++        gpsp_rdp_charge_cycles += cyc;
++        /* Divide by SYNC_FULLs, not by frames: how many syncs a frame
++         * costs is the ROM's business, not ares's.  gpSP's RDP renderer
++         * issues two per frame, so halve these for a per-frame figure. */
++        u64 frames = ds ? ds : 1;
++        fprintf(stderr, "RDPWORK syncs=%llu prims=%llu tris=%llu px1=%llu px2=%llu pxfast=%llu"
++                        " tmemwords=%llu | per sync: %llu prims %llu px -> ~%llu RDP cyc"
++                        " = %llu.%02llu ms at 62.5MHz\n",
++                (unsigned long long)ds, (unsigned long long)dprim, (unsigned long long)dtr,
++                (unsigned long long)d1, (unsigned long long)d2, (unsigned long long)df,
++                (unsigned long long)dt,
++                (unsigned long long)(dprim / frames),
++                (unsigned long long)((d1 + d2 + df) / frames),
++                (unsigned long long)(cyc / frames),
++                (unsigned long long)((cyc / frames) / 62500),
++                (unsigned long long)(((cyc / frames) % 62500) * 100 / 62500));
++      }
++      /* 1KB-resolution version of the same histogram, which resolves to
++       * individual objects in the link map instead of to "the globals". */
++      {
++        extern u64 gpsp_dmiss_fine[8192];
++        static u64 fprev[8192] = {0};
++        u64 fd[8192]; u64 fsum = 0;
++        for(u32 i = 0; i < 8192; i++) { fd[i] = gpsp_dmiss_fine[i] - fprev[i]; fprev[i] = gpsp_dmiss_fine[i]; fsum += fd[i]; }
++        fprintf(stderr, "DMISSFINE");
++        for(u32 k = 0; k < 12; k++) {
++          u32 best = 0; for(u32 i = 1; i < 8192; i++) if(fd[i] > fd[best]) best = i;
++          if(!fd[best]) break;
++          fprintf(stderr, " %08x:%llu(%llu%%)", 0x80000000u + (best << 10),
++                  (unsigned long long)fd[best],
++                  (unsigned long long)(fsum ? fd[best]*100/fsum : 0));
++          fd[best] = 0;
++        }
++        fprintf(stderr, "\n");
++      }
++      {
++        extern u32 gpsp_misspc[512]; extern u32 gpsp_misscnt[512];
++        fprintf(stderr, "DMISSPC");
++        for(u32 k = 0; k < 8; k++) {
++          u32 best = 0;
++          for(u32 i = 1; i < 512; i++) if(gpsp_misscnt[i] > gpsp_misscnt[best]) best = i;
++          if(!gpsp_misscnt[best]) break;
++          fprintf(stderr, " %08x:%u", gpsp_misspc[best], gpsp_misscnt[best]);
++          gpsp_misscnt[best] = 0;
++        }
++        fprintf(stderr, "\n");
++        for(u32 i = 0; i < 512; i++) { gpsp_misspc[i] = 0; gpsp_misscnt[i] = 0; }
++      }
++      fflush(stderr);
++    }
++    static u64 n = 0;
++    // Sample sparsely across the whole run.  Sampling a fixed early window
++    // is a trap: VI frames run at 60Hz but the emulator only manages ~20
++    // GBA frames/s, so a window chosen in VI time lands far earlier in the
++    // ROM's progress than intended -- an earlier attempt at frames 240-300
++    // sampled the interpreter warmup and never reached the JIT at all.
++    if(++n % 600 == 0 && n <= 24000)
++      fprintf(stderr, "PCSAMPLE %08x ra=%08x sp=%08x\n", (u32)ipu.pc,
++              (u32)ipu.r[31].u64, (u32)ipu.r[29].u64), fflush(stderr);
++  }
+   while(!vi.refreshed && GDB::server.reportPC(ipu.pc & 0xFFFFFFFF)) {
++    /* Periodic PC sampler: one sample every PROF_EVERY executed
++     * instructions, which at ~5.6M instructions per emulated frame gives
++     * a real host-side profile of the ROM.  The per-VI-frame sampler
++     * above cannot do this -- it yields a few dozen samples for a whole
++     * run.  Enable with GPSP_PCPROF=<n>. */
++    {
++      static u64 every = 0;
++      static bool init = false;
++      static u64 count = 0;
++      if(!init) { init = true;
++        if(const char *e = getenv("GPSP_PCPROF")) every = strtoull(e, nullptr, 0); }
++      if(every && ++count % every == 0)
++        fprintf(stderr, "PCPROF %08x\n", (u32)ipu.pc), fflush(stderr);
++    }
+     if(instruction()) synchronize();
+   }
+ 
+@@ -186,6 +325,33 @@ auto CPU::instructionEpilogue() -> void {
+   if constexpr(!Recompiled) {
+     ipu.r[0].u64 = 0;
+   }
++  // gpsp64 debugging: periodic PC sampler.  With the JIT hung and host
++  // interrupts deferred, the ROM cannot report anything itself, so sample
++  // from the emulator side to find out where it is spinning.
++  {
++    static u64 n = 0;
++    if((++n % 40000000ull) == 0 && n <= 400000000ull)
++      fprintf(stderr, "PCSAMPLE %08x ra=%08x\n", (u32)ipu.pc,
++              (u32)ipu.r[31].u64), fflush(stderr);
++  }
++  // gpsp64 debugging: watchpoint on $sp.  Report only transitions to a
++  // value outside RDRAM, so normal stack traffic stays quiet and the
++  // instruction that installs a bogus stack pointer names itself.
++  {
++    static u64 prev = 0;
++#ifdef GPSP_SP_WATCH
++    u64 cur = ipu.r[29].u64;
++    if(cur != prev) {
++      u32 lo = (u32)cur;
++      if(!(lo >= 0x8000'0000u && lo < 0x8090'0000u)) {
++        fprintf(stderr, "SPCHG %08x -> %08x at PC %08x\n",
++                (u32)prev, lo, (u32)ipu.pc);
++        fflush(stderr);
++      }
++      prev = cur;
++    }
++#endif
++  }
+ }
+ 
+ auto CPU::raiseCoprocessor1Exception() -> void {
+@@ -194,6 +360,20 @@ auto CPU::raiseCoprocessor1Exception() -> void {
+ 
+ auto CPU::power(bool reset) -> void {
+   Thread::reset();
++  // gpsp64: GPSP_NORECOMP=1 runs the CPU interpreted.  A guest that writes
++  // and executes its own code (the gpSP dynarec) is the worst case for a
++  // recompiling host -- ares keeps discarding translations, and one emulated
++  // frame cost ~15 minutes of wall clock even though emulated time advanced
++  // normally.  Interpreting is slower but uniform, which makes dynarec
++  // iteration practical.  "Recompiler" is an emulator option, not a settings
++  // node, so --setting cannot reach it.
++  if(const char* e = getenv("GPSP_NORECOMP")) {
++    if(e[0] == '1') {
++      if constexpr(Accuracy::CPU::Recompiler) recompiler.enabled = false;
++      fprintf(stderr, "[gpsp64] CPU recompiler DISABLED via GPSP_NORECOMP\n");
++      fflush(stderr);
++    }
++  }
+ 
+   context.endian = Context::Endian::Big;
+   context.mode = Context::Mode::Kernel;
+diff --git a/ares/n64/cpu/dcache.cpp b/ares/n64/cpu/dcache.cpp
+index 4de28e0..1d58576 100644
+--- a/ares/n64/cpu/dcache.cpp
++++ b/ares/n64/cpu/dcache.cpp
+@@ -3,7 +3,41 @@ auto CPU::DataCache::Line::hit(u32 paddr) const -> bool {
+   return valid() && (tagKey & ~1u) == t;
+ }
+ 
++u64 gpsp_dmiss_hist[128] = {0};
++u32 gpsp_misspc[512] = {0}; u32 gpsp_misscnt[512] = {0};
++u64 gpsp_dmiss_total = 0, gpsp_dwb_total = 0;
++u64 gpsp_dmiss_fine[8192] = {0};
++
+ auto CPU::DataCache::Line::fill(u32 paddr) -> void {
++  // gpsp64: histogram D-cache misses by 64KB bucket of physical address.
++  // A miss costs 40 CPU cycles here (plus 40 more on a dirty writeback), and
++  // the GBA renderer appears to be stalling ~21 cycles/pixel.  Bucketing by
++  // address says *which* structure is missing -- tile data, tilemaps,
++  // palette, or the destination scanline -- instead of guessing.
++  gpsp_dmiss_hist[(paddr >> 16) & 127]++;
++  gpsp_dmiss_total++;
++  /* gpsp64: the 64KB histogram above says the misses are concentrated in
++   * two buckets -- the stack, and the 64KB small-data window around _gp
++   * where gpSP keeps its globals.  Both are far too coarse to act on: the
++   * D-cache is 8KB direct-mapped, so a 64KB window conflicts with itself
++   * eight times over and "it is the globals" does not say which ones.
++   * This second histogram buckets the same misses at 1KB, which resolves
++   * to individual objects in the link map. */
++  { extern u64 gpsp_dmiss_fine[8192];
++    gpsp_dmiss_fine[(paddr >> 10) & 8191]++; }
++  // Attribute the miss to the instruction that caused it.  Which *code*
++  // is missing is far more actionable than which address: 234KB of the hot
++  // region is anonymous LTO-merged BSS with no symbols, so an address
++  // histogram cannot name it, but a PC resolves straight to a function.
++  {
++    extern u32 gpsp_misspc[512]; extern u32 gpsp_misscnt[512];
++    u32 pc = (u32)cpu.ipu.pc, h = (pc >> 2) & 511;
++    for(u32 i = 0; i < 8; i++) {
++      u32 j = (h + i) & 511;
++      if(gpsp_misspc[j] == pc) { gpsp_misscnt[j]++; break; }
++      if(gpsp_misspc[j] == 0)  { gpsp_misspc[j] = pc; gpsp_misscnt[j] = 1; break; }
++    }
++  }
+   cpu.step(40 * 2);
+   const u32 tag = paddr & ~0x0000'0fffu;
+   dirty  = 0;
+@@ -13,6 +47,7 @@ auto CPU::DataCache::Line::fill(u32 paddr) -> void {
+ }
+ 
+ auto CPU::DataCache::Line::writeBack() -> void {
++  gpsp_dwb_total++;
+   cpu.step(40 * 2);
+   const u32 tag = tagKey & ~0x0000'0fffu;
+   cpu.busWriteBurst<DCache>(tag | index, words);
+diff --git a/ares/n64/cpu/exceptions.cpp b/ares/n64/cpu/exceptions.cpp
+index 870e7d4..0bafeab 100644
+--- a/ares/n64/cpu/exceptions.cpp
++++ b/ares/n64/cpu/exceptions.cpp
+@@ -1,4 +1,26 @@
+ auto CPU::Exception::trigger(u32 code, u32 coprocessor, bool tlbMiss) -> void {
++  // gpsp64 debugging: name the first few exceptions.  A repeating
++  // exception at the same EPC is a storm -- the handler returns to the
++  // faulting instruction and it faults again -- which walks $sp down by
++  // one handler frame per iteration until it leaves RDRAM.
++  {
++    static u32 n = 0;
++#ifdef GPSP_EXC_LOG
++    if(n < 24) {
++      static const char* nm[] = {
++        "interrupt","tlbModification","tlbLoad","tlbStore","addressLoad",
++        "addressStore","busInstruction","busData","systemCall","breakpoint",
++        "reservedInstruction","coprocessor","arithmeticOverflow","trap",
++        "reserved14","floatingPoint"};
++      fprintf(stderr, "EXC %u (%s) cop=%u tlbMiss=%u PC=%08x badvaddr=%08x sp=%08x\n",
++              code, code < 16 ? nm[code] : "?", coprocessor, (u32)tlbMiss,
++              (u32)self.ipu.pc, (u32)self.scc.badVirtualAddress,
++              (u32)self.ipu.r[29].u64);
++      fflush(stderr);
++      n++;
++    }
++#endif
++  }
+   self.debugger.exception(code);
+   if (code != 0) {  //ignore interrupt exceptions
+     reportGDBException(code, self.ipu.pc); 
+diff --git a/ares/n64/cpu/memory.cpp b/ares/n64/cpu/memory.cpp
+index f362ef6..762869c 100644
+--- a/ares/n64/cpu/memory.cpp
++++ b/ares/n64/cpu/memory.cpp
+@@ -126,8 +126,44 @@ auto CPU::devirtualizeDebug(u64 vaddr) -> u64 {
+   return devirtualize<Read, Byte>(vaddr, false).paddr; // this wrapper preserves the inlining of 'devirtualizeFast'
+ }
+ 
++/* gpsp64: optional cost for uncached CPU accesses to RDRAM.
++ *
++ * ares charges nothing for these: MI::writeRdram reaches
++ * rdram.ram.write() without stepping the thread, so a burst of uncached
++ * stores is free in the CPU timing model.  On a VR4300 it is not -- the
++ * write buffer is shallow and each access pays RDRAM latency -- and this
++ * port has a concrete decision resting on it.  Building the RDP command
++ * list in cached memory and handing it over with rdpq_exec() removes
++ * ~44,000 uncached accesses a frame; it measured 0.7 ms WORSE here,
++ * which is what "uncached stores are free" predicts, so the change was
++ * shelved as unmeasurable rather than wrong.
++ *
++ * GPSP_UNCACHED_WCOST / GPSP_UNCACHED_RCOST set the per-access charge in
++ * CPU cycles.  Both default to 0, so every measurement taken before this
++ * existed stays comparable; sweeping them says how sensitive a result is
++ * to the real cost instead of guessing a single number.
++ *
++ * Only RDRAM-range addresses are charged.  MMIO registers are uncached
++ * too but have their own latencies and are not what this is for. */
++namespace {
++  inline int gpspUncachedCost(bool write) {
++    static int wcost = -1, rcost = -1;
++    if(wcost < 0) {
++      const char* e = getenv("GPSP_UNCACHED_WCOST");
++      wcost = e ? (int)strtol(e, nullptr, 0) : 0;
++      e = getenv("GPSP_UNCACHED_RCOST");
++      rcost = e ? (int)strtol(e, nullptr, 0) : 0;
++    }
++    return write ? wcost : rcost;
++  }
++}
++
+ template<u32 Size>
+ inline auto CPU::busWrite(u32 address, u64 data) -> void {
++  if(address <= 0x03ff'ffff) {
++    int c = gpspUncachedCost(true);
++    if(c) step(c * 2);
++  }
+   bus.write<Size>(address, data, *this, RBusDevice::VR4300_UNCACHED);
+ }
+ 
+@@ -138,6 +174,10 @@ inline auto CPU::busWriteBurst(u32 address, u32 *data) -> bool {
+ 
+ template<u32 Size>
+ inline auto CPU::busRead(u32 address) -> u64 {
++  if(address <= 0x03ff'ffff) {
++    int c = gpspUncachedCost(false);
++    if(c) step(c * 2);
++  }
+   return bus.read<Size>(address, *this, RBusDevice::VR4300_UNCACHED);
+ }
+ 
+diff --git a/ares/n64/memory/bus.hpp b/ares/n64/memory/bus.hpp
+index 3673082..efc247d 100644
+--- a/ares/n64/memory/bus.hpp
++++ b/ares/n64/memory/bus.hpp
+@@ -90,6 +90,20 @@ inline auto Bus::writeBurst(u32 address, u32 *data, Thread& thread) -> bool {
+ 
+ inline auto Bus::freezeUnmapped(u32 address) -> void {
+   debug(unusual, "[Bus::freezeUnmapped] CPU frozen because of access to RCP unmapped area: 0x", hex(address, 8L), " (PC: ", hex(cpu.ipu.pc, 8L), ")");
++  {
++    // gpsp64 debugging: dump the register file at the freeze.  The ROM
++    // cannot report anything itself once $sp is bad.
++    static const char* rn[32] = {
++      "zero","at","v0","v1","a0","a1","a2","a3","t0","t1","t2","t3",
++      "t4","t5","t6","t7","s0","s1","s2","s3","s4","s5","s6","s7",
++      "t8","t9","k0","k1","gp","sp","fp","ra"};
++    for(u32 i = 0; i < 32; i += 4) {
++      fprintf(stderr, "GPR %-4s=%08x %-4s=%08x %-4s=%08x %-4s=%08x\n",
++        rn[i+0], (u32)cpu.ipu.r[i+0].u64, rn[i+1], (u32)cpu.ipu.r[i+1].u64,
++        rn[i+2], (u32)cpu.ipu.r[i+2].u64, rn[i+3], (u32)cpu.ipu.r[i+3].u64);
++    }
++    fflush(stderr);
++  }
+   if(system.homebrewMode && cpu.emuxState.excMask.bit(3)) {
+     cpu.emuxException(3);
+     cpu.exception.emux();
+diff --git a/ares/n64/rdp/rdp.cpp b/ares/n64/rdp/rdp.cpp
+index b71c407..e5cac35 100644
+--- a/ares/n64/rdp/rdp.cpp
++++ b/ares/n64/rdp/rdp.cpp
+@@ -3,6 +3,16 @@
+ namespace ares::Nintendo64 {
+ 
+ RDP rdp;
++
++/* gpsp64: RDP workload counters, accumulated by the Vulkan command walk
++ * in ares/n64/vulkan/vulkan.cpp and reported by the periodic block in
++ * ares/n64/cpu/cpu.cpp.  Raw counts, so a cycle estimate can be derived
++ * from them with any model rather than being baked in here. */
++u64 gpsp_rdp_prims = 0, gpsp_rdp_px1 = 0, gpsp_rdp_px2 = 0, gpsp_rdp_pxfast = 0;
++u64 gpsp_rdp_tmem_words = 0, gpsp_rdp_tris = 0, gpsp_rdp_syncs = 0;
++u64 gpsp_rdp_charge_cycles = 0;
++u32 gpsp_rdp_cycletype = 0;
++int gpsp_rdp_charge_enabled = -1;
+ #include "render.cpp"
+ #include "io.cpp"
+ #include "debugger.cpp"
+diff --git a/ares/n64/rdram/hidden.hpp b/ares/n64/rdram/hidden.hpp
+index e688fe2..a96d8b6 100644
+--- a/ares/n64/rdram/hidden.hpp
++++ b/ares/n64/rdram/hidden.hpp
+@@ -2,11 +2,13 @@ struct HiddenRAM {
+   u8* data = nullptr;
+ 
+   auto nibble(u32 address) -> u32 {
++    if(!data) return 0;
+     u8* h = &data[address >> 1];
+     return (h[0] & 3) << 2 | (h[1] & 3);
+   }
+ 
+   auto writeBit(u32 address, n1 value) -> void {
++    if(!data) return;
+     u32 shift = 1 - (address & 1);
+     u8& h = data[address >> 1];
+     h = (h & ~(1 << shift)) | (value << shift);
+@@ -14,6 +16,7 @@ struct HiddenRAM {
+ 
+   template<u32 Size>
+   auto update(u32 address, u64 value) -> void {
++    if(!data) return;
+     u8* h = &data[address >> 1];
+     if constexpr(Size == Byte) {
+       if(address & 1) writeBit(address, value & 1);
+@@ -60,6 +63,7 @@ struct HiddenRAM {
+   }
+ 
+   auto updateWords4(u32 address, const u32* value) -> void {
++    if(!data) return;
+     #if ARCHITECTURE_SUPPORTS_SSE4_1
+     __m128i v = _mm_loadu_si128((const __m128i*)value);
+     __m128i m = _mm_and_si128(v, _mm_set1_epi16(1));
+diff --git a/ares/n64/vulkan/vulkan.cpp b/ares/n64/vulkan/vulkan.cpp
+index 27914a7..b5f1a07 100644
+--- a/ares/n64/vulkan/vulkan.cpp
++++ b/ares/n64/vulkan/vulkan.cpp
+@@ -119,6 +119,78 @@ auto Vulkan::render() -> bool {
+     u32 code = op >> 24 & 63;
+     u32 length = commandLength[code];
+ 
++    /* gpsp64: RDP workload accounting.
++     *
++     * RDP::main() advances the RDP thread's clock in fixed chunks with no
++     * relation to the work queued, so RDP fill time is not modelled at
++     * all -- a renderer can queue any amount of drawing and the frame
++     * time will not move.  That makes ares blind to exactly the question
++     * this port needs answered: the GBA background renderer now issues
++     * ~1,200 textured rectangles a frame, and whether that fits in a
++     * frame on a 62.5 MHz RDP is not something the wall clock here can
++     * say.
++     *
++     * This pass does not emulate RDP timing.  It counts the work --
++     * primitives, covered pixels by cycle type, TMEM load words -- so the
++     * cost can be computed from a stated model and recomputed later with
++     * different constants without re-running anything.  The counters are
++     * raw; the cycle estimate is derived and clearly labelled as such.
++     *
++     * Coordinates in TEXTURE_RECTANGLE and FILL_RECTANGLE are 10.2 fixed
++     * point, hence the /4.  Cycle type comes from SET_OTHER_MODES bits
++     * 53:52, which land in bits 21:20 of the command's first word. */
++    {
++      extern u64 gpsp_rdp_prims, gpsp_rdp_px1, gpsp_rdp_px2, gpsp_rdp_pxfast;
++      extern u64 gpsp_rdp_tmem_words, gpsp_rdp_tris, gpsp_rdp_syncs;
++      extern u32 gpsp_rdp_cycletype;
++      u32 w1 = buffer[queueOffset * 2 + 1];
++      switch(code) {
++      case 0x2f:  // SET_OTHER_MODES
++        gpsp_rdp_cycletype = (op >> 20) & 3;
++        break;
++      case 0x24: case 0x25: {  // TEXTURE_RECTANGLE (+FLIP)
++        u32 xl = (op >> 12) & 0xfff, yl = op & 0xfff;
++        u32 xh = (w1 >> 12) & 0xfff, yh = w1 & 0xfff;
++        if(xl > xh && yl > yh) {
++          u64 px = (u64)((xl - xh) >> 2) * ((yl - yh) >> 2);
++          if(gpsp_rdp_cycletype >= 2) gpsp_rdp_pxfast += px;
++          else if(gpsp_rdp_cycletype == 1) gpsp_rdp_px2 += px;
++          else gpsp_rdp_px1 += px;
++        }
++        gpsp_rdp_prims++;
++      } break;
++      case 0x36: {  // FILL_RECTANGLE
++        u32 xl = (op >> 12) & 0xfff, yl = op & 0xfff;
++        u32 xh = (w1 >> 12) & 0xfff, yh = w1 & 0xfff;
++        if(xl > xh && yl > yh) {
++          u64 px = (u64)((xl - xh) >> 2) * ((yl - yh) >> 2);
++          if(gpsp_rdp_cycletype >= 2) gpsp_rdp_pxfast += px;
++          else gpsp_rdp_px1 += px;
++        }
++        gpsp_rdp_prims++;
++      } break;
++      case 0x33: {  // LOAD_BLOCK: texels s.lo..s.hi
++        u32 slo = (op >> 12) & 0xfff, shi = (w1 >> 12) & 0xfff;
++        if(shi >= slo) gpsp_rdp_tmem_words += ((shi - slo) + 1 + 3) / 4;
++      } break;
++      case 0x34: {  // LOAD_TILE: rectangle of texels, 10.2 fixed point
++        u32 slo = (op >> 12) & 0xfff, tlo = op & 0xfff;
++        u32 shi = (w1 >> 12) & 0xfff, thi = w1 & 0xfff;
++        if(shi >= slo && thi >= tlo)
++          gpsp_rdp_tmem_words += (u64)(((shi - slo) >> 2) + 1) * (((thi - tlo) >> 2) + 1) / 4;
++      } break;
++      case 0x30:  // LOAD_TLUT
++        gpsp_rdp_tmem_words += 64;
++        break;
++      case 0x29:  // SYNC_FULL
++        gpsp_rdp_syncs++;
++        break;
++      default:
++        if(code >= 8 && code <= 0x0f) gpsp_rdp_tris++;
++        break;
++      }
++    }
++
+     if(queueOffset + length > queueSize) {
+       //partial command, keep data around for next processing call
+       command.start = command.current = command.end;
+@@ -131,6 +203,24 @@ auto Vulkan::render() -> bool {
+ 
+     if(::RDP::Op(code) == ::RDP::Op::SyncFull) {
+       implementation->processor->wait_for_timeline(implementation->processor->signal_timeline());
++      /* gpsp64: optionally make the RDP's own time visible.  With
++       * GPSP_RDP_CHARGE=1 the RDP thread's clock is advanced by the
++       * estimated cost of the work queued since the last sync before the
++       * DP interrupt is raised, so anything waiting on the RDP waits for
++       * a plausible duration instead of none at all.  Off by default:
++       * every measurement this port has recorded was taken without it,
++       * and turning it on silently would make them incomparable. */
++      { extern u64 gpsp_rdp_charge_cycles;
++        extern int gpsp_rdp_charge_enabled;
++        if(gpsp_rdp_charge_enabled < 0) {
++          const char* e = getenv("GPSP_RDP_CHARGE");
++          gpsp_rdp_charge_enabled = e && strtol(e, nullptr, 0) ? 1 : 0;
++        }
++        if(gpsp_rdp_charge_enabled && gpsp_rdp_charge_cycles) {
++          { u64 c = gpsp_rdp_charge_cycles; if(c > 4000000) c = 4000000; rdp.step((u32)c); }
++          gpsp_rdp_charge_cycles = 0;
++        }
++      }
+       rdp.syncFull();
+     }
+ 

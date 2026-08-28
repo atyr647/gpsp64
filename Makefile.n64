@@ -66,11 +66,35 @@ CFLAGS += -DUSE_XBGR1555_FORMAT
 # the write-allocate misses and line writebacks a cached 75 KB buffer
 # costs -- the VR4300's write buffer absorbs streaming stores far better
 # than the estimate assumed.  Leave this alone.
-# N64_RDP_BG moves BG rasterisation onto the RDP, and takes the RSP blit
-# with it: rspq is a command processor running as RSP ucode, so
-# rsp_gbascan and rdpq cannot both be loaded.  The blit returns to the
-# CPU, where it now only has to convert the rows the RDP declined.
-ifneq ($(findstring N64_RDP_BG,$(EXTRA_CFLAGS)),)
+# The RDP background and sprite renderer.  ON BY DEFAULT -- set N64_RDP=
+# to build the CPU rasteriser instead.  Measured over five link layouts:
+# 60.2 ms (16.6 fps) on the CPU, 41.2 ms (24.3 fps) on the RDP, and 34.5
+# ms (29.0 fps) with the compiler knobs that the RDP move then unlocked.
+# See docs/RDP_RENDERER.md.
+#
+# N64_RDP_EXEC builds the RDP command list in cached memory and hands it
+# over with rdpq_exec(), instead of pushing each rectangle through rspq's
+# uncached command buffers.  It was shelved once as "measured worse, but
+# ares does not model uncached store stalls so this is unmeasurable
+# here".  ares now models them, optionally (GPSP_UNCACHED_WCOST, see
+# docs/CACHE_PROFILING.md), and the answer is unambiguous:
+#
+#   cycles charged per uncached store   0     20    40
+#   rspq command buffers (was default)  37.0  39.0  42.0 ms
+#   rdpq_exec                           36.0  36.0  36.0 ms
+#
+# Flat, because it removes ~44,000 uncached accesses per frame -- all of
+# the port's uncached traffic; emulation itself has none.  It is no worse
+# at zero cost and strictly better at any real cost, and on hardware the
+# cost is certainly not zero.
+N64_RDP ?= -DN64_RDP_BG -DN64_RDP_EXEC
+CFLAGS += $(N64_RDP)
+
+# The RDP renderer takes the RSP blit with it: rspq is a command
+# processor running as RSP ucode, so rsp_gbascan and rdpq cannot both be
+# loaded.  The blit returns to the CPU, where it now only has to convert
+# the rows the RDP declined -- on this workload, none of them.
+ifneq ($(findstring N64_RDP_BG,$(N64_RDP)$(EXTRA_CFLAGS)),)
 N64_BLIT_OPT ?= -DN64_FUSED_BLIT -DN64_UNCACHED_SCREEN
 else
 N64_BLIT_OPT ?= -DN64_RSP_BLIT -DN64_UNCACHED_SCREEN
@@ -220,12 +244,28 @@ ASFLAGS += $(EXTRA_CFLAGS)
 # the CPU_OPT note below: -O2 also beats -Os and -O1, so this is not a
 # code-size effect and the mechanism is not established -- but it is
 # stable in every window and every self-test still passes under it.
+# Re-tested with the renderer on the RDP: -O3 for *everything* is 37 / 37
+# / 38 / 40 ms, mean 38.0, against 36.5 for -O3 on cpu.cc alone.  So the
+# win is specific to the interpreter, not general -- this stays at -O2
+# and CPU_OPT carries the -O3.
 N64_OPT ?= -O2
 # n64/aot_generated.c is by far the largest object, so its size presses
 # directly on the VR4300's 16 KB I-cache.  AOT_OPT builds just that file
 # at a different level from the rest (e.g. AOT_OPT=-Os to trade a little
 # AOT speed for a smaller footprint); empty means it follows N64_OPT.
-AOT_OPT ?=
+# MEASURED, and the best single knob left.  Four link layouts:
+#
+#   AOT_OPT=-Os   34 / 34 / 35 / 35 ms   mean 34.5
+#   (unset)       34 / 35 / 38 / 39 ms   mean 36.5
+#
+# Note the spread as much as the mean: 1 ms against 5.  aot_generated.o
+# is the largest object in the build, so shrinking it both reduces
+# I-cache pressure and makes the frame time far less sensitive to where
+# the linker happens to put everything else -- which is what the cache
+# measurements predict (see docs/CACHE_PROFILING.md: about a third of the
+# frame is cache-miss stalls).  The AOT code runs interleaved with the
+# interpreter, so the two compete for the same 16 KB.
+AOT_OPT ?= -Os
 n64/aot_generated.o: CFLAGS += $(AOT_OPT)
 
 # Same knob for the interpreter alone.  cpu.cc is one enormous switch per
