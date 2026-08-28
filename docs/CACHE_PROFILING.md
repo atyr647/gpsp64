@@ -174,6 +174,41 @@ frame is X ms if a store costs 20 cycles" — it is "this change is
 insensitive to the cost and the other is linear in it", which holds
 whatever the true figure turns out to be.
 
+## The scoreboard, and what it means
+
+Knowing that a third of the frame is cache stalls did not make it easy to
+fix. Attempts, in order:
+
+| change | result |
+| --- | --- |
+| `-O3` on `cpu.cc` | **-4.5 ms** (found by sweeping) |
+| `-Os` on `aot_generated.c` | **-2.0 ms**, and spread 5 ms -> 1 ms (found by sweeping) |
+| fold `sound_buffer` to 1 KB when audio is off | -0.5 ms, at the noise floor |
+| 1 KB bitmap in front of the 64 KB AOT page table | **+2.5 ms**, D-misses +44% |
+| `-falign-loops=32` (matching the I-cache line) | +2.0 ms |
+| `-freorder-blocks-algorithm=simple` | +4.3 ms |
+| expand AOT coverage (-25% interpreted instructions) | neutral |
+| merge HBlank events (-34% timeslice yields) | neutral |
+| delete the cheat-hook compare | neutral |
+| idle-detector fast path | neutral |
+
+Everything found by **sweeping a knob** helped. Everything designed by
+**reasoning about the cache** did not. The bitmap is the sharpest example:
+the argument was that a 64 KB table indexed per instruction cannot stay
+resident in 8 KB while a 1 KB bitmap answering the same question can. It
+is a correct argument and the change made things much worse, because the
+bitmap's lines collided with something hotter and it became the single
+worst miss site in the build.
+
+On a direct-mapped cache **size is not the variable — index conflict is**,
+and index conflict is not something you can reason about from source. It
+depends on where the linker put everything, which is why the same build
+varies by 5 ms across `-DN64_TEXT_PAD` values and why a change that looks
+locally sound can land anywhere in that range.
+
+The practical consequence: sweep, do not deduce. And quote means over
+several layouts, never a single run.
+
 ## Reading the counters from inside the ROM
 
 `n64/emux_prof.h` reads the same counters through ares's `emux`

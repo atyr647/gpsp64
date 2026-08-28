@@ -314,6 +314,18 @@ n64/aot_generated.o: CFLAGS += $(AOT_OPT)
 # scanline.  With that gone the interpreter has the cache mostly to
 # itself and can afford the bigger code.  So -O3 is the default here now,
 # while N64_OPT stays at -O2 for everything else (not re-tested).
+# Two further layout knobs tried against the same mechanism, both worse,
+# three link layouts each against the default's 34 / 35 / 35:
+#
+#   -falign-loops=32               36 / 37 / 37   (the I-cache line is 32
+#                                                  bytes; aligning the hot
+#                                                  loop to it does not help)
+#   -freorder-blocks-algorithm=simple  37 / 38 / 42
+#
+# Both are documented rather than kept.  Every deliberate layout
+# intervention tried on this build has come out worse; the two that did
+# help (-O3 here, -Os on the AOT) were found by sweeping existing knobs,
+# not by reasoning about cache geometry.  See docs/CACHE_PROFILING.md.
 CPU_OPT ?= -O3
 cpu.o: CXXFLAGS += $(CPU_OPT)
 
