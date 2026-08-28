@@ -20,6 +20,7 @@
 #include "../gba_cc_lut.h"
 
 #include "n64_video.h"
+#include "emux_prof.h"
 #include "n64_audio.h"
 #include "n64_input.h"
 #include "n64_storage.h"
@@ -321,6 +322,12 @@ int main(void)
       /* Profiling counters (VR4300 COUNT register, ticks at CPU/2 = 46.875 MHz) */
       u32 prof_emu = 0, prof_blit = 0, prof_total = 0;
       u32 prof_frames = 0;
+#ifdef N64_EMUX_PROF
+      u32 emux_emu_i0 = 0, emux_emu_d0 = 0, emux_unc0 = 0;
+      u32 emux_imiss_emu = 0, emux_dmiss_emu = 0;
+      u32 emux_imiss_blit = 0, emux_dmiss_blit = 0;
+      u32 emux_unc_emu = 0, emux_unc_blit = 0;
+#endif
       extern u32 prof_ppu_ticks;
       #define PROF_TICK() ({ u32 _t; __asm__ volatile("mfc0 %0, $9" : "=r"(_t)); _t; })
 
@@ -331,11 +338,28 @@ int main(void)
         n64_input_poll();
         n64_input_update();
 
+#ifdef N64_EMUX_PROF
+        /* ares's own cache model, read from inside the ROM.  Split the
+         * same way the frame timers are, so a cache figure can be put
+         * next to the milliseconds it is supposed to explain. */
+        { emux_emu_i0 = (u32)EMUX_GLOBAL(EMUX_ICACHE_MISSES);
+          emux_emu_d0 = (u32)EMUX_GLOBAL(EMUX_DCACHE_MISSES);
+          emux_unc0   = (u32)EMUX_GLOBAL(EMUX_RDRAM_UNCACHED); }
+#endif
         /* Run one GBA frame (CPU + PPU) */
         u32 t0 = PROF_TICK();
         run_frame();
         u32 t1 = PROF_TICK();
         prof_emu += t1 - t0;
+#ifdef N64_EMUX_PROF
+        { u32 im = (u32)EMUX_GLOBAL(EMUX_ICACHE_MISSES);
+          u32 dm = (u32)EMUX_GLOBAL(EMUX_DCACHE_MISSES);
+          u32 uc = (u32)EMUX_GLOBAL(EMUX_RDRAM_UNCACHED);
+          emux_imiss_emu += im - emux_emu_i0;
+          emux_dmiss_emu += dm - emux_emu_d0;
+          emux_unc_emu   += uc - emux_unc0;
+          emux_emu_i0 = im; emux_emu_d0 = dm; emux_unc0 = uc; }
+#endif
 
         /* Output video (blit GBA framebuffer to N64 display) */
         u32 tb0 = PROF_TICK();
@@ -344,6 +368,13 @@ int main(void)
         }
         u32 tb1 = PROF_TICK();
         prof_blit += tb1 - tb0;
+#ifdef N64_EMUX_PROF
+        { u32 im = (u32)EMUX_GLOBAL(EMUX_ICACHE_MISSES);
+          u32 dm = (u32)EMUX_GLOBAL(EMUX_DCACHE_MISSES);
+          emux_imiss_blit += im - emux_emu_i0;
+          emux_dmiss_blit += dm - emux_emu_d0;
+          emux_unc_blit += (u32)EMUX_GLOBAL(EMUX_RDRAM_UNCACHED) - emux_unc0; }
+#endif
 
 #ifdef N64_AUDIO_OUT
         /* Push this frame's PCM.  The game's own m4a mixer produced it;
@@ -522,6 +553,30 @@ int main(void)
             prof_raster_dirty_lines = prof_raster_frames = prof_raster_worst = 0; }
 #endif
 
+#ifdef N64_EMUX_PROF
+          {
+            /* 48 cycles per line fill in ares's model, so the misses
+             * convert straight into milliseconds and can be compared with
+             * the frame time they are meant to explain. */
+            u32 f = PROF_FRAMES;
+            u32 icyc = (emux_imiss_emu + emux_imiss_blit) / f * 48;
+            u32 dcyc = (emux_dmiss_emu + emux_dmiss_blit) / f * 48;
+            debugf("PROF:  cache: I-miss/frame emu %lu blit %lu = %lu.%02lu ms;"
+                   " D-miss/frame emu %lu blit %lu = %lu.%02lu ms;"
+                   " uncached RDRAM emu %lu blit %lu\n",
+                   (unsigned long)(emux_imiss_emu / f),
+                   (unsigned long)(emux_imiss_blit / f),
+                   (unsigned long)(icyc / 93750), (unsigned long)((icyc % 93750) * 100 / 93750),
+                   (unsigned long)(emux_dmiss_emu / f),
+                   (unsigned long)(emux_dmiss_blit / f),
+                   (unsigned long)(dcyc / 93750), (unsigned long)((dcyc % 93750) * 100 / 93750),
+                   (unsigned long)(emux_unc_emu / f),
+                   (unsigned long)(emux_unc_blit / f));
+            emux_imiss_emu = emux_dmiss_emu = 0;
+            emux_imiss_blit = emux_dmiss_blit = 0;
+            emux_unc_emu = emux_unc_blit = 0;
+          }
+#endif
 #ifdef N64_VIDEO_PROBE
           { extern u32 prof_hb_irq, prof_hb_dma, prof_hb_calls;
             u32 c = prof_hb_calls ? prof_hb_calls : 1;

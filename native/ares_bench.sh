@@ -111,7 +111,9 @@ sleep 2
 
 echo "[ares:$LABEL] running ares (up to ${TIMEOUT}s, want $WINDOWS PROF windows)..."
 ( cd "$SCRATCH" && DISPLAY="$DISP" timeout "$TIMEOUT" \
-    "$ARES" --setting Nintendo64/ExpansionPak=true --system "Nintendo 64" gpsp.z64 ) \
+    "$ARES" --setting Nintendo64/ExpansionPak=true \
+      --setting Developer/HomebrewMode="${ARES_HOMEBREW:-false}" \
+      --system "Nintendo 64" gpsp.z64 ) \
     >"$SCRATCH/ares.log" 2>&1 &
 APID=$!
 
