@@ -138,7 +138,11 @@ nowhere near the bottleneck.
 
 `GPSP_RDP_CHARGE=1` additionally advances the RDP thread's clock by the
 estimate before raising the DP interrupt, so anything waiting on the RDP
-waits for a plausible duration instead of none.
+waits for a plausible duration instead of none.  Measured: it costs 1.0
+ms of a 35 ms frame, not the full 2.06 ms of estimated RDP work, because
+the RDP runs asynchronously and the CPU only waits for it at
+`rdpq_detach_wait`.  That is the number to quote as the hardware-faithful
+frame time.
 
 ### Uncached store stalls
 
