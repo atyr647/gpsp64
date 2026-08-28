@@ -521,6 +521,7 @@ int main(void)
 #ifdef N64_RDP_BG
           {
             extern u32 prof_rdpbg_rows, prof_rdpbg_frames, prof_rdpbg_break;
+            extern u32 prof_rdpbg_blank;
             extern u32 n64_rdpbg_slices, n64_rdpbg_groups, n64_rdpbg_tiles;
             extern u32 n64_rdpbg_tluts;
             extern u32 prof_rdpbg_spr, prof_rdpbg_sprno;
@@ -546,6 +547,9 @@ int main(void)
                      (unsigned long)(st ? prof_rdpbg_sprno * 100 / st : 0),
                      (unsigned long)(n64_rdpbg_tluts / g));
               prof_rdpbg_spr = prof_rdpbg_sprno = n64_rdpbg_tluts = 0; }
+            { debugf("PROF:  rdpbg: %lu blank tiles skipped per frame\n",
+                     (unsigned long)(prof_rdpbg_blank / g));
+              prof_rdpbg_blank = 0; }
             { extern u32 prof_rdpbg_why[8];
               debugf("PROF:  rdpbg: refused frames: mode%lu window%lu fx%lu"
                      " nolayer%lu 8bpp%lu mosaic%lu objonly%lu | accepted %lu\n",

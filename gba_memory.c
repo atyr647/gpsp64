@@ -2235,6 +2235,7 @@ u32 prof_mid_vram = 0, prof_mid_pal = 0, prof_mid_bgreg = 0, prof_mid_frames = 0
 u32 prof_vram_writes = 0, prof_vram_dma_bytes = 0;
 
 u8 vram_swapped[1024 * 96];
+u8 vram_tile_nz[3072 / 8];
 u32 prof_shadow_hits[4];
 
 /* Re-swap one range of the shadow.  For writers that reach VRAM through
@@ -2248,6 +2249,10 @@ void n64_vram_shadow_range(u32 off, u32 bytes)
   for (i = 0; i < bytes; i++) {
     u8 v = vram_raw[off + i];
     vram_swapped[off + i] = (u8)(((v & 0x0F) << 4) | ((v >> 4) & 0x0F));
+    if (v) {
+      u32 vt = (off + i) >> 5;
+      vram_tile_nz[vt >> 3] |= (u8)(1u << (vt & 7));
+    }
   }
 }
 
@@ -2259,7 +2264,15 @@ void n64_vram_shadow_rebuild(void)
   u32 i;
   const u32 *src = (const u32 *)vram_raw;
   u32 *dst = (u32 *)vram_swapped;
-  for (i = 0; i < (1024 * 96) / 4; i++) dst[i] = GBA_NIBSWAP32(src[i]);
+  memset(vram_tile_nz, 0, sizeof(vram_tile_nz));
+  for (i = 0; i < (1024 * 96) / 4; i++) {
+    u32 v = src[i];
+    dst[i] = GBA_NIBSWAP32(v);
+    if (v) {
+      u32 vt = (i * 4) >> 5;
+      vram_tile_nz[vt >> 3] |= (u8)(1u << (vt & 7));
+    }
+  }
 }
 
 u32 prof_rom_page_misses = 0;

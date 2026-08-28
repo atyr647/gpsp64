@@ -252,7 +252,7 @@ surface_t *n64_rdpbg_end(void)
    * once per sprite priority group, so counting there divided every
    * per-frame figure by the number of groups -- which is why the tile
    * count appeared to *fall* when coverage went from 45% to 100%. */
-  if (d) n64_rdpbg_frames++;
+  n64_rdpbg_frames++;
   if (rdpbg_attached) {
     u32 _t = RDPBG_TICK();
     rdpq_detach_wait();

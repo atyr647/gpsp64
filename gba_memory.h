@@ -267,6 +267,23 @@ extern u8 vram_swapped[1024 * 96];
 void n64_vram_shadow_rebuild(void);
 void n64_vram_shadow_range(u32 off, u32 bytes);
 
+/* One bit per 32-byte tile: set if any nibble in it is non-zero.
+ *
+ * Index 0 of a GBA sub-palette is transparent, so a tile whose 32 bytes
+ * are all zero paints nothing at all.  Those are common -- the upper
+ * background layers are mostly empty, and a text layer is almost all
+ * empty -- and every one of them costs the RDP path a textured rectangle
+ * whose entire content is discarded by the alpha test.  A rectangle is
+ * five uncached words into the RSP queue, so this is the cheapest
+ * reduction available: not drawing them at all.
+ *
+ * The bit is only ever set, never cleared, which is the safe direction:
+ * a tile that becomes blank again is still drawn (wasteful, correct), and
+ * a tile that has never had a non-zero byte written is skipped (correct).
+ * Tile data arrives by DMA from ROM, which goes through the same path. */
+extern u8 vram_tile_nz[3072 / 8];
+#define N64_TILE_NZ(vt) (vram_tile_nz[(vt) >> 3] & (1u << ((vt) & 7)))
+
 #define GBA_NIBSWAP8(v)  ((u8) ((((v) & 0x0Fu)       << 4) | (((v) >> 4) & 0x0Fu)))
 #define GBA_NIBSWAP16(v) ((u16)((((v) & 0x0F0Fu)     << 4) | (((v) >> 4) & 0x0F0Fu)))
 #define GBA_NIBSWAP32(v) ((u32)((((v) & 0x0F0F0F0Fu) << 4) | (((v) >> 4) & 0x0F0F0F0Fu)))
@@ -275,9 +292,11 @@ extern u32 prof_shadow_hits[4];   /* [0]=w8 [1]=w16 [2]=w32 [3]=dma */
 #if defined(N64) && defined(N64_RDP_BG)
   #define N64_VRAM_SHADOW_N(sz, addr, val, slot) \
     { address##sz(vram_swapped, addr) = eswap##sz(GBA_NIBSWAP##sz(val)); \
+      if (val) vram_tile_nz[((addr) >> 5) >> 3] |= (u8)(1u << (((addr) >> 5) & 7)); \
       prof_shadow_hits[slot]++; }
   #define N64_VRAM_SHADOW(sz, addr, val) \
-    address##sz(vram_swapped, addr) = eswap##sz(GBA_NIBSWAP##sz(val))
+    { address##sz(vram_swapped, addr) = eswap##sz(GBA_NIBSWAP##sz(val)); \
+      if (val) vram_tile_nz[((addr) >> 5) >> 3] |= (u8)(1u << (((addr) >> 5) & 7)); }
 #else
   #define N64_VRAM_SHADOW(sz, addr, val)
   #define N64_VRAM_SHADOW_N(sz, addr, val, slot)

@@ -87,9 +87,12 @@ void n64_video_render_frame(void)
 #ifdef N64_RDP_BG
   extern u8 n64_rdp_row[160];
   extern void n64_rdpbg_frame_end(void);
+  extern surface_t *n64_rdpbg_end(void);
   surface_t *disp;
-  n64_rdpbg_frame_end();
-  disp = acquired ? acquired : display_get();
+  n64_rdpbg_frame_end();          /* build and queue this frame's RDP work */
+  disp = n64_rdpbg_end();         /* detach and wait, then hand the buffer back */
+  if (!disp) disp = acquired;
+  if (!disp) disp = display_get();
   acquired = NULL;
 #else
   surface_t *disp = display_get();

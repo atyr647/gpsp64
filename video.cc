@@ -2987,6 +2987,7 @@ extern "C" {
 
 u8 n64_rdp_row[160];               /* 1 = RDP drew it, CPU must not blit */
 u32 prof_rdpbg_rows = 0, prof_rdpbg_frames = 0, prof_rdpbg_break = 0;
+u32 prof_rdpbg_blank = 0;
 
 static u8  rdpbg_elig[160];
 static u32 rdpbg_active = 0;
@@ -3151,8 +3152,10 @@ static void rdpbg_emit_objs(u32 prio)
         for (tx = 0; tx < s->wt; tx++) {
           u32 stx = (s->flip & 1) ? (u32)(s->wt - 1 - tx) : tx;
           u32 off = (s->base + sty * s->pitch + stx * 32) & 0x7FFF;
+          u32 vt  = 2048 + (off >> 5);
+          if (!N64_TILE_NZ(vt)) { prof_rdpbg_blank++; continue; }
           n64_rdpbg_add((int)(s->x + (s32)(tx * 8)), (int)sy, (int)r0, (int)r1,
-                        2048 + (off >> 5), s->pal, s->flip);
+                        vt, s->pal, s->flip);
         }
         r0 = r1;
       }
@@ -3287,6 +3290,11 @@ static void rdpbg_emit_bg(u32 i)
         u16 tile = gba_deref16(maprow + ((vx >= 256) ? 1024 : 0)
                                       + ((vx & 255) >> 3));
         u32 vt = (cb * 512 + (tile & 0x3FF)) & 0x7FF;
+        /* An all-zero tile is entirely transparent, so its rectangle
+         * would be discarded pixel by pixel by the alpha test after
+         * costing five uncached words to enqueue.  The upper layers are
+         * mostly these. */
+        if (!N64_TILE_NZ(vt)) { prof_rdpbg_blank++; continue; }
         n64_rdpbg_add((int)(tx * 8) - xsub, (int)sy, (int)r0, (int)r1,
                       vt, tile >> 12, (tile >> 10) & 3);
       }
