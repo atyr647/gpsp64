@@ -151,6 +151,17 @@ it takes six captures and keeps the one with the most distinct colours,
 because at 24 fps against a 60 Hz refresh most captures catch the
 framebuffer mid-write.
 
+**ares does not model uncached store stalls either.** It models D-cache
+misses -- which is why every cache experiment in this port has read true
+-- but the write buffer costs nothing in its CPU model.  That makes one
+class of change unmeasurable here: `-DN64_RDP_EXEC` builds the RDP
+command list in cached memory and hands it over with `rdpq_exec()`
+instead of pushing each rectangle through rspq's uncached buffers.  The
+reasoning says it should save most of the 3.3 ms spent emitting; ares
+says it costs 0.7 ms, because it only sees the write-allocate misses the
+cached buffer adds and none of the uncached stalls it removes.  It is
+kept behind the flag, off by default, for whoever has hardware.
+
 **ares does not model RDP fill timing** -- its RDP thread advances a
 clock in fixed chunks.  What is measured here is the CPU half: queue
 generation, TMEM uploads, and stalls when the queue backs up.  The RDP's

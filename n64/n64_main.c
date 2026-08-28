@@ -575,6 +575,14 @@ int main(void)
                      (unsigned long)(n64_rdpbg_t_wait * 2 / g / 93750),
                      (unsigned long)((n64_rdpbg_t_wait * 2 / g % 93750) * 100 / 93750));
               n64_rdpbg_t_sort = n64_rdpbg_t_emit = n64_rdpbg_t_wait = 0; }
+            { extern u32 n64_rdpbg_t_acquire, n64_rdpbg_t_show;
+              debugf("PROF:  rdpbg: per frame display_get %lu.%02lu ms,"
+                     " display_show %lu.%02lu ms\n",
+                     (unsigned long)(n64_rdpbg_t_acquire * 2 / g / 93750),
+                     (unsigned long)((n64_rdpbg_t_acquire * 2 / g % 93750) * 100 / 93750),
+                     (unsigned long)(n64_rdpbg_t_show * 2 / g / 93750),
+                     (unsigned long)((n64_rdpbg_t_show * 2 / g % 93750) * 100 / 93750));
+              n64_rdpbg_t_acquire = n64_rdpbg_t_show = 0; }
             prof_rdpbg_rows = prof_rdpbg_frames = prof_rdpbg_break = 0;
             n64_rdpbg_slices = n64_rdpbg_groups = n64_rdpbg_tiles = 0;
             n64_rdpbg_frames = n64_rdpbg_overflow = 0;

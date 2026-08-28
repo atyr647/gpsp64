@@ -75,9 +75,19 @@ static inline u32 xbgr_pair_to_rgba_pair(u32 p) {
  * but they must be the same surface. */
 static surface_t *acquired = NULL;
 
+/* display_get() blocks until the VI releases a buffer.  With the RDP
+ * doing the rasterising the frame slot is mostly this wait plus command
+ * generation, so it is worth knowing which. */
+u32 n64_rdpbg_t_acquire = 0, n64_rdpbg_t_show = 0;
+#define RDPV_TICK() ({ u32 _t; __asm__ volatile("mfc0 %0, $9" : "=r"(_t)); _t; })
+
 surface_t *n64_video_acquire(void)
 {
-  if (!acquired) acquired = display_get();
+  if (!acquired) {
+    u32 _t = RDPV_TICK();
+    acquired = display_get();
+    n64_rdpbg_t_acquire += RDPV_TICK() - _t;
+  }
   return acquired;
 }
 #endif
@@ -171,7 +181,11 @@ void n64_video_render_frame(void)
       src    += pairs_per_row;
       dstrow += disp->stride;
     }
+#ifdef N64_RDP_BG
+    { u32 _t = RDPV_TICK(); display_show(disp); n64_rdpbg_t_show += RDPV_TICK() - _t; }
+#else
     display_show(disp);
+#endif
     return;
 #endif
   }

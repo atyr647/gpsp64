@@ -105,9 +105,78 @@ void n64_rdpbg_build_tlut(const u16 *pal_converted)
  * made the PPU look *more* expensive with 45% of its rows skipped.  The
  * buffer is taken at flush time, at the end of the frame, exactly where
  * the blit always took it. */
+#ifdef N64_RDP_EXEC
+/* Write the RDP commands into cached RAM and hand the whole run over with
+ * rdpq_exec(), instead of pushing each one through rspq.
+ *
+ * MEASURED WORSE ON ares, AND OFF BY DEFAULT.  The reasoning was that
+ * rspq's command buffers are uncached, so each textured rectangle costs
+ * five uncached word stores, and that this was most of the ~250 cycles a
+ * rectangle takes.  Writing the same words to cached memory and paying
+ * one bulk writeback should then have been most of a 3.3 ms saving.
+ * Instead emit went 3.27 -> 3.95 ms and the frame 38.7 -> 40.0.
+ *
+ * The likely reason is that ares does not model uncached store stalls at
+ * all -- it models D-cache misses, which is why every cache experiment in
+ * this port has read true, but a write-buffer stall costs nothing in its
+ * CPU model.  So the rspq stores were already free in the measurement and
+ * this only adds write-allocate misses and an explicit writeback.  On
+ * console it could still win; there is no way to tell from here, and a
+ * change that measures worse on the only instrument available does not
+ * get to be the default.  Kept, behind -DN64_RDP_EXEC, for whoever has
+ * hardware.
+ *
+ * The catch is that rdpq's autosync engine cannot see these rectangles,
+ * so it will not know a SYNC_LOAD or SYNC_TILE is owed when the next TMEM
+ * load or tile change comes along.  Those are issued explicitly at every
+ * group boundary instead -- a couple of dozen per frame.
+ *
+ * The buffer is only rewritten from the start on the next frame, and the
+ * frame ends with rdpq_detach_wait(), so the RDP is always done with it
+ * before anything overwrites it.
+ */
+#define RDPBG_CMDWORDS (RDPBG_MAX_DRAWS * 4 + 16)
+static u32 rdpbg_cmds[RDPBG_CMDWORDS] __attribute__((aligned(16)));
+static u32 rdpbg_cw = 0;      /* next word to write   */
+static u32 rdpbg_csent = 0;   /* first word not yet submitted */
+
+/* 0xE4 is the RDP's own TEXTURE_RECTANGLE opcode; coordinates are 10.2,
+ * texture coordinates 10.5, and the steps s5.10. */
+#define RDPBG_RECT(X0, Y0, X1, Y1, S0, T0, DSDX, DTDY) do {                 \
+    u32 *_p = &rdpbg_cmds[rdpbg_cw];                                        \
+    _p[0] = 0xE4000000u | ((u32)((X1) * 4) << 12) | (u32)((Y1) * 4);        \
+    _p[1] = ((u32)((X0) * 4) << 12) | (u32)((Y0) * 4);                      \
+    _p[2] = ((u32)((S0) * 32) << 16) | (u32)(((T0) * 32) & 0xFFFF);         \
+    _p[3] = ((u32)(((DSDX) * 1024) & 0xFFFF) << 16)                         \
+          | (u32)(((DTDY) * 1024) & 0xFFFF);                                \
+    rdpbg_cw += 4;                                                          \
+  } while (0)
+
+/* Hand over everything written since the last submit, then let rdpq know
+ * the pipeline has been used so its next TMEM load or tile change is
+ * ordered after these rectangles. */
+#define RDPBG_SUBMIT() do {                                                 \
+    if (rdpbg_cw > rdpbg_csent) {                                           \
+      u32 _n = rdpbg_cw - rdpbg_csent;                                      \
+      data_cache_hit_writeback(&rdpbg_cmds[rdpbg_csent], _n * 4);           \
+      rdpq_exec(&rdpbg_cmds[rdpbg_csent], (int)(_n * 4));                   \
+      rdpbg_csent = rdpbg_cw;                                               \
+      rdpq_sync_load();                                                     \
+      rdpq_sync_tile();                                                     \
+    }                                                                       \
+  } while (0)
+#else
+#define RDPBG_RECT(X0, Y0, X1, Y1, S0, T0, DSDX, DTDY) \
+  rdpq_texture_rectangle_raw(TILE0, X0, Y0, X1, Y1, S0, T0, DSDX, DTDY)
+#define RDPBG_SUBMIT() do {} while (0)
+#endif
+
 int n64_rdpbg_begin(void)
 {
   rdpbg_ndraws = 0;
+#ifdef N64_RDP_EXEC
+  rdpbg_cw = rdpbg_csent = 0;
+#endif
   return 1;
 }
 
@@ -219,6 +288,7 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
     if (slice != cur_slice) {
       surface_t sl = surface_make_linear(&vram_swapped[slice * 1024],
                                          FMT_CI4, 8, 256);
+      RDPBG_SUBMIT();
       rdpq_tex_upload(TILE0, &sl, NULL);
       cur_slice = slice; cur_key = 0xFFFF;
       n64_rdpbg_slices++;
@@ -226,6 +296,7 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
     if (d->key != cur_key) {
       rdpq_tileparms_t p = {0};
       p.palette = (u8)(d->key & 15);
+      RDPBG_SUBMIT();
       rdpq_set_tile(TILE0, FMT_CI4, 0, 8, &p);
       rdpq_set_tile_size(TILE0, 0, 0, 8, 256);
       cur_key = d->key;
@@ -248,12 +319,12 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
     if (x1 > 240) x1 = 240;
     if (x0 >= x1) continue;
 
-    rdpq_texture_rectangle_raw(TILE0,
-      GBA_OFFSET_X + x0, GBA_OFFSET_Y + y0, GBA_OFFSET_X + x1, GBA_OFFSET_Y + y1,
-      s0, t0, dsdx, dtdy);
+    RDPBG_RECT(GBA_OFFSET_X + x0, GBA_OFFSET_Y + y0,
+               GBA_OFFSET_X + x1, GBA_OFFSET_Y + y1, s0, t0, dsdx, dtdy);
     n64_rdpbg_tiles++;
   }
 
+  RDPBG_SUBMIT();
   n64_rdpbg_t_emit += RDPBG_TICK() - _t0;
   rdpbg_ndraws = 0;
 }
