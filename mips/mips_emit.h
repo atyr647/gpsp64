@@ -237,8 +237,21 @@ u32 arm_to_mips_reg[] =
   *((u32 *)(dest)) = (mips_opcode_j << 26) |                                  \
    ((mips_absolute_offset(offset)) & 0x3FFFFFF)                               \
 
+/* gpsp64: match the branch TARGET as well as the branch address.
+ *
+ * idle_loop_target_pc is the loop *head*: the interpreter tests
+ * reg[REG_PC] == idle_loop_target_pc after executing an instruction, so
+ * for a taken backward branch that is the destination, not the branch.
+ * Here `pc` is the address of the branch being translated and `new_pc`
+ * is its target, so testing `pc` only fires when the loop branches to
+ * itself.  Emerald's idle loop spans 0x080008C6..0x080008CE and does
+ * not, so the fast path was never emitted and the dynarec spun the loop
+ * at full speed instead of skipping to the next event -- it translated
+ * the BIOS vectors and this loop, six blocks in total, and never reached
+ * a line of game code.  Both operands are tested now; the old one is
+ * kept because a self-branch is still an idle loop. */
 #define generate_branch_no_cycle_update(writeback_location, new_pc)           \
-  if(pc == idle_loop_target_pc)                                               \
+  if(pc == idle_loop_target_pc || (new_pc) == idle_loop_target_pc)            \
   {                                                                           \
     generate_load_pc(reg_a0, new_pc);                                         \
     mips_emit_lui(reg_cycles, 0);                                             \

@@ -1,0 +1,204 @@
+OpenGL Version: 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2, GLSL: 4.50
+OpenGL: Failed to load librashader: shaders will be disabled
+ALSA lib confmisc.c:855:(parse_card) cannot find card '0'
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_card_inum returned error: No such file or directory
+ALSA lib confmisc.c:422:(snd_func_concat) error evaluating strings
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_concat returned error: No such file or directory
+ALSA lib confmisc.c:1342:(snd_func_refer) error evaluating name
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_refer returned error: No such file or directory
+ALSA lib conf.c:5731:(snd_config_expand) Evaluate error: No such file or directory
+ALSA lib pcm.c:2721:(snd_pcm_open_noupdate) Unknown PCM default
+ALSA lib confmisc.c:855:(parse_card) cannot find card '0'
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_card_inum returned error: No such file or directory
+ALSA lib confmisc.c:422:(snd_func_concat) error evaluating strings
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_concat returned error: No such file or directory
+ALSA lib confmisc.c:1342:(snd_func_refer) error evaluating name
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_refer returned error: No such file or directory
+ALSA lib conf.c:5731:(snd_config_expand) Evaluate error: No such file or directory
+ALSA lib pcm.c:2721:(snd_pcm_open_noupdate) Unknown PCM default
+Loaded gpsp
+Vulkan Enabled: using paraLLEl-RDP
+WARNING: Allocations beyond 4 MiB: this ROM requires the expansion pak to work properly.
+WARNING: Call assert_memory_expanded() or is_memory_expanded() in main to disable this warning.
+[gpSP]: rgba_buf=0x8040bdc8 (75 KB)
+[gpSP]: gba_screen_pixels=0x0
+N64 storage initialized
+[gpSP]: gpSP N64 - GBA Emulator
+[gpSP]: Initializing...
+[gpSP]: Using built-in BIOS
+[gpSP]: gamepak_code='BPEE' idle_loop_target_pc=0x080008ce
+STUBS: watermark=18572 bytes, BE_SWAP=1
+LD32[3]@0x802e5e6c: 00040e02 00041780 00021582 00220825 38210003 1401fa7f 3c028024 30817ffc
+  +8: 00411021 8c424380 00020e00 00022602 00240825 00022202 308400ff 00042400
+JITSTUB scanning 18580 bytes (watermark 18572, +8 above it)
+JITX arm rom 00000008
+JITX arm rom 00000064
+[gpSP]: boot.sav 425984 bytes, load OK
+JITX thumb rom 080008ce
+JITX thumb rom 080008c6
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 58871480
+TIME upd=1 vcount=0 frame=23100 ticks=2193730304 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 58891883
+TIME upd=2 vcount=0 frame=23100 ticks=2193730570 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 58943175
+TIME upd=3 vcount=0 frame=23100 ticks=2193731264 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 58961607
+TIME upd=4 vcount=1 frame=23100 ticks=2193731536 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 58980355
+TIME upd=5 vcount=1 frame=23100 ticks=2193731824 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 58998923
+TIME upd=6 vcount=1 frame=23100 ticks=2193732496 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 59017011
+TIME upd=7 vcount=2 frame=23100 ticks=2193732768 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 59035543
+TIME upd=8 vcount=2 frame=23100 ticks=2193733078 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 59075826
+TIME upd=50 vcount=16 frame=23100 ticks=2193750634 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 59119094
+TIME upd=100 vcount=33 frame=23100 ticks=2193770960 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 59162130
+TIME upd=150 vcount=50 frame=23100 ticks=2193791904 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 59204942
+TIME upd=200 vcount=66 frame=23100 ticks=2193812576 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 59247450
+TIME upd=250 vcount=83 frame=23100 ticks=2193833398 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 59289955
+TIME upd=300 vcount=100 frame=23100 ticks=2193853504 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 59332607
+TIME upd=350 vcount=117 frame=23100 ticks=2193874448 | icache calls=2 work=2 ticks=3K
+JIT xlat=4 hit=0 flush=2 chainmax=0 runaway=0
+JIT badregion=0 lastbadpc=00000000
+COUNT 59375418
+TIME upd=400 vcount=133 frame=23100 ticks=2193895120 | icache calls=2 work=2 ticks=3K
+JITX arm rom 00000018
+JITX arm rom 00000020
+IMISS +0 hits +0 (0% miss)
+ARESEMIT +765 (total 765)  <- ares recompiles of guest code
+DMISS total=4372561 (+4372561) wb=2120022 | top: 16:707503(16%) 1a:662951(15%) 27:421632(9%) 28:421632(9%) 29:421632(9%) 26:308689(7%)
+RDPWORK syncs=0 prims=0 tris=0 px1=0 px2=0 pxfast=0 tmemwords=0 | per sync: 0 prims 0 px -> ~0 RDP cyc = 0.00 ms at 62.5MHz
+DMISSFINE 8016dc00:666522(15%) 801a1c00:654884(14%) 80622400:106499(2%) 80622000:28256(0%) 8068ac00:22050(0%) 8016a000:13039(0%) 807ff800:8660(0%) 807ff400:7349(0%) 80271400:6668(0%) 80273400:6668(0%) 80275400:6668(0%) 80277400:6668(0%)
+DMISSPC 807ff698:37507 807ff630:37288 800f0e84:35955 800f0e94:35945 800f0ea4:35942 800f0eb4:35941 800f0f8c:32768 800f0f9c:32768
+PCSAMPLE 8004d02c ra=8004d324 sp=807ff7e8
+IMISS +0 hits +0 (0% miss)
+ARESEMIT +4 (total 769)  <- ares recompiles of guest code
+DMISS total=7440906 (+3068345) wb=2236834 | top: 16:1454628(47%) 1a:1451958(47%) 28:27563(0%) 29:27563(0%) 27:27562(0%) 26:25251(0%)
+RDPWORK syncs=0 prims=0 tris=0 px1=0 px2=0 pxfast=0 tmemwords=0 | per sync: 0 prims 0 px -> ~0 RDP cyc = 0.00 ms at 62.5MHz
+DMISSFINE 8016dc00:1452668(47%) 801a1c00:1451958(47%) 8016a000:886(0%) 80269400:546(0%) 8026f400:546(0%) 80265400:545(0%) 8026b400:545(0%) 80267400:544(0%) 8026a000:544(0%) 8026d400:544(0%) 80266000:543(0%) 80268000:543(0%)
+DMISSPC 8004d000:1451958 8004cff4:1451958 802e8a7c:69553 802e8a20:45657 802e8a28:45657 802e49d8:448 802e4998:269 8004d308:179
+PCSAMPLE 802e4f4c ra=802e92f8 sp=807ff860
+IMISS +0 hits +0 (0% miss)
+ARESEMIT +0 (total 769)  <- ares recompiles of guest code
+DMISS total=10369952 (+2929046) wb=2236834 | top: 16:1464523(50%) 1a:1464523(50%)
+RDPWORK syncs=0 prims=0 tris=0 px1=0 px2=0 pxfast=0 tmemwords=0 | per sync: 0 prims 0 px -> ~0 RDP cyc = 0.00 ms at 62.5MHz
+DMISSFINE 8016dc00:1464523(50%) 801a1c00:1464523(50%)
+DMISSPC 8004d000:1464523 8004cff4:1464523
+PCSAMPLE 802e8b58 ra=802e9310 sp=807ff860
+IMISS +0 hits +0 (0% miss)
+ARESEMIT +0 (total 769)  <- ares recompiles of guest code
+DMISS total=13298998 (+2929046) wb=2236834 | top: 16:1464523(50%) 1a:1464523(50%)
+RDPWORK syncs=0 prims=0 tris=0 px1=0 px2=0 pxfast=0 tmemwords=0 | per sync: 0 prims 0 px -> ~0 RDP cyc = 0.00 ms at 62.5MHz
+DMISSFINE 8016dc00:1464523(50%) 801a1c00:1464523(50%)
+DMISSPC 8004d000:1464523 8004cff4:1464523
+PCSAMPLE 802e8afc ra=802e9330 sp=807ff860
+IMISS +0 hits +0 (0% miss)
+ARESEMIT +0 (total 769)  <- ares recompiles of guest code
+DMISS total=16228044 (+2929046) wb=2236834 | top: 16:1464523(50%) 1a:1464523(50%)
+RDPWORK syncs=0 prims=0 tris=0 px1=0 px2=0 pxfast=0 tmemwords=0 | per sync: 0 prims 0 px -> ~0 RDP cyc = 0.00 ms at 62.5MHz
+DMISSFINE 8016dc00:1464523(50%) 801a1c00:1464523(50%)
+DMISSPC 8004d000:1464523 8004cff4:1464523
+PCSAMPLE 8004d300 ra=800e64a4 sp=807ff860
+IMISS +0 hits +0 (0% miss)
+ARESEMIT +0 (total 769)  <- ares recompiles of guest code
+DMISS total=19157090 (+2929046) wb=2236834 | top: 16:1464523(50%) 1a:1464523(50%)
+RDPWORK syncs=0 prims=0 tris=0 px1=0 px2=0 pxfast=0 tmemwords=0 | per sync: 0 prims 0 px -> ~0 RDP cyc = 0.00 ms at 62.5MHz
+DMISSFINE 8016dc00:1464523(50%) 801a1c00:1464523(50%)
+DMISSPC 8004d000:1464523 8004cff4:1464523
+PCSAMPLE 8004cfa0 ra=8004d324 sp=807ff820
+IMISS +0 hits +0 (0% miss)
+ARESEMIT +0 (total 769)  <- ares recompiles of guest code
+DMISS total=22086137 (+2929047) wb=2236834 | top: 1a:1464524(50%) 16:1464523(49%)
+RDPWORK syncs=0 prims=0 tris=0 px1=0 px2=0 pxfast=0 tmemwords=0 | per sync: 0 prims 0 px -> ~0 RDP cyc = 0.00 ms at 62.5MHz
+DMISSFINE 801a1c00:1464524(50%) 8016dc00:1464523(49%)
+DMISSPC 8004cff4:1464524 8004d000:1464523
+PCSAMPLE 8004d000 ra=8004d324 sp=807ff7e8
+IMISS +0 hits +0 (0% miss)
+ARESEMIT +0 (total 769)  <- ares recompiles of guest code
+DMISS total=25015184 (+2929047) wb=2236834 | top: 16:1464524(50%) 1a:1464523(49%)
+RDPWORK syncs=0 prims=0 tris=0 px1=0 px2=0 pxfast=0 tmemwords=0 | per sync: 0 prims 0 px -> ~0 RDP cyc = 0.00 ms at 62.5MHz
+DMISSFINE 8016dc00:1464524(50%) 801a1c00:1464523(49%)
+DMISSPC 8004d000:1464524 8004cff4:1464523
+PCSAMPLE 8004d02c ra=8004d324 sp=807ff7e8
+IMISS +0 hits +0 (0% miss)
+ARESEMIT +0 (total 769)  <- ares recompiles of guest code
+DMISS total=27944230 (+2929046) wb=2236834 | top: 16:1464523(50%) 1a:1464523(50%)
+RDPWORK syncs=0 prims=0 tris=0 px1=0 px2=0 pxfast=0 tmemwords=0 | per sync: 0 prims 0 px -> ~0 RDP cyc = 0.00 ms at 62.5MHz
+DMISSFINE 8016dc00:1464523(50%) 801a1c00:1464523(50%)
+DMISSPC 8004d000:1464523 8004cff4:1464523
+PCSAMPLE 800e64dc ra=800e64a4 sp=807ff860
+IMISS +0 hits +0 (0% miss)
+ARESEMIT +0 (total 769)  <- ares recompiles of guest code
+DMISS total=30873276 (+2929046) wb=2236834 | top: 16:1464523(50%) 1a:1464523(50%)
+RDPWORK syncs=0 prims=0 tris=0 px1=0 px2=0 pxfast=0 tmemwords=0 | per sync: 0 prims 0 px -> ~0 RDP cyc = 0.00 ms at 62.5MHz
+DMISSFINE 8016dc00:1464523(50%) 801a1c00:1464523(50%)
+DMISSPC 8004d000:1464523 8004cff4:1464523
+PCSAMPLE 802e8b58 ra=802e9304 sp=807ff860
+PCSAMPLE 802e4f4c ra=802e9310 sp=807ff860
+PCSAMPLE 802e8afc ra=802e9330 sp=807ff860
+PCSAMPLE 8004d300 ra=800e64a4 sp=807ff860
+PCSAMPLE 8004cfa0 ra=8004d324 sp=807ff820
+PCSAMPLE 8004d000 ra=8004d324 sp=807ff7e8
+PCSAMPLE 8004d324 ra=8004d324 sp=807ff820
+PCSAMPLE 800e64dc ra=800e64a4 sp=807ff860
+PCSAMPLE 802e8b58 ra=802e9304 sp=807ff860
+PCSAMPLE 802e49c0 ra=802e931c sp=807ff860
+PCSAMPLE 802e4f04 ra=802e9330 sp=807ff860
+PCSAMPLE 8004cfa0 ra=8004d324 sp=807ff820
+PCSAMPLE 8004cfa0 ra=8004d324 sp=807ff820
+PCSAMPLE 8004d000 ra=8004d324 sp=807ff7e8
+PCSAMPLE 800023a0 ra=8004d380 sp=807ff820
+PCSAMPLE 802e8b58 ra=802e92ec sp=807ff860
+PCSAMPLE 802e8b58 ra=802e9304 sp=807ff860
+PCSAMPLE 802e4f5c ra=802e931c sp=807ff860
+PCSAMPLE 802e5e88 ra=802e9348 sp=807ff860
+PCSAMPLE 8004cfa0 ra=8004d324 sp=807ff820
+PCSAMPLE 8004cfa0 ra=8004d324 sp=807ff820
+PCSAMPLE 8004d02c ra=8004d324 sp=807ff7e8
+PCSAMPLE 800023cc ra=8004d380 sp=807ff7e8
+PCSAMPLE 802e4f4c ra=802e92ec sp=807ff860
+PCSAMPLE 802e8b58 ra=802e9304 sp=807ff860
+PCSAMPLE 802e8afc ra=802e9330 sp=807ff860
+PCSAMPLE 802e9348 ra=802e9348 sp=807ff860
+PCSAMPLE 8004cfa0 ra=8004d324 sp=807ff820
+PCSAMPLE 8004cfd0 ra=8004d324 sp=807ff7e8
+PCSAMPLE 8004d02c ra=8004d324 sp=807ff7e8
+PCSAMPLE 8004d380 ra=8004d380 sp=807ff820

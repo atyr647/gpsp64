@@ -280,6 +280,18 @@ u32 prof_icache_ticks = 0, prof_icache_calls = 0, prof_icache_work = 0;
 #define ICACHE_TICK() ({ u32 _t; __asm__ volatile("mfc0 %0, $9" : "=r"(_t)); _t; })
 #endif
 
+/* gpsp64: is the JIT reusing translated blocks, or retranslating?
+ *
+ * A PC profile of the JIT build put 71% of samples in the translation
+ * cache (executing translated code), 14% in block_lookup_translate_arm
+ * and 14% in translate_icache_sync -- and the latter only does work when
+ * new code was just emitted.  That says it is emitting on nearly every
+ * lookup, which would mean the hash is missing or the cache is being
+ * flushed in a loop.  These counters distinguish the two. */
+u32 prof_jit_xlat = 0, prof_jit_hit = 0, prof_jit_flush = 0;
+u32 prof_jit_chainlen = 0, prof_jit_chainmax = 0;
+u32 prof_jit_badregion = 0, prof_jit_badpc = 0;
+
 void translate_icache_sync() {
 #if defined(N64) && defined(N64_TIME_TRACE)
     u32 _ic0 = ICACHE_TICK();
@@ -2725,11 +2737,13 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
         u8 *blkptr = ram_translation_ptr + block_prologue_size;               \
         trentry->offset_##type = blkptr - ram_translation_cache;              \
         N64_JIT_TRACE_BLOCK(#type " ram", pc);                                \
+        prof_jit_xlat++;                                                      \
         result = translate_block_##type(pc, true);                            \
                                                                               \
         if (result)                                                           \
           return blkptr;                                                      \
       } else {                                                                \
+        prof_jit_hit++;                                                       \
         return &ram_translation_cache[trentry->offset_##type];                \
       }                                                                       \
       return NULL;                                                            \
@@ -2745,12 +2759,22 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
       hashhdr_type *bhdr;                                                     \
       u32 blk_offset = rom_branch_hash[hash_target];                          \
       u32 *blk_offset_addr = &rom_branch_hash[hash_target];                   \
+      u32 _chain = 0;                                                         \
       while(blk_offset)                                                       \
       {                                                                       \
+        /* gpsp64: the JIT runs healthily for ~350 timeslices and then      \
+         * grinds to ~880,000 N64 cycles per timeslice, with PC samples     \
+         * sitting in this function and the translation counter frozen --   \
+         * i.e. looping here without ever reaching the translate below.     \
+         * A cyclic next_entry would do exactly that.  Count the walk. */   \
+        if (++_chain > 4096) { prof_jit_chainmax++; break; }                 \
+        if (_chain > prof_jit_chainlen) prof_jit_chainlen = _chain;          \
         bhdr = (hashhdr_type*)&rom_translation_cache[blk_offset];             \
-        if(bhdr->pc_value == key)                                             \
+        if(bhdr->pc_value == key) {                                           \
+          prof_jit_hit++;                                                     \
           return &rom_translation_cache[                                      \
-                  blk_offset + sizeof(hashhdr_type) + block_prologue_size];   \
+                  blk_offset + sizeof(hashhdr_type) + block_prologue_size]; \
+        }                                                                     \
                                                                               \
         blk_offset = bhdr->next_entry;                                        \
         blk_offset_addr = &bhdr->next_entry;                                  \
@@ -2767,6 +2791,7 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
         blkptr = rom_translation_ptr + block_prologue_size;                   \
         N64_JIT_SCAN_STUBS();                                                 \
         N64_JIT_TRACE_BLOCK(#type " rom", pc);                                \
+        prof_jit_xlat++;                                                      \
         { u8 *dbgfrom = rom_translation_ptr;                                  \
         result = translate_block_##type(pc, false);                           \
         N64_JIT_SCAN_SP(#type, pc, dbgfrom, rom_translation_ptr); }           \
@@ -2783,6 +2808,13 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
      points to some random place (perhaps due to being garbage). This can     \
      happen when especulatively compiling code in RAM. Perhaps the game       \
      patches these instructions later, which would trigger a flush */         \
+  /* gpsp64: this sentinel is non-NULL, and block_lookup_address_*()          \
+     tests only for non-NULL before jumping to it.  Count how often the       \
+     region switch falls through to here: the JIT stops translating after     \
+     four blocks while still calling the lookup, which is what that would     \
+     look like. */                                                            \
+  prof_jit_badregion++;                                                       \
+  prof_jit_badpc = pc;                                                        \
   return (u8*)(~0);                                                           \
 }                                                                             \
 
@@ -3496,6 +3528,7 @@ void init_bios_hooks(void)
 
 void flush_translation_cache_ram(void)
 {
+  { extern u32 prof_jit_flush; prof_jit_flush++; }
   /* Flushes RAM caches avoiding doing too much work (ie. wiping unused memory) */
   flush_ram_count++;
   /*printf("ram flush %d (pc %x), %x to %x, %x to %x\n",
@@ -3534,6 +3567,7 @@ void flush_translation_cache_ram(void)
 
 void flush_translation_cache_rom(void)
 {
+  { extern u32 prof_jit_flush; prof_jit_flush++; }
   /* We flush the generated code except for everything below the watermark. */
   last_rom_translation_ptr = &rom_translation_cache[rom_cache_watermark];
   rom_translation_ptr      = &rom_translation_cache[rom_cache_watermark];

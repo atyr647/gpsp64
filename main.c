@@ -193,8 +193,25 @@ u32 function_cc update_gba(int remaining_cycles)
      still cycles 0..227 and frame_counter climbs.  If it is spinning
      without ever reaching a hardware event, both sit still. */
   { static u32 _n = 0;
-    if (++_n <= 8 || (_n % 500) == 0)
+    if (++_n <= 8 || (_n % 50) == 0)
     { extern u32 prof_icache_ticks, prof_icache_calls, prof_icache_work;
+      { extern u32 prof_jit_xlat, prof_jit_hit, prof_jit_flush;
+        extern u32 prof_jit_chainlen, prof_jit_chainmax;
+        extern u32 prof_jit_badregion, prof_jit_badpc;
+        fprintf(stderr, "JIT xlat=%lu hit=%lu flush=%lu chainmax=%lu runaway=%lu\n",
+                (unsigned long)prof_jit_xlat, (unsigned long)prof_jit_hit,
+                (unsigned long)prof_jit_flush,
+                (unsigned long)prof_jit_chainlen,
+                (unsigned long)prof_jit_chainmax);
+        fprintf(stderr, "JIT badregion=%lu lastbadpc=%08lx\n",
+                (unsigned long)prof_jit_badregion,
+                (unsigned long)prof_jit_badpc); }
+      /* COUNT alongside cpu_ticks, so N64 cycles per GBA cycle can be
+       * computed from two points of this trace rather than trusted from
+       * the EFF metric, which disagrees with the observed rate by four
+       * orders of magnitude. */
+      { u32 _cnt; __asm__ volatile("mfc0 %0, $9" : "=r"(_cnt));
+        fprintf(stderr, "COUNT %lu\n", (unsigned long)_cnt); }
       fprintf(stderr, "TIME upd=%lu vcount=%lu frame=%lu ticks=%lu"
                       " | icache calls=%lu work=%lu ticks=%luK\n",
               (unsigned long)_n, (unsigned long)read_ioreg(REG_VCOUNT),
