@@ -1,8 +1,8 @@
 diff --git a/ares/n64/cpu/cpu.cpp b/ares/n64/cpu/cpu.cpp
-index 330d3d6..5df7adf 100644
+index 330d3d6..23dfc55 100644
 --- a/ares/n64/cpu/cpu.cpp
 +++ b/ares/n64/cpu/cpu.cpp
-@@ -35,7 +35,146 @@ auto CPU::unload() -> void {
+@@ -35,7 +35,151 @@ auto CPU::unload() -> void {
  }
  
  auto CPU::main() -> void {
@@ -26,6 +26,11 @@ index 330d3d6..5df7adf 100644
 +        fprintf(stderr, "IMISS +%lld hits +%lld (%lld%% miss)\n",
 +                (long long)dm, (long long)dh,
 +                (long long)((dm + dh) ? dm * 100 / (dm + dh) : 0)); }
++      { extern u64 gpsp_ares_emits; static u64 pe = 0;
++        fprintf(stderr, "ARESEMIT +%llu (total %llu)  <- ares recompiles of guest code\n",
++                (unsigned long long)(gpsp_ares_emits - pe),
++                (unsigned long long)gpsp_ares_emits);
++        pe = gpsp_ares_emits; }
 +      fprintf(stderr, "DMISS total=%llu (+%llu) wb=%llu | top:",
 +              (unsigned long long)gpsp_dmiss_total,
 +              (unsigned long long)(gpsp_dmiss_total - prev_total),
@@ -149,7 +154,7 @@ index 330d3d6..5df7adf 100644
      if(instruction()) synchronize();
    }
  
-@@ -186,6 +325,33 @@ auto CPU::instructionEpilogue() -> void {
+@@ -186,6 +330,33 @@ auto CPU::instructionEpilogue() -> void {
    if constexpr(!Recompiled) {
      ipu.r[0].u64 = 0;
    }
@@ -183,7 +188,7 @@ index 330d3d6..5df7adf 100644
  }
  
  auto CPU::raiseCoprocessor1Exception() -> void {
-@@ -194,6 +360,20 @@ auto CPU::raiseCoprocessor1Exception() -> void {
+@@ -194,6 +365,20 @@ auto CPU::raiseCoprocessor1Exception() -> void {
  
  auto CPU::power(bool reset) -> void {
    Thread::reset();
@@ -205,10 +210,10 @@ index 330d3d6..5df7adf 100644
    context.endian = Context::Endian::Big;
    context.mode = Context::Mode::Kernel;
 diff --git a/ares/n64/cpu/dcache.cpp b/ares/n64/cpu/dcache.cpp
-index 4de28e0..1d58576 100644
+index 4de28e0..85ea1cf 100644
 --- a/ares/n64/cpu/dcache.cpp
 +++ b/ares/n64/cpu/dcache.cpp
-@@ -3,7 +3,41 @@ auto CPU::DataCache::Line::hit(u32 paddr) const -> bool {
+@@ -3,7 +3,42 @@ auto CPU::DataCache::Line::hit(u32 paddr) const -> bool {
    return valid() && (tagKey & ~1u) == t;
  }
  
@@ -216,6 +221,7 @@ index 4de28e0..1d58576 100644
 +u32 gpsp_misspc[512] = {0}; u32 gpsp_misscnt[512] = {0};
 +u64 gpsp_dmiss_total = 0, gpsp_dwb_total = 0;
 +u64 gpsp_dmiss_fine[8192] = {0};
++u64 gpsp_ares_emits = 0;
 +
  auto CPU::DataCache::Line::fill(u32 paddr) -> void {
 +  // gpsp64: histogram D-cache misses by 64KB bucket of physical address.
@@ -250,7 +256,7 @@ index 4de28e0..1d58576 100644
    cpu.step(40 * 2);
    const u32 tag = paddr & ~0x0000'0fffu;
    dirty  = 0;
-@@ -13,6 +47,7 @@ auto CPU::DataCache::Line::fill(u32 paddr) -> void {
+@@ -13,6 +48,7 @@ auto CPU::DataCache::Line::fill(u32 paddr) -> void {
  }
  
  auto CPU::DataCache::Line::writeBack() -> void {
@@ -349,6 +355,25 @@ index f362ef6..762869c 100644
    return bus.read<Size>(address, *this, RBusDevice::VR4300_UNCACHED);
  }
  
+diff --git a/ares/n64/cpu/recompiler.cpp b/ares/n64/cpu/recompiler.cpp
+index 9ff94ea..c0230c4 100644
+--- a/ares/n64/cpu/recompiler.cpp
++++ b/ares/n64/cpu/recompiler.cpp
+@@ -556,6 +556,14 @@ auto buildEmitPlan(ares::Nintendo64::CPU::Recompiler& recompiler, u64 vaddr, u32
+ }
+ 
+ auto CPU::Recompiler::emit(u64 vaddr, u32 address, u64 stateKey) -> Block* {
++  /* gpsp64: how often does ares recompile a guest block?
++   *
++   * The gpSP dynarec writes MIPS code into RDRAM and jumps to it, which
++   * is a recompiling host emulator's worst case: every write can
++   * invalidate a translation ares has already built.  If that is what
++   * makes the JIT build run ~30,000x slower than its emulated work
++   * justifies, it will show up here and nowhere in the guest. */
++  { extern u64 gpsp_ares_emits; gpsp_ares_emits++; }
+   // Phase 0: initialize emit state and clear temporary outputs.
+   emitStateKey = stateKey;
+   emitStateKeyChanged = false;
 diff --git a/ares/n64/memory/bus.hpp b/ares/n64/memory/bus.hpp
 index 3673082..efc247d 100644
 --- a/ares/n64/memory/bus.hpp

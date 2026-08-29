@@ -26,6 +26,13 @@ docs/CACHE_PROFILING.md.
 | `GPSP_RDP_CHARGE=1` | advance the RDP thread's clock by that estimate, so waiting on the RDP costs something |
 | `GPSP_UNCACHED_WCOST` / `RCOST` | charge N CPU cycles per uncached CPU access to RDRAM (default 0) |
 | `GPSP_PCPROF=<n>` | sample the emulated PC every n instructions, for `native/ares_pcprof.sh` |
+| `ARESEMIT` | how often ares recompiles a guest block — the check that ruled out ares thrashing on the gpSP dynarec's self-modifying code |
+
+**`GPSP_PCPROF` is instruction-weighted, not time-weighted.** It samples
+every N *executed instructions*, so it overstates code that runs many
+cheap predictable instructions and understates code that stalls. On the
+dynarec, a 21.6% share of samples turned out to be 2% of cycles. Use it
+to find what runs; never to rank what costs.
 
 All of it is off or zero by default, so a stock build of this patch
 reproduces the same frame times as unpatched ares. That is deliberate:
