@@ -1,11 +1,42 @@
-# The dynarec: why it is slow, and what that number actually means
+# The dynarec: where it stands
+
+> **Correction.** An earlier version of this document claimed the
+> Makefile's "2.6x slower than the interpreter" figure was not a real
+> measurement, on the evidence that the dynarec translated six blocks and
+> hung. That was true only when starting from a **savestate**. From a
+> cold boot the dynarec runs, translates 80+ blocks of real game code and
+> completes frames, and its steady-state cost is **22.0 N64 cycles per
+> GBA cycle** — which confirms the documented ~20.5 rather than refuting
+> it. The hang is a separate, real bug in the savestate path. Both
+> findings are kept below because the distinction is the whole point.
+
+# Why it is slow, and what the numbers mean
 
 `Makefile.n64` records the dynarec as **2.6× slower than the interpreter**
 — 20.5 N64 cycles per GBA cycle against 7.9, with 5.56 being real time —
 and that figure has been the reason not to invest in it. It is not a
 measurement of the dynarec running the game.
 
-## What it actually does
+## The numbers, measured from CP0 COUNT against cpu_ticks
+
+Cold boot, per 50 `update_gba` calls, on the Emerald title/intro:
+
+| | N64 cycles per GBA cycle |
+| --- | --- |
+| interpreter | 7.9 |
+| dynarec, steady state | **22.0** |
+| dynarec, intervals containing translation | 42 – 257 |
+| real time | 5.56 |
+
+So the dynarec is **2.8x slower than the interpreter** on game code, and
+needs to get 4x faster to reach real time. The translation bursts are
+the striking part: an interval that translates is 2 to 12 times more
+expensive than one that does not, and the cost tracks the `icache calls`
+counter exactly — every emit calls `inst_cache_invalidate_all()`, which
+discards the whole 16 KB I-cache and makes everything afterwards run
+cold.
+
+## What it actually does from a savestate
 
 Instrumenting block translation (`-DN64_JIT_TRACE`) shows the dynarec
 translates exactly **six blocks** and then never translates another, for
