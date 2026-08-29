@@ -266,3 +266,101 @@ The consequence is a methodology rule: **wall-clock fps is meaningless
 for the JIT build.** Use CP0 `COUNT` against `cpu_ticks` — both are
 emulated-side and hardware-faithful — and check that COUNT has not
 wrapped (32-bit at 46.875 MHz, so 91.6 s).
+
+## The savestate "hang": indirect branches jumped to the block they were in
+
+Restored from `bench-results/states/overworld.sav`, the dynarec translated
+four blocks, pinned the ARM PC at 0x080008C6, completed zero frames, and
+sat there indefinitely (verified over 900 s — only PC samples accumulated,
+no further `update_gba` calls). The interpreter, from the same savestate,
+ran 3968 frames.
+
+The cause was in `mips_indirect_branch_arm/thumb`. An indirect branch — BX,
+POP{pc}, `ldr pc, [...]`, LDM with r15 in the list — passes its destination
+in `$4`, because `arm_to_mips_reg[]` maps ARM r15 to `reg_a0`; that is what
+mips_emit.h's "a0 holds the destination" means. Commit 139d743 changed both
+stubs to `addu $4, $19, $0`, replacing the destination with `$19`, the
+block's own start address, so every indirect branch resolved to the block
+it was already in.
+
+Nothing goes wrong until the first interrupt. gpSP's open BIOS dispatches
+IRQs through
+
+    00000018: b 0x20
+    00000020: stmdb sp!, {r0-r3, r12, lr}
+    00000024: mov   r0, #0x04000000
+    00000028: mov   lr, pc
+    0000002c: ldr   pc, [r0, #-4]      ; [0x03FFFFFC] = handler pointer
+
+so the first IRQ runs `ldr pc` and the block at 0x20 jumps to itself for
+ever. From a savestate that is the first VBlank, 448 hardware events in.
+A cold boot survives only because 180 s of ares is not enough to reach one.
+
+### What ruled everything else out
+
+Worth recording, because most of these look plausible and cost a run each:
+
+- The emulated timeline is **correct**. JIT and interpreter agree
+  tick-for-tick across all 448 `update_gba` calls from the same savestate.
+  Whatever is wrong is not an emulation-accuracy bug.
+- `update_gba`'s last return value is `0x400003C0` — bit 30 (`changed_pc`)
+  with `reg[REG_PC] = 0x18`. The IRQ really was raised and delivered.
+- Blocks at 0x18 and 0x20 *are* translated (`JITX arm rom 00000018/20`).
+- IWRAM 0x7FFC really holds the handler pointer (raw `50 27 00 03` =
+  0x03002750), so neither the savestate nor the load path is at fault.
+- With `N64_JIT_IBCACHE=` the log is an unbroken run of
+  `LOOKUP arm 00000020`, which is what named the bug.
+- Re-enabling N64 interrupts around `update_gba` changes nothing: the run
+  is byte-identical. See `-DN64_JIT_NO_IRQ_WINDOW`.
+
+`JITX` only prints when a block is actually *translated*, so a lookup that
+keeps returning the same block leaves no trace. `-DN64_JIT_TRACE` now also
+prints `LOOKUP <mode> <pc>` on every inline-cache miss, which is what makes
+this shape of bug visible at all.
+
+### Where it stops now
+
+Past the fix: 151 blocks translated, 154 lookup hits, the game's IWRAM
+handler running (`JITX thumb ram 03001AA8`), frame 23100 reaching vcount
+167 — past VBlank. Then, ~46 events later, an indirect branch resolves to
+0x114230B6 and ares freezes the CPU on an unmapped RCP access, with
+`$sp = 0xa4fffed0` and GBA addresses ORed into KSEG1 elsewhere in the
+register file (`a0 = a5000130`, `at = a5000350`). That is the
+address-computation bug the `JITK1` and `n64_jit_scan_sp` probes in
+cpu_threaded.c were written for — pre-existing, and now reachable.
+
+### Where the dynarec actually stands
+
+Over the interval both engines can run from the same savestate — 205,808
+GBA ticks, the game's VBlank poll loop:
+
+| engine | N64 cycles per GBA cycle |
+| --- | --- |
+| dynarec | 86.81 |
+| interpreter | 69.45 |
+| real time | 5.56 |
+
+The dynarec costs 1.25x the interpreter there. Both are ~10x their
+steady-state cost because a poll loop is the worst case for per-event
+overhead — the interpreter's figure over 3968 frames of the same scene is
+7.02. There is still no measurement of the dynarec over gameplay, because
+it does not yet survive gameplay.
+
+## The harness bug that invalidated a day of JIT numbers
+
+`tools/jit-savestate-run.sh` used to run ares as
+
+    ( cd "$SCRATCH" && ... ares ... ) >ares.log 2>&1
+    cp "$SCRATCH/ares.log" "$REPO/bench-results/$LABEL.jit.txt"
+
+The redirection is set up by the parent shell, so it landed in the repo,
+not in `$SCRATCH` — while the tar that stages the scratch tree copied the
+repo's own `ares.log` into `$SCRATCH`. Every published log was therefore
+written by an *earlier* run of a *different* build. Two nominally identical
+builds gave opposite results; a freshly added diagnostic print never
+appeared. It was caught by comparing mtimes: the published log was five
+minutes older than the `gpsp.elf` it supposedly came from.
+
+The script now writes to an absolute path, excludes `ares.log`/`run.log`
+from the tar, and refuses to publish a log that is not newer than the ROM.
+If you write a benchmark wrapper, make it prove its output is fresh.
