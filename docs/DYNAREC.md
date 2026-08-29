@@ -137,12 +137,62 @@ Thumb idle loop at 0x080008C6..0x080008CE take, and why does that path
 not emit a `reg_cycles` check? `generate_branch_cycle_update` and
 `generate_indirect_branch_cycle_update` are the candidates.
 
+## The 2.6x gap does not survive an apples-to-apples measurement
+
+`Makefile.n64` records the dynarec at 20.5 N64 cycles per GBA cycle
+against the interpreter's 7.9. Those two numbers were taken on different
+workloads, at different points in a run, with a metric the interpreter
+flatters itself on: the interpreter skips the idle loop, advancing
+emulated cycles at almost no host cost, so any interval containing idle
+time reads far better for it than for a dynarec that executes the loop.
+
+Measured the same way — CP0 `COUNT` against `cpu_ticks`, same ROM, same
+ares build, both from a cold boot:
+
+| | N64 cycles per GBA cycle |
+| --- | --- |
+| **identical emulated interval** (464,469 GBA cycles, the JIT's whole reach) | |
+| &nbsp;&nbsp;dynarec | **50.9** |
+| &nbsp;&nbsp;interpreter | **53.9** |
+| interpreter over a full 620 s run (3.47 G cycles, ~12,400 frames) | 22.7 |
+| dynarec, steady-state intervals (no translation in them) | 21.5 |
+| real time | 5.56 |
+
+**Over the only interval where both have been measured on the same work,
+the dynarec is ahead**, and its steady state matches the interpreter's
+long-run average. The 2.6x deficit is an artifact of comparing a
+translation-heavy early boot against a settled interpreter average.
+
+That does not make the dynarec faster — it makes the two roughly equal,
+about 4x short of real time, on the early-boot workload. What it does is
+retire the reason for not working on it.
+
+### What this does not show
+
+Both figures are from the boot and intro. Neither has been measured on
+gameplay, because the dynarec still hangs when started from the
+savestate, and that is the only route this project has to gameplay. An
+attempt to measure the interpreter from the savestate for comparison
+produced a byte-identical log to the cold-boot run — it had silently
+booted cold — and was discarded rather than reported.
+
 ## What is left to make this competitive
 
 In priority order, with what is known about each:
 
-**1. The savestate hang.** Blocker, not performance: the benchmark
-harness cannot run the dynarec until it is fixed. Narrowed as above.
+**1. The savestate hang. Everything else is downstream of this.** It is
+not merely a benchmarking inconvenience: it is the reason no one has ever
+seen the dynarec run Emerald's actual game code, and therefore the reason
+every performance claim about it — including the ones above — is about
+the boot sequence. Fix it and the question "is the dynarec worth it"
+becomes answerable in one run.
+
+The lead is in the elimination table above: the last blocks translated
+before the hang are the BIOS IRQ vector, so the next block would be the
+game's handler in IWRAM — the RAM translation path, which a cold boot
+barely exercises. Instrument `block_lookup_translate_*`'s RAM branch
+(the `pcregion` 0x2/0x3 case) and watch what it does with the tag on the
+first IWRAM block after a state load.
 
 **2. Block linking — already implemented, and not the problem.**
 `cpu_threaded.c:3343-3383` patches internal branches to recorded block
