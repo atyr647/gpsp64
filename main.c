@@ -484,7 +484,23 @@ u32 function_cc update_gba(int remaining_cycles)
 #ifdef PROFILE_CYCLES
   prof_update_ticks += PROF_TICK() - _upd_t0;
 #endif
-  return (execute_cycles - dma_cycles) | changed_pc | frame_complete;
+  {
+    u32 _rv = (execute_cycles - dma_cycles) | changed_pc | frame_complete;
+#ifdef N64_TIME_TRACE
+    /* The return value is what selects the dynarec stub's next path: bit 31
+     * exits to main, bit 30 goes to lookup_pc, and the low 15 bits become
+     * reg_cycles.  When the JIT stops calling update_gba, the last value it
+     * was handed says which way it went. */
+    { static u32 _m = 0;
+      if (++_m <= N64_TIME_TRACE_DENSE || (_m % 50) == 0)
+        fprintf(stderr, "RET %lu rv=%08lx exec=%lu dma=%d halt=%lu pc=%08lx\n",
+                (unsigned long)_m, (unsigned long)_rv,
+                (unsigned long)execute_cycles, (int)dma_cycles,
+                (unsigned long)reg[CPU_HALT_STATE],
+                (unsigned long)reg[REG_PC]); }
+#endif
+    return _rv;
+  }
 }
 
 void reset_gba(void)

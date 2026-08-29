@@ -341,7 +341,9 @@ return_to_main:
 # through to the old path and fills the entry on the way back.  $1, $2 and
 # $5 are free here: the ARM registers live in $3, $7-$15, $18, $24, $25,
 # $28 and $30, with $16 the register base, $17 the cycle counter and $19
-# the ARM PC.
+# the block's own start address.  The branch TARGET is in $4: ARM r15 is
+# mapped to reg_a0 by arm_to_mips_reg[], which is what the emitter's
+# "a0 holds the destination" comment means.
 #
 # Entries are tagged 0xFFFFFFFF when empty, which is never a valid ARM PC,
 # and both tables are cleared by every translation cache flush -- a cached
@@ -351,13 +353,13 @@ return_to_main:
 .macro ibcache_lookup table, shift
 #ifdef N64_JIT_IBCACHE
   lui   $1, %hi(\table)
-  srl   $5, $19, \shift
+  srl   $5, $4, \shift
   andi  $5, $5, 255
   sll   $5, $5, 3                 # 8 bytes per {tag, target} entry
   addiu $1, $1, %lo(\table)
   addu  $1, $1, $5                # $1 = &table[index]
   lw    $2, 0($1)                 # cached ARM PC
-  bne   $2, $19, 8f               # miss: take the slow path
+  bne   $2, $4, 8f                # miss: take the slow path
   nop
   lw    $2, 4($1)                 # cached host target
   jr    $2                        # hit: straight there, nothing spilled
@@ -365,14 +367,16 @@ return_to_main:
 8:
   addiu $sp, $sp, -16
   sw    $1, 0($sp)                # keep the slot across the C call
+  sw    $4, 4($sp)                # and the branch target: $4 is caller-saved
 #endif
 .endm
 
 .macro ibcache_fill
 #ifdef N64_JIT_IBCACHE
   lw    $1, 0($sp)
+  lw    $5, 4($sp)                # the ARM PC this lookup was for
   addiu $sp, $sp, 16
-  sw    $19, 0($1)                # tag = ARM PC
+  sw    $5, 0($1)                 # tag = ARM PC
   sw    $2, 4($1)                 # target = translated block
 #endif
 .endm
@@ -380,7 +384,6 @@ return_to_main:
 defsymbl(mips_indirect_branch_arm)
   ibcache_lookup ibcache_arm, 2
   save_registers
-  addu $4, $19, $0                # $4 = ARM PC ($19) for block_lookup arg
   cfncall block_lookup_address_arm, 1
   restore_registers
   sll $2, $2, 0                   # Sign-extend for MIPS III
@@ -391,7 +394,6 @@ defsymbl(mips_indirect_branch_arm)
 defsymbl(mips_indirect_branch_thumb)
   ibcache_lookup ibcache_thumb, 1
   save_registers
-  addu $4, $19, $0                # $4 = ARM PC ($19) for block_lookup arg
   cfncall block_lookup_address_thumb, 2
   restore_registers
   sll $2, $2, 0                   # Sign-extend for MIPS III

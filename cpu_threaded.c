@@ -2881,6 +2881,15 @@ u8 function_cc *block_lookup_address_dual(u32 pc)
 u8 function_cc *block_lookup_address_arm(u32 pc)
 {
   unsigned i;
+#ifdef N64_JIT_TRACE
+  /* Every indirect branch that misses the inline cache lands here.
+   * JITX only prints when a block is actually translated, so a
+   * lookup that returns a stale pointer -- or is never made at all
+   * -- is invisible without this. */
+  { static u32 _lk = 0;
+    if (_lk < 64) { _lk++;
+      fprintf(stderr, "LOOKUP arm %08lx\n", (unsigned long)pc); } }
+#endif
   for (i = 0; i < 4; i++) {
     u8 *ret = block_lookup_translate_arm(pc);
     if (ret) {
@@ -2897,6 +2906,15 @@ u8 function_cc *block_lookup_address_arm(u32 pc)
 u8 function_cc *block_lookup_address_thumb(u32 pc)
 {
   unsigned i;
+#ifdef N64_JIT_TRACE
+  /* Every indirect branch that misses the inline cache lands here.
+   * JITX only prints when a block is actually translated, so a
+   * lookup that returns a stale pointer -- or is never made at all
+   * -- is invisible without this. */
+  { static u32 _lk = 0;
+    if (_lk < 64) { _lk++;
+      fprintf(stderr, "LOOKUP thumb %08lx\n", (unsigned long)pc); } }
+#endif
   for (i = 0; i < 4; i++) {
     u8 *ret = block_lookup_translate_thumb(pc);
     if (ret) {

@@ -187,6 +187,17 @@ static bool load_rom_and_bios(const char *rom_path)
         size_t got = fread(buf, 1, GBA_STATE_MEM_SIZE, f);
         debugf("[gpSP]: boot.sav %u bytes, load %s\n", (unsigned)got,
                (got == GBA_STATE_MEM_SIZE && gba_load_state(buf)) ? "OK" : "FAILED");
+        /* IWRAM 0x7FFC holds the game's IRQ handler pointer -- the BIOS
+         * IRQ dispatcher at 0x20 reaches it via `ldr pc, [r0, #-4]` with
+         * r0 = 0x04000000, i.e. the IWRAM mirror at 0x03FFFFFC.  Under the
+         * JIT that load comes back as 0x00000020 and the block jumps to
+         * itself forever; the interpreter reads 0x03001E20.  Print the raw
+         * bytes to settle whether the memory or the load is wrong. */
+#ifdef N64_JIT_TRACE
+        { const u8 *ph = &iwram_raw[0x8000 + 0x7FFC];
+          debugf("[gpSP]: iwram+7FFC raw = %02x %02x %02x %02x\n",
+                 ph[0], ph[1], ph[2], ph[3]); }
+#endif
         free(buf);
       }
       fclose(f);
