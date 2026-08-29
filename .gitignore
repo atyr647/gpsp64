@@ -34,3 +34,9 @@ n64/.aot_pcs.tmp
 # Native benchmark harness artifacts
 /bench-results/
 /.bench-obj/
+
+# Run logs from tools/jit-savestate-run.sh and native/ares_*.sh.  These were
+# tracked once, and because the scratch tree is staged with tar, a tracked
+# ares.log got copied into every build and published as that run"s result.
+ares.log
+run.log
