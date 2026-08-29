@@ -252,7 +252,25 @@ defsymbl(mips_update_gba)
   collapse_flags                  # update cpsr
   save_registers                  # save registers
   move $4, reg_cycles             # Remaining cycles as asg0
+#ifdef N64
+  # Reopen the interrupt window across this C call.  execute_arm_translate
+  # runs the whole translated-code window with N64 interrupts off, because
+  # translated code keeps ARM r13 in $gp and libdragon's inthandler is
+  # gp-relative.  That is safe only while the window is short -- and it is
+  # not: restored from a savestate the game sits in its VBlank poll loop
+  # (Emerald: 0x080008C6..0x080008CE), the window never ends, and every
+  # wait inside update_gba -- vsync, RSP/RDP sync, audio -- blocks on an
+  # interrupt that can never arrive.
+  #
+  # Here it is safe to reopen it: save_registers has already spilled every
+  # ARM register to reg[], $sp is the real N64 stack throughout, and
+  # cfncall restores the real $gp before the call.  The wrapper re-enables
+  # interrupts for the duration of the call and disables them again before
+  # returning to translated code.
+  cfncall n64_jit_update_gba, 0   # process the next event, interruptible
+#else
   cfncall update_gba, 0           # process the next event
+#endif
 
   # Defensive sign-extension before testing bit 31, matching the ten other
   # such sites in this file.  NOT required for correctness: the MIPS n32/n64
@@ -416,7 +434,25 @@ defsymbl(write_io_epilogue)
 
 cpu_sleep_loop:
   move $4, reg_cycles             # Remaining cycles as asg0
+#ifdef N64
+  # Reopen the interrupt window across this C call.  execute_arm_translate
+  # runs the whole translated-code window with N64 interrupts off, because
+  # translated code keeps ARM r13 in $gp and libdragon's inthandler is
+  # gp-relative.  That is safe only while the window is short -- and it is
+  # not: restored from a savestate the game sits in its VBlank poll loop
+  # (Emerald: 0x080008C6..0x080008CE), the window never ends, and every
+  # wait inside update_gba -- vsync, RSP/RDP sync, audio -- blocks on an
+  # interrupt that can never arrive.
+  #
+  # Here it is safe to reopen it: save_registers has already spilled every
+  # ARM register to reg[], $sp is the real N64 stack throughout, and
+  # cfncall restores the real $gp before the call.  The wrapper re-enables
+  # interrupts for the duration of the call and disables them again before
+  # returning to translated code.
+  cfncall n64_jit_update_gba, 0   # process the next event, interruptible
+#else
   cfncall update_gba, 0           # process the next event
+#endif
 
   # Defensive sign-extension before testing bit 31, matching the ten other
   # such sites in this file.  NOT required for correctness: the MIPS n32/n64

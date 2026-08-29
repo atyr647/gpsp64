@@ -25,6 +25,43 @@
 #include "n64_input.h"
 #include "n64_storage.h"
 
+/* The dynarec's hardware-event call, made interruptible.
+ *
+ * execute_arm_translate() runs the entire translated-code window with N64
+ * interrupts disabled: translated code keeps ARM r13 in $gp, and
+ * libdragon's inthandler is gp-relative (it does `sw sp,-31872(gp)`), so an
+ * interrupt taken inside translated code reads its own nesting state out of
+ * GBA IWRAM, never acknowledges the interrupt, re-enters immediately, and
+ * walks $sp out of RDRAM until the RCP freezes the CPU.
+ *
+ * Deferring interrupts across that window is only safe if the window is
+ * short.  It is not.  The assumption was "the JIT returns once per emulated
+ * frame"; restored from a savestate the game sits in its VBlank poll loop
+ * (Emerald: 0x080008C6..0x080008CE, waiting on a flag the VBlank handler
+ * sets) and no frame ever completes, so the window never ends.  Every wait
+ * inside update_gba -- vsync, RSP/RDP sync, audio -- then blocks on an
+ * interrupt that can never arrive.  Measured: from a savestate the JIT
+ * translated four blocks, pinned the ARM PC at 0x080008C6, and completed
+ * zero frames, where the interpreter from the same savestate completed
+ * 3967.  Cold boot survived only because the JIT does return every frame
+ * during boot.
+ *
+ * mips_update_gba is the one place the window can be reopened safely: it
+ * has already spilled every ARM register to reg[] via save_registers, $sp
+ * is the real N64 stack throughout (no ARM register is mapped to it), and
+ * cfncall restores the real $gp before the call.  libdragon's
+ * enable/disable_interrupts are nesting-counted, so this pairs with the
+ * disable_interrupts() around the translated-code window rather than
+ * fighting it. */
+u32 function_cc n64_jit_update_gba(int remaining_cycles)
+{
+  u32 rv;
+  enable_interrupts();
+  rv = update_gba(remaining_cycles);
+  disable_interrupts();
+  return rv;
+}
+
 /* Global state required by the emulator core */
 u32 skip_next_frame = 0;
 u32 num_skipped_frames = 0;
@@ -278,6 +315,12 @@ int main(void)
 #ifdef N64_TEXT_PAD
   { extern void n64_text_pad(void); n64_text_pad(); }
 #endif
+
+  /* Say plainly whether the dynarec is live.  Inferring it from block
+   * counters has misled this investigation twice: a build with the JIT
+   * compiled in but disabled looks identical to one that is translating,
+   * unless you happen to notice the translation counter is flat. */
+  debugf("[gpSP]: dynarec_enable=%d\n", dynarec_enable);
 
   /* Initialize sound */
   init_sound();

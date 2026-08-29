@@ -193,7 +193,13 @@ u32 function_cc update_gba(int remaining_cycles)
      still cycles 0..227 and frame_counter climbs.  If it is spinning
      without ever reaching a hardware event, both sit still. */
   { static u32 _n = 0;
-    if (++_n <= 8 || (_n % 50) == 0)
+    /* Dense at the start, sparse afterwards.  A stall shows up as the
+     * trace simply stopping, so the first N calls must be logged one by
+     * one or the stop point is only known to within 50 calls. */
+#ifndef N64_TIME_TRACE_DENSE
+#define N64_TIME_TRACE_DENSE 3000
+#endif
+    if (++_n <= N64_TIME_TRACE_DENSE || (_n % 50) == 0)
     { extern u32 prof_icache_ticks, prof_icache_calls, prof_icache_work;
       { extern u32 prof_jit_xlat, prof_jit_hit, prof_jit_flush;
         extern u32 prof_jit_chainlen, prof_jit_chainmax;
@@ -212,6 +218,14 @@ u32 function_cc update_gba(int remaining_cycles)
        * orders of magnitude. */
       { u32 _cnt; __asm__ volatile("mfc0 %0, $9" : "=r"(_cnt));
         fprintf(stderr, "COUNT %lu\n", (unsigned long)_cnt); }
+      /* Where is the emulated CPU?  With the JIT hanging from a savestate
+       * while emulated time keeps advancing, the ARM PC and halt state
+       * say more than any counter: they distinguish "spinning in game
+       * code" from "halted waiting for an interrupt that never arrives"
+       * from "jumped somewhere impossible". */
+      fprintf(stderr, "ARM pc=%08lx cpsr=%08lx halt=%lu mode=%lu\n",
+              (unsigned long)reg[REG_PC], (unsigned long)reg[REG_CPSR],
+              (unsigned long)reg[CPU_HALT_STATE], (unsigned long)reg[CPU_MODE]);
       fprintf(stderr, "TIME upd=%lu vcount=%lu frame=%lu ticks=%lu"
                       " | icache calls=%lu work=%lu ticks=%luK\n",
               (unsigned long)_n, (unsigned long)read_ioreg(REG_VCOUNT),
