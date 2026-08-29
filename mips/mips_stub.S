@@ -252,7 +252,7 @@ defsymbl(mips_update_gba)
   collapse_flags                  # update cpsr
   save_registers                  # save registers
   move $4, reg_cycles             # Remaining cycles as asg0
-#ifdef N64
+#if defined(N64) && !defined(N64_JIT_NO_IRQ_WINDOW)
   # Reopen the interrupt window across this C call.  execute_arm_translate
   # runs the whole translated-code window with N64 interrupts off, because
   # translated code keeps ARM r13 in $gp and libdragon's inthandler is
@@ -436,7 +436,7 @@ defsymbl(write_io_epilogue)
 
 cpu_sleep_loop:
   move $4, reg_cycles             # Remaining cycles as asg0
-#ifdef N64
+#if defined(N64) && !defined(N64_JIT_NO_IRQ_WINDOW)
   # Reopen the interrupt window across this C call.  execute_arm_translate
   # runs the whole translated-code window with N64 interrupts off, because
   # translated code keeps ARM r13 in $gp and libdragon's inthandler is
