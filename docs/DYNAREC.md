@@ -144,20 +144,49 @@ In priority order, with what is known about each:
 **1. The savestate hang.** Blocker, not performance: the benchmark
 harness cannot run the dynarec until it is fixed. Narrowed as above.
 
-**2. Block linking.** Every branch currently exits to the dispatcher and
-walks a hash chain. Direct chaining is the standard answer and is
-typically worth 2-3x in a JIT — roughly the whole gap between 22.0 and
-the interpreter's 7.9. Whether it is genuinely absent here has not been
-confirmed; confirming it is the first thing to do.
+**2. Block linking — already implemented, and not the problem.**
+`cpu_threaded.c:3343-3383` patches internal branches to recorded block
+offsets and resolves external ones through `block_lookup_translate_*` at
+translation time, patching the jump to go straight at the target block.
+The 22.0 figure was always *with* linking.
 
-**3. Memory-access inlining.** Every GBA load and store calls a C stub
-through the region dispatcher, and memory operations are a large
-fraction of all instructions. gpSP's own answer was the JAL patcher,
-which was restored with correct cache maintenance and measured **1.9x
-worse** (mips/mips_emit.h:2779) because the patch does not stick. The
-approach that would work is different: inline the common case — a bounds
-check and a direct load off a base register — for IWRAM, EWRAM and ROM,
-and call out only for I/O.
+What linking cannot patch is an **indirect** branch — `BX`, `POP{pc}`, a
+computed jump — because it has no fixed target. Each one spilled every
+ARM register, called into C to walk a hash table, and reloaded them. That
+now has a one-entry direct-mapped inline cache per site
+(`mips/mips_stub.S`, `-DN64_JIT_IBCACHE`, on by default for JIT builds):
+a repeat visit is six instructions and no register traffic.
+
+It works and it is nearly worthless. `block_lookup` falls from 21.6% of
+sampled instructions to **0%**, translated code rises from 67.7% to
+95.0%, and the frame cost moves **22.0 -> 21.5** — 2%. Emulation is
+bit-identical, same `cpu_ticks` at every checkpoint.
+
+**3. Memory-access inlining — not worth building.** With the inline cache
+in, every stub in `mips_stub.S` *combined* — memory access, `update_gba`,
+the indirect-branch trampolines — is 4.7% of sampled instructions. By the
+same instruction-to-time ratio that made a 21.6% instruction saving worth
+2% of time, that is worth roughly 1%. gpSP's own attempt at this, the JAL
+patcher, was restored with correct cache maintenance and measured **1.9x
+worse** (`mips/mips_emit.h:2779`).
+
+## Where the time actually is
+
+With 95% of executed instructions now inside translated code, the
+dynarec's 21.5 N64 cycles per GBA cycle **is the cost of the generated
+code itself** — not dispatch, not block lookup, not the stubs. Beating
+the interpreter's 7.9 needs the generated code to get about 3x better,
+which is a code-quality problem: register allocation, redundant flag
+computation, and the instruction sequence emitted per ARM opcode. It is
+not reachable by removing dispatch overhead, because there is no longer
+meaningful dispatch overhead to remove.
+
+**A methodology note that cost real time to learn here.** `GPSP_PCPROF`
+samples every N *executed instructions*, so it is an instruction profile,
+not a time profile. It overstates code that runs many cheap, predictable
+instructions and understates code that stalls. A 21.6% share of samples
+turned out to be 2% of cycles. Use it to find *what runs*, never to
+rank *what costs*.
 
 **4. `$gp`.** The register allocator keeps ARM r13 in `$gp`, which
 collides with gp-relative code and libdragon's `inthandler`; the

@@ -209,6 +209,22 @@ CFLAGS += $(N64_M4A)
 # -DN64_JIT_TRACE (block translations, $sp/KSEG1 scanners).
 ifeq ($(N64_JIT),1)
 CFLAGS += -DN64_DYNAREC_DEFAULT=1
+# Indirect-branch inline cache (mips/mips_stub.S).  Block linking already
+# patches direct branches straight to their targets, but an indirect
+# branch -- BX, POP{pc}, computed jumps -- has no fixed target to patch,
+# so each one spilled every ARM register, called into C to walk a hash
+# table, and reloaded them.  A one-entry direct-mapped cache per site
+# turns a repeat visit into six instructions and no register traffic.
+#
+# Measured on a cold boot: block_lookup falls from 21.6% of sampled
+# instructions to 0%, and the frame cost from 22.0 to 21.5 N64 cycles per
+# GBA cycle.  Only 2%, because the PC sampler is instruction-weighted and
+# the instructions removed were cheap ones.  Emulation is bit-identical
+# (same cpu_ticks at every checkpoint).  Build with N64_JIT_IBCACHE= to
+# disable.
+N64_JIT_IBCACHE ?= -DN64_JIT_IBCACHE
+CFLAGS  += $(N64_JIT_IBCACHE)
+ASFLAGS += $(N64_JIT_IBCACHE)
 endif
 
 PROFILE_FLAGS ?=

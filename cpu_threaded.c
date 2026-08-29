@@ -289,6 +289,23 @@ u32 prof_icache_ticks = 0, prof_icache_calls = 0, prof_icache_work = 0;
  * lookup, which would mean the hash is missing or the cache is being
  * flushed in a loop.  These counters distinguish the two. */
 u32 prof_jit_xlat = 0, prof_jit_hit = 0, prof_jit_flush = 0;
+
+/* Indirect-branch inline caches, defined in mips/mips_stub.S.  Entries
+ * hold {ARM PC, host target}; the target points into a translation
+ * cache, so both tables have to be emptied whenever either cache is
+ * flushed or a stale entry would send execution into freed code.  The
+ * empty tag is 0xFFFFFFFF, which is never a valid ARM PC. */
+#if defined(N64) && defined(N64_JIT_IBCACHE)
+extern u32 ibcache_arm[256 * 2];
+extern u32 ibcache_thumb[256 * 2];
+static void ibcache_clear(void)
+{
+  memset(ibcache_arm,   0xFF, sizeof(ibcache_arm));
+  memset(ibcache_thumb, 0xFF, sizeof(ibcache_thumb));
+}
+#else
+static void ibcache_clear(void) {}
+#endif
 u32 prof_jit_chainlen = 0, prof_jit_chainmax = 0;
 u32 prof_jit_badregion = 0, prof_jit_badpc = 0;
 
@@ -3554,6 +3571,7 @@ void init_bios_hooks(void)
 
 void flush_translation_cache_ram(void)
 {
+  ibcache_clear();
   { extern u32 prof_jit_flush; prof_jit_flush++; }
   /* Flushes RAM caches avoiding doing too much work (ie. wiping unused memory) */
   flush_ram_count++;
@@ -3593,6 +3611,7 @@ void flush_translation_cache_ram(void)
 
 void flush_translation_cache_rom(void)
 {
+  ibcache_clear();
   { extern u32 prof_jit_flush; prof_jit_flush++; }
   /* We flush the generated code except for everything below the watermark. */
   last_rom_translation_ptr = &rom_translation_cache[rom_cache_watermark];
@@ -3603,6 +3622,7 @@ void flush_translation_cache_rom(void)
 
 void init_dynarec_caches(void)
 {
+  ibcache_clear();
   /* Initialize caches so that we can start initalizing the emitter. */
   rom_translation_ptr = last_rom_translation_ptr = &rom_translation_cache[0];
   memset(rom_branch_hash, 0, sizeof(rom_branch_hash));
