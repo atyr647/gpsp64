@@ -318,6 +318,63 @@ keeps returning the same block leaves no trace. `-DN64_JIT_TRACE` now also
 prints `LOOKUP <mode> <pc>` on every inline-cache miss, which is what makes
 this shape of bug visible at all.
 
+### The second bug: the dynarec had no BIOS-call hook
+
+SWIs 0xF0-0xFF are unused by the GBA BIOS, so this port patches the game
+with them: `n64/m4a_hle.c` replaces the sound driver's four hot mixer loops
+with `swi 0xFn0000` markers and runs them natively. `cpu.cc` intercepts
+those in both the ARM and Thumb decoders — `bios_hle_swi()`, then step over
+the instruction. `arm_swi()` in the dynarec had no such hook: it ran
+`execute_swi` and branched to 0x00000008 unconditionally, feeding the
+marker to the open BIOS's dispatcher as a real SWI 0xF0. Hence the garbage
+branch to 0x114230B6.
+
+A savestate carries the patched IWRAM with it, so this fires whether or not
+the HLE is compiled in — which is why building with `N64_M4A=` changed
+nothing, and why that test was misleading the first time it was run.
+
+Two things about the fix are worth keeping in mind:
+
+- The SWI number is known at translate time, so only the 0xF0 block needs
+  the new path; everything below it keeps the original code.
+- The call must go through an asm shim (`n64_jit_swi_hook`), not a bare
+  `jal`. The first attempt called the C function directly and still
+  crashed: the handler reads and writes `reg[]`, while the ARM registers
+  live in caller-saved MIPS registers that a C call destroys, and `$gp`
+  holds ARM r13 rather than the real gp. Every C call out of translated
+  code has to spill first and let `cfncall` restore `$gp` — the SWI hook is
+  no exception.
+
+### Where the dynarec actually stands
+
+It runs gameplay. From the overworld savestate, across the two fixes:
+
+| | before | after indirect-branch fix | after SWI hook |
+| --- | --- | --- | --- |
+| frames completed | 0 | 0 | 3098 |
+| blocks translated | 4 | 151 | 1477 |
+| block-lookup hits | 0 | 154 | 1514519 |
+| outcome | spins | freeze | runs |
+
+Measured against the interpreter on the same scene, from the same
+savestate, both with `-DN64_TIME_TRACE` only:
+
+| engine | N64 cycles per GBA cycle |
+| --- | --- |
+| dynarec | 7.47 |
+| interpreter | 7.02 |
+| real time | 5.56 |
+
+Run-to-run spread is around 8% (an earlier dynarec run of the same scene
+gave 6.93), so the two engines are at **parity** — the dynarec is not
+faster than the interpreter on this workload. That is now a performance
+question with a number attached rather than a crash, which is the point of
+these two fixes. Note that `ares` wall-clock frame counts still cannot be
+compared between the two builds (see above); only the cycle ratio is
+meaningful.
+
+### The crash that stood between the two fixes
+
 ### Where it stops now
 
 Past the fix: 151 blocks translated, 154 lookup hits, the game's IWRAM
