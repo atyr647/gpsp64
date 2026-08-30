@@ -62,6 +62,40 @@ u32 function_cc n64_jit_update_gba(int remaining_cycles)
   return rv;
 }
 
+/* The dynarec's half of the BIOS-call hook.
+ *
+ * SWIs 0xF0-0xFF are unused by the GBA BIOS, so this port patches the game
+ * with them: n64/m4a_hle.c replaces the sound driver's four hot mixer loops
+ * with `swi 0xFn0000` markers and runs them natively.  cpu.cc intercepts
+ * those in both the ARM and Thumb decoders and simply steps over the
+ * instruction; the dynarec never had the matching hook, so it treated the
+ * marker as a real BIOS SWI, vectored to 0x00000008, and let the open
+ * BIOS's dispatcher index its call table with 0xF0.  The result was a
+ * branch to a garbage address (0x114230B6 from the overworld savestate) a
+ * few dozen events after the first IRQ.
+ *
+ * A savestate carries the patched IWRAM with it, so this fires even when
+ * the m4a HLE is compiled out -- which is why building with N64_M4A= did
+ * not change the failure.
+ *
+ * Returns the ARM PC to resume at.  bios_hle_swi may move reg[REG_PC]
+ * itself (m4a_unpatch_and_rerun sets it to target - 4 to re-run the
+ * original code), so the resume address is read back from reg[REG_PC]
+ * rather than computed here, exactly as arm_pc_offset(4) does in cpu.cc.
+ * An unhandled SWI in this block is a no-op the BIOS would also ignore. */
+u32 n64_jit_swi_cycles;
+
+u32 function_cc n64_jit_hle_swi(u32 swi_num, u32 swi_pc, u32 step)
+{
+  extern int bios_hle_swi(u32 swi_num, u32 *cycles);
+  u32 cyc = 0;
+  reg[REG_PC] = swi_pc;
+  bios_hle_swi(swi_num, &cyc);
+  n64_jit_swi_cycles = cyc;
+  reg[REG_PC] += step;
+  return reg[REG_PC];
+}
+
 /* Global state required by the emulator core */
 u32 skip_next_frame = 0;
 u32 num_skipped_frames = 0;

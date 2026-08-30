@@ -2864,6 +2864,38 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
 block_lookup_translate_builder(arm);
 block_lookup_translate_builder(thumb);
 
+/* An indirect branch to an address in no mapped region means an ARM
+ * register held garbage before the branch, so the interesting state is the
+ * register file, not the address.  Dump it once: which register carries the
+ * bad value, and what mode we are in, is usually enough to name the
+ * instruction that produced it. */
+void n64_jit_report_badpc(const char *mode, u32 pc)
+{
+  static int done = 0;
+  unsigned i;
+  if (done) return;
+  done = 1;
+  fprintf(stderr, "BADPC %s pc=%08lx cpsr=%08lx mode=%lu\n",
+          mode, (unsigned long)pc, (unsigned long)reg[REG_CPSR],
+          (unsigned long)reg[CPU_MODE]);
+  for (i = 0; i < 16; i += 4)
+    fprintf(stderr, "BADPC r%-2u=%08lx r%-2u=%08lx r%-2u=%08lx r%-2u=%08lx\n",
+            i,   (unsigned long)reg[i],   i+1, (unsigned long)reg[i+1],
+            i+2, (unsigned long)reg[i+2], i+3, (unsigned long)reg[i+3]);
+  /* And the code that produced it, read out of live memory rather than out
+   * of the savestate: IWRAM is writable, so a static dump of the .sav is
+   * only a guess about what was actually executing. */
+  { u32 a;
+    static const u32 spots[] = { 0x03001aa8, 0x03001ab4 };
+    unsigned k;
+    for (k = 0; k < sizeof(spots)/sizeof(spots[0]); k++) {
+      const u8 *m = &iwram_raw[0x8000 + (spots[k] & 0x7FFF)];
+      fprintf(stderr, "BADPC mem %08lx:", (unsigned long)spots[k]);
+      for (a = 0; a < 24; a++) fprintf(stderr, " %02x", m[a]);
+      fprintf(stderr, "\n");
+    } }
+}
+
 u8 function_cc *block_lookup_address_dual(u32 pc)
 {
   u32 thumb = pc & 0x01;
@@ -2889,6 +2921,12 @@ u8 function_cc *block_lookup_address_arm(u32 pc)
   { static u32 _lk = 0;
     if (_lk < 64) { _lk++;
       fprintf(stderr, "LOOKUP arm %08lx\n", (unsigned long)pc); } }
+  /* Regions: 0 BIOS, 2 EWRAM, 3 IWRAM, 8-13 ROM.  Anything else is a
+   * branch to nowhere -- and block_lookup_translate returns a non-NULL
+   * sentinel for it, which the caller happily jumps to. */
+  { u32 _rg = pc >> 24;
+    if (!(_rg == 0 || _rg == 2 || _rg == 3 || (_rg >= 8 && _rg <= 13)))
+      n64_jit_report_badpc("arm", pc); }
 #endif
   for (i = 0; i < 4; i++) {
     u8 *ret = block_lookup_translate_arm(pc);
@@ -2914,6 +2952,12 @@ u8 function_cc *block_lookup_address_thumb(u32 pc)
   { static u32 _lk = 0;
     if (_lk < 64) { _lk++;
       fprintf(stderr, "LOOKUP thumb %08lx\n", (unsigned long)pc); } }
+  /* Regions: 0 BIOS, 2 EWRAM, 3 IWRAM, 8-13 ROM.  Anything else is a
+   * branch to nowhere -- and block_lookup_translate returns a non-NULL
+   * sentinel for it, which the caller happily jumps to. */
+  { u32 _rg = pc >> 24;
+    if (!(_rg == 0 || _rg == 2 || _rg == 3 || (_rg >= 8 && _rg <= 13)))
+      n64_jit_report_badpc("thumb", pc); }
 #endif
   for (i = 0; i < 4; i++) {
     u8 *ret = block_lookup_translate_thumb(pc);

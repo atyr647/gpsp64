@@ -46,6 +46,11 @@ void mips_indirect_branch_dual(u32 address);
 u32 execute_read_cpsr();
 u32 execute_read_spsr();
 void execute_swi(u32 pc);
+#ifdef N64
+extern u32 n64_jit_swi_cycles;
+u32 function_cc n64_jit_hle_swi(u32 swi_num, u32 swi_pc, u32 step);
+void n64_jit_swi_hook(void);   /* asm shim in mips/mips_stub.S */
+#endif
 void mips_cheat_hook(void);
 
 u32 execute_spsr_restore(u32 address);
@@ -1824,10 +1829,47 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
   /*generate_load_pc(reg_a2, pc);*/                                           \
   generate_indirect_branch_dual()                                             \
 
+#ifdef N64
+/* Charge the cycles the native handler reported and resume where it asked.
+ * n64_jit_swi_cycles is a plain global rather than a second return value so
+ * the emitted sequence stays short. */
+#define n64_hle_swi_epilogue(type)                                            \
+  mips_emit_lui(reg_temp, ((((u32)(&n64_jit_swi_cycles)) + 0x8000) >> 16));   \
+  mips_emit_lw(reg_temp, reg_temp,                                            \
+   (((u32)(&n64_jit_swi_cycles)) & 0xFFFF));                                  \
+  mips_emit_subu(reg_cycles, reg_cycles, reg_temp);                           \
+  mips_emit_addu(reg_a0, reg_rv, reg_zero);                                   \
+  generate_indirect_branch_cycle_update(type)                                 \
+
+#endif
+
+/* SWIs 0xF0-0xFF are this port's own hooks, not BIOS calls -- see
+ * n64_jit_hle_swi() in n64/n64_main.c.  The number is known at translate
+ * time, so everything else keeps the ordinary SWI path unchanged. */
+#ifdef N64
+#define arm_swi()                                                             \
+  if(((opcode >> 16) & 0xFF) >= 0xF0)                                         \
+  {                                                                           \
+    generate_load_imm(reg_a0, ((opcode >> 16) & 0xFF));                       \
+    generate_load_pc(reg_a1, pc);                                             \
+    generate_load_imm(reg_a2, 4);                                             \
+    generate_function_call_swap_delay(n64_jit_swi_hook);                       \
+    n64_hle_swi_epilogue(arm);                                                \
+  }                                                                           \
+  else                                                                        \
+  {                                                                           \
+    generate_load_pc(reg_a0, (pc + 4));                                       \
+    generate_function_call_swap_delay(execute_swi);                           \
+    generate_branch();                                                        \
+  }                                                                           \
+
+#else
 #define arm_swi()                                                             \
   generate_load_pc(reg_a0, (pc + 4));                                         \
   generate_function_call_swap_delay(execute_swi);                             \
   generate_branch()                                                           \
+
+#endif
 
 #define thumb_b()                                                             \
   generate_branch_cycle_update(                                               \
@@ -1890,6 +1932,27 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
   #define emit_trace_arm_instruction(pc)
 #endif
 
+#ifdef N64
+#define thumb_swi()                                                           \
+  if((opcode & 0xFF) >= 0xF0)                                                 \
+  {                                                                           \
+    generate_load_imm(reg_a0, (opcode & 0xFF));                               \
+    generate_load_pc(reg_a1, pc);                                             \
+    generate_load_imm(reg_a2, 2);                                             \
+    generate_function_call_swap_delay(n64_jit_swi_hook);                       \
+    n64_hle_swi_epilogue(thumb);                                              \
+  }                                                                           \
+  else                                                                        \
+  {                                                                           \
+    generate_load_pc(reg_a0, (pc + 2));                                       \
+    generate_function_call_swap_delay(execute_swi);                           \
+    generate_branch_cycle_update(                                             \
+     block_exits[block_exit_position].branch_source,                          \
+     block_exits[block_exit_position].branch_target);                         \
+    block_exit_position++;                                                    \
+  }                                                                           \
+
+#else
 #define thumb_swi()                                                           \
   generate_load_pc(reg_a0, (pc + 2));                                         \
   generate_function_call_swap_delay(execute_swi);                             \
@@ -1897,6 +1960,8 @@ u32 execute_store_cpsr_body(u32 _cpsr, u32 address)
    block_exits[block_exit_position].branch_source,                            \
    block_exits[block_exit_position].branch_target);                           \
   block_exit_position++                                                       \
+
+#endif
 
 #define arm_hle_div(cpu_mode)                                                 \
   mips_emit_div(reg_r0, reg_r1);                                              \

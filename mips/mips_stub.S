@@ -516,6 +516,34 @@ defsymbl(execute_read_spsr)
   jr $ra                          # return
   lw $2, SPSR_BASE($2)            # $2 = spsr[cpu_mode] (delay slot)
 
+#ifdef N64
+# SWIs 0xF0-0xFF are this port's own hooks rather than BIOS calls: the m4a
+# HLE patches the game's mixer loops with `swi 0xFn0000` markers and runs
+# them natively (n64/m4a_hle.c), and cpu.cc intercepts them in both
+# decoders.  The dynarec needs the same interception, and it cannot call
+# n64_jit_hle_swi() with a bare jal: the handler reads and writes reg[],
+# while the ARM registers live in caller-saved MIPS registers that the C
+# call would destroy, and $gp holds ARM r13 rather than the real gp.
+#
+# So it goes through here, like every other C call out of translated code:
+# spill the ARM registers, let cfncall restore the real $gp, run the
+# handler, then reload -- which also picks up whatever the handler wrote
+# into reg[], including reg[REG_PC] when it wants to resume elsewhere.
+#
+# $4: SWI number  $5: address of the SWI  $6: instruction width
+# returns the ARM PC to resume at in $2
+
+defsymbl(n64_jit_swi_hook)
+  sw $ra, REG_SAVE3($16)
+  save_registers
+  cfncall n64_jit_hle_swi, 10
+  restore_registers
+  lw $ra, REG_SAVE3($16)
+  jr $ra
+  nop
+
+#endif
+
 # Switch into SWI, has to collapse flags
 # $4: Current pc
 
