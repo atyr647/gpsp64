@@ -395,3 +395,45 @@ and the renderer as a whole (flush + frame_end + add + build_tlut) is about
 24% of a frame. It emits RDP command words from a sorted draw list; the
 sort and the emit both walk memory in an order the D-cache cannot follow.
 That is a bigger single lever than anything remaining on the dynarec side.
+
+## Fixing the SMC alias, and one attempt at the renderer that did not work
+
+The tag skew landed: tag and data now sit on adjacent D-cache lines rather
+than the same one. D-cache misses fell 11.7% and the frame 28.32 -> 27.40
+ms, 35.3 -> 36.5 fps. One extra instruction per store buys back two
+guaranteed misses.
+
+The first attempt at it appeared to be a **41% win** and was worth nothing.
+`iwram_raw` and `ewram_raw` are defined in `mips/mips_stub.S` with `.space`,
+not in C, so growing them in `cpu.cc` did nothing and IWRAM data ran 16
+bytes past its allocation into `vram_raw`. The emulator got faster because
+the renderer had stopped drawing: `rdpbg` reported **0 rows, 0% of screen**,
+and the fps was measuring an emulator that was no longer rendering the game.
+
+That gives a cheap correctness canary for anything touching memory layout,
+worth checking before believing any performance number:
+
+    PROF:  rdpbg: 60 frames drew 160 rows each (100% of screen); 1216 tiles
+
+A speed-up that comes with that line reading 0 is not a speed-up.
+
+### The renderer's emit loop: sequential access made it worse
+
+`n64_rdpbg_flush` is 40.5% of sampled D-cache misses and 13.9% of a frame.
+The emit loop walked `rdpbg_draws[rdpbg_order[i]]` — an indirection through
+a 20 KB array, two and a half times the D-cache — so once the sort stopped
+the order being sequential, every read was a miss. Writing the records
+themselves out in sorted order should have turned that into a sequential
+walk.
+
+Measured: **worse.** Emit fell 4.13 -> 3.76 ms but the sort rose 0.88 ->
+1.51 ms, total misses went *up* 28.4M -> 32.7M, and the frame went 27.40 ->
+27.81 ms. The counting sort's scatter is unavoidable either way, and
+scattering 8-byte records costs more than scattering 2-byte indices saves.
+Reverted.
+
+The next idea for this path is not a cache trick but fewer records: 1216
+tiles a frame fall into only 21 TMEM slices and 27 palette groups, so
+horizontally adjacent tiles sharing a slice and palette could merge into
+one wider texrect. That reduces the array being walked *and* the RDP
+command count, rather than trying to walk the same array faster.
