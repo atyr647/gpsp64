@@ -401,11 +401,19 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
     s0 = 0; t0 = (int)((d->vt & 31) * 8) + (int)y0f;
     dsdx = 1; dtdy = 1;
 
+#ifndef RDPBG_NOCF
     if (flip & 1) { s0 = 7; dsdx = -1; }
     if (flip & 2) { t0 = (int)((d->vt & 31) * 8) + (7 - (int)y0f); dtdy = -1; }
 
+    /* Not dead code, despite appearances: the caller emits x from -7 to
+     * 248 (x = tx*8 - xsub, tx 0..30, xsub 0..7), so the fixups fire on the
+     * first and last column of every tile row -- about 6% of tiles.  Only
+     * the fixups are rare; the compares run every iteration.
+     * -DRDPBG_NOCF removes both this and the flip handling to bound what
+     * they cost.  It renders the screen edges wrong; it is a probe. */
     if (x0 < 0)   { if (dsdx > 0) s0 -= x0; else s0 += x0; x0 = 0; }
     if (x1 > 240) x1 = 240;
+#endif
 #if RDPBG_R == 2
     n64_rdpbg_t_r += RDPBG_TICK_B() - _rt2; }
 #endif
