@@ -207,8 +207,22 @@ CFLAGS += $(N64_M4A)
 #
 # Useful diagnostics: -DN64_JIT_HEARTBEAT (frame enter/exit),
 # -DN64_JIT_TRACE (block translations, $sp/KSEG1 scanners).
+# The dynarec is ON by default.  Measured on the overworld savestate, clean
+# builds with no tracing, median of ~60 PROF windows:
+#
+#   interpreter (the old default)   34.0 ms/frame   29.4 fps
+#   interpreter + hblank merge      33.0            30.3
+#   dynarec + both levers           28.0            35.7
+#
+# Build with N64_JIT=0 for the interpreter.
+N64_JIT ?= 1
 ifeq ($(N64_JIT),1)
 CFLAGS += -DN64_DYNAREC_DEFAULT=1
+# Batching sound-timer overflows is a 10% win for the dynarec and a 4%
+# LOSS for the interpreter, so it is tied to this build rather than being
+# a global default.  Override with N64_TIMER_BATCH=.
+N64_TIMER_BATCH ?= -DN64_TIMER_BATCH
+CFLAGS += $(N64_TIMER_BATCH)
 # Indirect-branch inline cache (mips/mips_stub.S).  Block linking already
 # patches direct branches straight to their targets, but an indirect
 # branch -- BX, POP{pc}, computed jumps -- has no fixed target to patch,
@@ -243,6 +257,11 @@ endif
 #     EXTRA_CFLAGS="-DN64_TIMER_BATCH -DN64_MERGE_HBLANK"
 #
 # -DN64_EVENT_PROF reports what shortens the CPU window, per frame.
+
+# Worth 11% on its own, to both engines, so it is on for every build.
+# Override with N64_MERGE_HBLANK=.
+N64_MERGE_HBLANK ?= -DN64_MERGE_HBLANK
+CFLAGS += $(N64_MERGE_HBLANK)
 
 PROFILE_FLAGS ?=
 CFLAGS += $(PROFILE_FLAGS)
