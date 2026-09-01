@@ -2494,7 +2494,14 @@ static void emit_pmemst_stub(
 
   // Generate SMC write and tracking
   // TODO: Should we have SMC checks here also for aligned?
+  /* -DN64_NOSMC removes the tag check from every store stub.  It cannot
+   * ship; it bounds what the check costs now the tag no longer aliases its
+   * own data. */
+#ifdef N64_NOSMC
+  if (0) {
+#else
   if (meminfo->check_smc && !aligned) {
+#endif
     /* The tag block sits one cache line off the region-size distance --
        GBA_SMC_SKEW in gba_memory.h.  Without it a tag and its own data
        share a D-cache line and every store misses twice.  IWRAM needs a
@@ -3057,6 +3064,17 @@ void init_emitter(bool must_swap) {
           fprintf(stderr, "STUBMAP %08lx %s.%s\n",
                   (unsigned long)tmemst[o][r], stn[o], rgn[r]);
   }
+#endif
+
+#ifdef N64_STUBPAD
+  /* Pad the stub area to a chosen size.  Removing work from the stubs also
+     shrinks this region, which shifts every translated block and re-aliases
+     it against the rest of the ROM in a 16 KB I-cache and an 8 KB D-cache.
+     Measured: -DN64_NOSMC shrank the watermark 18596 -> 18488, the stubs got
+     0.85 ms faster, and update_scanline -- a fixed .text function that calls
+     no stub at all -- got 0.77 ms slower, for no net frame change.  Padding
+     back isolates a stub change from its layout side effect. */
+  { unsigned _p; for (_p = 0; _p < (N64_STUBPAD); _p++) { mips_emit_nop(); } }
 #endif
 
   // Ensure rom flushes do not wipe this area
