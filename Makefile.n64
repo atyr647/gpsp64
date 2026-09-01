@@ -227,6 +227,23 @@ CFLAGS  += $(N64_JIT_IBCACHE)
 ASFLAGS += $(N64_JIT_IBCACHE)
 endif
 
+# Event-schedule levers.  Measured on the overworld savestate over an
+# identical 2384-frame window (see docs/DYNAREC.md); dynarec build:
+#
+#   baseline           7.52 N64 cycles per GBA cycle
+#   N64_TIMER_BATCH    6.78   -9.8%
+#   N64_MERGE_HBLANK   6.68  -11.1%
+#   both               5.75  -23.5%   (real time = 5.56)
+#
+# Both are opt-in: they trade accuracy for yields.  TIMER_BATCH bursts
+# sound DMA and is a 4% LOSS for the interpreter while a 10% win for the
+# dynarec; MERGE_HBLANK hides the HBlank flag from the CPU on scanlines
+# where no HBlank IRQ or DMA is armed.
+#   make -f Makefile.n64 N64_JIT=1 \
+#     EXTRA_CFLAGS="-DN64_TIMER_BATCH -DN64_MERGE_HBLANK"
+#
+# -DN64_EVENT_PROF reports what shortens the CPU window, per frame.
+
 PROFILE_FLAGS ?=
 CFLAGS += $(PROFILE_FLAGS)
 CFLAGS += -I$(CURDIR) -I$(CURDIR)/n64

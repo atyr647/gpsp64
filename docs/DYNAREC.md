@@ -421,3 +421,95 @@ minutes older than the `gpsp.elf` it supposedly came from.
 The script now writes to an absolute path, excludes `ares.log`/`run.log`
 from the tar, and refuses to publish a log that is not newer than the ROM.
 If you write a benchmark wrapper, make it prove its output is fresh.
+
+## Where a frame goes, and the two levers that follow from it
+
+With the dynarec running, the first useful measurement is what a frame is
+made of. From the overworld savestate:
+
+| | share of frame |
+| --- | --- |
+| CPU emulation | 77% |
+| blit | 17% |
+| PPU | 4% |
+
+So the CPU side is the right target — but not for the reason the label
+suggests. Per frame the emulator makes **675 `update_gba` calls while the
+game executes about 7,400 GBA instructions**. Under `-DPROFILE_CYCLES`
+that CPU time splits 51% inside `execute_arm_translate`, 41% inside the
+`update_gba` body, 6% PPU, 9% in `sound_timer`. At 670 yields per frame
+that is roughly 1,200 N64 cycles of dynarec entry/exit per yield and 1,000
+in the event machinery. **Almost none of it is executing translated code**,
+which is exactly why the dynarec started out no faster than the
+interpreter: neither engine was spending its time on instructions.
+
+`-DN64_EVENT_PROF` breaks down what shortens the CPU window. Baseline:
+66% video (two events per scanline), 32% timer 0, serial and DMA zero.
+
+Both levers therefore attack the *number of yields*, not the cost of
+translated code:
+
+- **`-DN64_TIMER_BATCH`** — timer 0 feeds the direct-sound FIFO, which is
+  where the emulator's audio actually comes from, so its events cannot be
+  dropped. They can be batched: an overflow only needs precise timing if
+  something observes it at that instant (an IRQ, or a cascade into a timer
+  that may raise one). `update_timers` now services however many overflows
+  fall inside the window.
+- **`-DN64_MERGE_HBLANK`** — the second video event of each scanline exists
+  only so an HBlank IRQ or HBlank DMA can fire on the right cycle. Measured
+  on the overworld, neither is ever armed. When both are disarmed the two
+  transitions are done together and the CPU gets the whole 1232-cycle
+  scanline. This flag predates the dynarec and was measured and rejected
+  once — back when the renderer dominated the frame and the CPU side did
+  not. That is no longer true.
+
+Measured over an identical 2384-frame window from the same savestate:
+
+| dynarec | N64 cycles per GBA cycle | |
+| --- | --- | --- |
+| baseline | 7.52 | |
+| + timer batch | 6.78 | −9.8% |
+| + hblank merge | 6.68 | −11.1% |
+| both | **5.75** | **−23.5%** |
+| real time | 5.56 | |
+
+Events per frame fall 676 → 458 → 230, and the frame from 44 ms to 33 ms.
+The two levers are very nearly independent.
+
+Both help the interpreter less, because its yield is cheaper to begin
+with:
+
+| | baseline | both |
+| --- | --- | --- |
+| dynarec | 7.52 | **5.75** |
+| interpreter | 7.07 | 6.50 |
+
+So the ordering flips: the dynarec starts 6% behind the interpreter and
+ends 12% ahead of it, at 97% of real GBA speed.
+
+### What these cost
+
+Neither is free accuracy-wise, which is why both are opt-in.
+
+`N64_TIMER_BATCH` makes sound DMA fire in bursts, and that visibly changes
+what the game does — the interpreter's idle-loop detector fires 17,626
+times per window instead of 25,849, and 381K instructions run instead of
+442K. It also *slows the interpreter down* by 4% on its own while speeding
+the dynarec up by 10%, so it is not a general win.
+
+`N64_MERGE_HBLANK` means the CPU never runs with the HBlank flag set, so
+code polling DISPSTAT bit 1 would not see it, and a VRAM write made
+"during HBlank" lands before the line it precedes rather than after. The
+condition is re-checked every scanline, so a scene that arms an HBlank IRQ
+or DMA drops straight back to the two-phase schedule.
+
+### What is left
+
+At 230 yields per frame the remaining event traffic is one video event per
+scanline, which is hard to reduce further without giving up scanline
+rendering. The other half of the cost is the ~1,200 N64 cycles of dynarec
+entry/exit per yield: `mips_update_gba` is only about 50 instructions, so
+that figure is cache misses, not work — `save_registers`/`restore_registers`
+touch `reg[0..31]`, eight D-cache lines, and the event machinery in between
+evicts them. Reducing the spill, or keeping `reg[]` resident against the
+rest of the working set, is the next thing to try.
