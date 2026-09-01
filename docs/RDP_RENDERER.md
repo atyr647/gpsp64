@@ -255,3 +255,55 @@ generation, TMEM uploads, and stalls when the queue backs up.  The RDP's
 own time has to come from fill-rate arithmetic (~104,000 textured pixels
 per frame at roughly 1 pixel/cycle on a 62.5 MHz part, plus per-primitive
 setup) and, ultimately, from console.
+
+## Where the renderer's time actually goes (time-weighted, line level)
+
+`GPSP_PCCYC` samples plus `addr2line` give per-line attribution. On the
+default build, overworld savestate:
+
+    n64_rdpbg_flush   13.9% of frame, 40.5% of all D-cache misses
+      42%  n64_rdp_bg.c:298   d = &rdpbg_draws[rdpbg_order[i]]
+      23%  n64_rdp_bg.c:312   rdpq_tex_upload (TMEM slice change)
+      12%  n64_rdp_bg.c:272   the counting sort's scatter
+       7%  n64_rdp_bg.c:258   the key-counting pass
+
+    n64_rdpbg_frame_end  8.2% of frame
+      28%  video.cc:3288  gba_deref16 of the tilemap entry
+      27%  video.cc:3297  N64_TILE_NZ blank check
+      27%  video.cc:3298  the n64_rdpbg_add call
+
+### Three things that do not work
+
+**Merging horizontally adjacent tiles into one wider texrect is structurally
+impossible.** A slice is loaded as `surface_make_linear(..., FMT_CI4, 8, 256)`
+-- an eight-pixel-wide strip, because that is the only row-major view that
+matches tile-major GBA VRAM. Tiles within a slice stack *vertically*, so two
+tiles that are side by side on screen are 8 texels apart in T, and no
+rectangle can span them. Widening the load would interleave tile data
+incorrectly. This was the obvious next idea and it is a dead end.
+
+**Materialising the sorted records** so the emit loop reads sequentially,
+instead of indirecting through `rdpbg_order`: emit 4.13 -> 3.76 ms, but sort
+0.88 -> 1.51 ms, misses 28.4M -> 32.7M, frame 27.40 -> 27.81. A counting sort
+scatters either on write or on read; scattering 8-byte records costs more
+than scattering 2-byte indices saves.
+
+**Not sorting at all.** The sort groups tiles by TMEM slice and palette, and a
+TMEM reload costs RDP time -- of which there is plenty spare, `wait-for-RDP`
+being 0.24 ms of a 27 ms frame. So spending idle RDP time to buy CPU time
+back looked free. It is not: TMEM slices went 21 -> 135 and palette groups
+27 -> 150, and **emit rose 4.14 -> 7.63 ms**, frame 27.40 -> 29.99 (+9.4%).
+`wait-for-RDP` stayed flat at 0.18 ms, confirming the RDP did absorb the
+extra loads -- but each one also costs CPU to *generate*. The sort is paying
+for itself in command generation, not in RDP time.
+
+### What is left, and what it costs
+
+The 23% on line 312 is 21 `rdpq_tex_upload` calls a frame at roughly 45 us
+each. Emitting those as raw RDP words into `rdpbg_cmds`, the way the
+rectangles already are, would also collapse the 48 `RDPBG_SUBMIT()` calls per
+frame -- each of which does a `data_cache_hit_writeback`, an `rdpq_exec` and
+two pipeline syncs -- down towards one. That means hand-emitting
+SetTextureImage, LoadBlock and SetTile and taking TMEM management over from
+libdragon: the largest remaining renderer win, and the first one here that
+cannot be tested with a one-line change.
