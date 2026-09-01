@@ -513,3 +513,65 @@ that figure is cache misses, not work — `save_registers`/`restore_registers`
 touch `reg[0..31]`, eight D-cache lines, and the event machinery in between
 evicts them. Reducing the spill, or keeping `reg[]` resident against the
 rest of the working set, is the next thing to try.
+
+## Two things that looked like levers and were not
+
+Both are recorded because each cost a build-and-measure cycle and each
+looked compelling from the profile.
+
+**Skipping sound mixing that nothing reads.** `-DPROFILE_CYCLES` attributed
+15% of emulation time to `sound_timer`, and the default build has no
+`N64_AUDIO_OUT`, so `n64_audio_render_frame` — the only consumer of
+`SNDBUF` — is compiled out. Rendering samples into a buffer nobody reads
+is obviously wasted work. Skipping the four rendering loops while leaving
+the FIFO pop, the state writeback and the DMA refill untouched measured
+**+0.4%**: no change. The 15% was largely the cost of *measuring* it —
+`PROFILE_CYCLES` puts two `PROF_TICK()` reads around every one of the ~224
+`sound_timer` calls per frame. Treat any small bucket in that profile as
+suspect for the same reason.
+
+**Collapsing the VBlank period.** After the HBlank merge, 68 of the 228
+remaining events per frame are VBlank scanlines that render nothing —
+their event only advances VCOUNT and tests the VCount match. Collapsing
+them into one event took events per frame from 230 to 163, a 29%
+reduction, and bought **0.8%**.
+
+The first attempt gated the skip on the VCount IRQ being disarmed and
+never fired at all: Emerald arms it every frame (DISPSTAT `0x9629`) but
+matches on line 150, before VBlank starts. The guard that matters is where
+the match *line* sits, not whether the IRQ is armed. Worth remembering for
+any similar gate.
+
+The 0.8% is the useful part. **Event count is not itself the cost.** The
+two levers that did work removed events that were *doing work* — a
+sound-FIFO overflow that renders samples, an HBlank transition that scans
+four DMA channels — not merely events. Removing 67 cheap events per frame
+changes almost nothing, so there is no more speed hiding in the event
+schedule, and the VCOUNT-visibility trade it asks for is not worth 0.8%.
+
+## What is actually left, measured
+
+Default build, overworld savestate, median of ~60 PROF windows:
+
+| | per frame | share |
+| --- | --- | --- |
+| total | 28.7 ms | |
+| emulation | 20.9 ms | 73% |
+| blit | 7.8 ms | 27% |
+| — of which PPU | 1.8 ms | 6% |
+
+Inside blit, the renderer reports `sort 0.89 ms, emit 4.16 ms,
+wait-for-RDP 0.25 ms`. **Building RDP command words on the CPU, 4.16 ms a
+frame, is the largest single identifiable block of work left** — larger
+than anything remaining on the dynarec side, and it is not a dynarec
+problem.
+
+On the emulation side the honest statement is that the split is not yet
+resolved: `-DPROFILE_CYCLES` puts 63% of emulation in the
+`execute_arm_translate` bucket, but that bucket is dynarec entry/exit plus
+translated code together, the JIT build does not maintain the instruction
+counter the interpreter uses, and the VBlank-collapse result says the
+per-yield component is smaller than it first appeared. Splitting that
+bucket — a cycle counter around the spill/reload in `mips_update_gba`, and
+an instruction count for the JIT — is the next measurement, not the next
+optimisation.
