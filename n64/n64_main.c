@@ -774,6 +774,22 @@ int main(void)
                      (unsigned long)(n64_rdpbg_t_wait * 2 / g / 93750),
                      (unsigned long)((n64_rdpbg_t_wait * 2 / g % 93750) * 100 / 93750));
               n64_rdpbg_t_sort = n64_rdpbg_t_emit = n64_rdpbg_t_wait = 0; }
+            { extern u32 n64_rdpbg_t_wb, n64_rdpbg_t_exec, n64_rdpbg_t_sync,
+                     n64_rdpbg_t_upl, n64_rdpbg_n_sub;
+              u32 g2 = PROF_FRAMES;
+              debugf("PROF:  rdpbg-sub: %lu submits/f | writeback %lu.%02lu ms"
+                     " exec %lu.%02lu ms syncs %lu.%02lu ms upload %lu.%02lu ms\n",
+                     (unsigned long)(n64_rdpbg_n_sub / g2),
+                     (unsigned long)(n64_rdpbg_t_wb * 2 / g2 / 93750),
+                     (unsigned long)((n64_rdpbg_t_wb * 2 / g2 % 93750) * 100 / 93750),
+                     (unsigned long)(n64_rdpbg_t_exec * 2 / g2 / 93750),
+                     (unsigned long)((n64_rdpbg_t_exec * 2 / g2 % 93750) * 100 / 93750),
+                     (unsigned long)(n64_rdpbg_t_sync * 2 / g2 / 93750),
+                     (unsigned long)((n64_rdpbg_t_sync * 2 / g2 % 93750) * 100 / 93750),
+                     (unsigned long)(n64_rdpbg_t_upl * 2 / g2 / 93750),
+                     (unsigned long)((n64_rdpbg_t_upl * 2 / g2 % 93750) * 100 / 93750));
+              n64_rdpbg_t_wb = n64_rdpbg_t_exec = n64_rdpbg_t_sync = 0;
+              n64_rdpbg_t_upl = n64_rdpbg_n_sub = 0; }
             { extern u32 n64_rdpbg_t_acquire, n64_rdpbg_t_show;
               debugf("PROF:  rdpbg: per frame display_get %lu.%02lu ms,"
                      " display_show %lu.%02lu ms\n",

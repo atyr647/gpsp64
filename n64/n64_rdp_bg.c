@@ -88,6 +88,15 @@ u32 n64_rdpbg_frames = 0, n64_rdpbg_overflow = 0;
  * the three remaining costs -- walking the tilemap, generating rdpq
  * commands, or waiting for the RDP to finish -- is the one left. */
 u32 n64_rdpbg_t_sort = 0, n64_rdpbg_t_emit = 0, n64_rdpbg_t_wait = 0;
+/* Non-destructive split of the slice-change block.  The time-weighted PC
+ * profiler puts 23% of n64_rdpbg_flush there, but the sample sits on a
+ * branch at the block merge point, so it cannot say whether the cost is
+ * libdragon building the upload or RDPBG_SUBMIT's writeback + exec + two
+ * pipeline syncs.  Wrapping each in COUNT answers it without changing a
+ * single command, which matters: ablating the syncs or the upload would
+ * change what the RDP does and what the canary reports. */
+u32 n64_rdpbg_t_wb = 0, n64_rdpbg_t_exec = 0, n64_rdpbg_t_sync = 0,
+    n64_rdpbg_t_upl = 0, n64_rdpbg_n_sub = 0;
 #define RDPBG_TICK() ({ u32 _t; __asm__ volatile("mfc0 %0, $9" : "=r"(_t)); _t; })
 
 /* XBGR1555 (as gpSP's converted palette holds it) -> RGBA5551, which is
@@ -171,12 +180,17 @@ static u32 rdpbg_csent = 0;   /* first word not yet submitted */
  * ordered after these rectangles. */
 #define RDPBG_SUBMIT() do {                                                 \
     if (rdpbg_cw > rdpbg_csent) {                                           \
-      u32 _n = rdpbg_cw - rdpbg_csent;                                      \
+      u32 _n = rdpbg_cw - rdpbg_csent, _a, _b;                              \
+      n64_rdpbg_n_sub++;                                                    \
+      _a = RDPBG_TICK();                                                    \
       data_cache_hit_writeback(&rdpbg_cmds[rdpbg_csent], _n * 4);           \
+      _b = RDPBG_TICK(); n64_rdpbg_t_wb += _b - _a;                         \
       rdpq_exec(&rdpbg_cmds[rdpbg_csent], (int)(_n * 4));                   \
+      _a = RDPBG_TICK(); n64_rdpbg_t_exec += _a - _b;                       \
       rdpbg_csent = rdpbg_cw;                                               \
       rdpq_sync_load();                                                     \
       rdpq_sync_tile();                                                     \
+      n64_rdpbg_t_sync += RDPBG_TICK() - _a;                                \
     }                                                                       \
   } while (0)
 #else
@@ -305,7 +319,9 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
       surface_t sl = surface_make_linear(&vram_swapped[slice * 1024],
                                          FMT_CI4, 8, 256);
       RDPBG_SUBMIT();
-      rdpq_tex_upload(TILE0, &sl, NULL);
+      { u32 _u = RDPBG_TICK();
+        rdpq_tex_upload(TILE0, &sl, NULL);
+        n64_rdpbg_t_upl += RDPBG_TICK() - _u; }
       cur_slice = slice; cur_key = 0xFFFF;
       n64_rdpbg_slices++;
     }
