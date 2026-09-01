@@ -788,6 +788,11 @@ int main(void)
                      (unsigned long)((n64_rdpbg_t_sync * 2 / g2 % 93750) * 100 / 93750),
                      (unsigned long)(n64_rdpbg_t_upl * 2 / g2 / 93750),
                      (unsigned long)((n64_rdpbg_t_upl * 2 / g2 % 93750) * 100 / 93750));
+              { extern u32 n64_rdpbg_t_r;
+                debugf("PROF:  rdpbg-range: %lu.%02lu ms/frame\n",
+                       (unsigned long)(n64_rdpbg_t_r * 2 / g2 / 93750),
+                       (unsigned long)((n64_rdpbg_t_r * 2 / g2 % 93750) * 100 / 93750));
+                n64_rdpbg_t_r = 0; }
               n64_rdpbg_t_wb = n64_rdpbg_t_exec = n64_rdpbg_t_sync = 0;
               n64_rdpbg_t_upl = n64_rdpbg_n_sub = 0; }
             { extern u32 n64_rdpbg_t_acquire, n64_rdpbg_t_show;

@@ -95,9 +95,33 @@ u32 n64_rdpbg_t_sort = 0, n64_rdpbg_t_emit = 0, n64_rdpbg_t_wait = 0;
  * pipeline syncs.  Wrapping each in COUNT answers it without changing a
  * single command, which matters: ablating the syncs or the upload would
  * change what the RDP does and what the canary reports. */
+/* -DRDPBG_R=1|2|3 splits the ~95 COUNT ticks a tile costs after CDE into
+ * record load, arithmetic/clip/flip, and the two command stores.  Three
+ * separate binaries, one range each: six mfc0s around a 95-tick body would
+ * be a tenth of the thing being measured.  Grouping is untouched, so the
+ * 21-slice / 0.59 ms upload structure holds and this is not another
+ * slice-count experiment.
+ *
+ * RESULT, and the reason not to re-run this: it is below the instrument's
+ * floor.  COUNT ticks once per two PClock and a back-to-back mfc0 pair plus
+ * the accumulate costs ~6 ticks a tile -- measurable as ~0.16 ms/frame of
+ * extra emit in every probe build -- so a range shorter than the probe reads
+ * as 0.00.  Ranges 1 and 3 did.  They are bounded above by ~6 ticks each,
+ * not zero.  Only range 2, which contains branches, is long enough to
+ * resolve: 13.5 ticks.  Splitting a ~95-tick body any finer than this needs
+ * a different instrument. */
+u32 n64_rdpbg_t_r = 0;
 u32 n64_rdpbg_t_wb = 0, n64_rdpbg_t_exec = 0, n64_rdpbg_t_sync = 0,
     n64_rdpbg_t_upl = 0, n64_rdpbg_n_sub = 0;
 #define RDPBG_TICK() ({ u32 _t; __asm__ volatile("mfc0 %0, $9" : "=r"(_t)); _t; })
+/* Same read, but a full compiler barrier.  RDPBG_TICK has no memory clobber,
+ * so GCC is free to schedule loads and stores across it -- which is exactly
+ * what it did the first time this split was run: ranges 1 and 3 measured
+ * 0.00 ms because the record load and the command stores had been hoisted
+ * out from between the two reads.  Wrapping a handful of instructions needs
+ * the barrier or the probe measures nothing. */
+#define RDPBG_TICK_B() ({ u32 _t; __asm__ __volatile__("mfc0 %0, $9" \
+                          : "=r"(_t) :: "memory"); _t; })
 
 /* XBGR1555 (as gpSP's converted palette holds it) -> RGBA5551, which is
  * what a 16-bit N64 framebuffer wants.  Index 0 of every sub-palette is
@@ -332,12 +356,18 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
     /* Probe 2 (order): sequential over the full 20 KB, no gather. */
     const rdpbg_draw_t *d = &rdpbg_draws[i];
 #else
+#if RDPBG_R == 1
+    u32 _rt1 = RDPBG_TICK_B();
+#endif
     const rdpbg_draw_t *d = &rdpbg_draws[rdpbg_order[i]];
 #endif
     u32 key = RDPBG_KEY(d), y0f = RDPBG_Y0(d), y1f = RDPBG_Y1(d);
     u32 flip = RDPBG_FLIP(d);
     u32 slice = key >> 4;
     int x0, y0, x1, y1, s0, t0, dsdx, dtdy;
+#if RDPBG_R == 1
+    n64_rdpbg_t_r += RDPBG_TICK_B() - _rt1;
+#endif
 
     if (slice != cur_slice) {
       surface_t sl = surface_make_linear(&vram_swapped[slice * 1024],
@@ -363,6 +393,9 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
      * clipped that range to the rows the RDP owns this frame.  Columns
      * clip against the 240-pixel screen the same way, since a scrolled
      * layer's first and last tiles hang off the edges. */
+#if RDPBG_R == 2
+    { u32 _rt2 = RDPBG_TICK_B();
+#endif
     x0 = d->x; x1 = d->x + 8;
     y0 = d->y + (int)y0f; y1 = d->y + (int)y1f;
     s0 = 0; t0 = (int)((d->vt & 31) * 8) + (int)y0f;
@@ -373,10 +406,19 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
 
     if (x0 < 0)   { if (dsdx > 0) s0 -= x0; else s0 += x0; x0 = 0; }
     if (x1 > 240) x1 = 240;
+#if RDPBG_R == 2
+    n64_rdpbg_t_r += RDPBG_TICK_B() - _rt2; }
+#endif
     if (x0 >= x1) continue;
 
+#if RDPBG_R == 3
+    { u32 _rt3 = RDPBG_TICK_B();
+#endif
     RDPBG_RECT(GBA_OFFSET_X + x0, GBA_OFFSET_Y + y0,
                GBA_OFFSET_X + x1, GBA_OFFSET_Y + y1, s0, t0, dsdx, dtdy);
+#if RDPBG_R == 3
+    n64_rdpbg_t_r += RDPBG_TICK_B() - _rt3; }
+#endif
     n64_rdpbg_tiles++;
   }
 
