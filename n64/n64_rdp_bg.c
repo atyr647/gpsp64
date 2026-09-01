@@ -163,10 +163,25 @@ static u32 rdpbg_cmds[RDPBG_CMDWORDS] __attribute__((aligned(16)));
 static u32 rdpbg_cw = 0;      /* next word to write   */
 static u32 rdpbg_csent = 0;   /* first word not yet submitted */
 
+/* The command buffer is write-only from the CPU: 19.5 KB streamed through
+ * an 8 KB cache every frame, and each rectangle fills exactly one aligned
+ * 16-byte line (rdpbg_cmds is aligned(16) and rdpbg_cw only ever advances
+ * by 4 words here).  A normal store therefore triggers a read-for-ownership
+ * that fetches 16 bytes about to be overwritten in full.  Create Dirty
+ * Exclusive (cache op 3, D-cache) claims the line without the fetch.
+ * Build with -DRDPBG_NO_CDE to compare. */
+#if defined(N64) && !defined(RDPBG_NO_CDE)
+#define RDPBG_CLAIM_LINE(p) \
+  __asm__ __volatile__ ("cache 0xD, 0(%0)" :: "r"(p) : "memory")
+#else
+#define RDPBG_CLAIM_LINE(p) do {} while (0)
+#endif
+
 /* 0xE4 is the RDP's own TEXTURE_RECTANGLE opcode; coordinates are 10.2,
  * texture coordinates 10.5, and the steps s5.10. */
 #define RDPBG_RECT(X0, Y0, X1, Y1, S0, T0, DSDX, DTDY) do {                 \
     u32 *_p = &rdpbg_cmds[rdpbg_cw];                                        \
+    RDPBG_CLAIM_LINE(_p);                                                   \
     _p[0] = 0xE4000000u | ((u32)((X1) * 4) << 12) | (u32)((Y1) * 4);        \
     _p[1] = ((u32)((X0) * 4) << 12) | (u32)((Y0) * 4);                      \
     _p[2] = ((u32)((S0) * 32) << 16) | (u32)(((T0) * 32) & 0xFFFF);         \
@@ -309,7 +324,16 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
   }
 
   for (i = 0; i < n; i++) {
+#if   RDPBG_PROBE == 1
+    /* Probe 1 (capacity): same gather shape, working set forced to 4 KB.
+       Draws the wrong tiles on purpose -- the canary is expected to lie. */
+    const rdpbg_draw_t *d = &rdpbg_draws[rdpbg_order[i] & 511];
+#elif RDPBG_PROBE == 2
+    /* Probe 2 (order): sequential over the full 20 KB, no gather. */
+    const rdpbg_draw_t *d = &rdpbg_draws[i];
+#else
     const rdpbg_draw_t *d = &rdpbg_draws[rdpbg_order[i]];
+#endif
     u32 key = RDPBG_KEY(d), y0f = RDPBG_Y0(d), y1f = RDPBG_Y1(d);
     u32 flip = RDPBG_FLIP(d);
     u32 slice = key >> 4;
