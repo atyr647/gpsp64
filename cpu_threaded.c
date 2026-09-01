@@ -298,10 +298,12 @@ u32 prof_jit_xlat = 0, prof_jit_hit = 0, prof_jit_flush = 0;
 #if defined(N64) && defined(N64_JIT_IBCACHE)
 extern u32 ibcache_arm[256 * 2];
 extern u32 ibcache_thumb[256 * 2];
+extern u32 ibcache_dual[256 * 2];
 static void ibcache_clear(void)
 {
   memset(ibcache_arm,   0xFF, sizeof(ibcache_arm));
   memset(ibcache_thumb, 0xFF, sizeof(ibcache_thumb));
+  memset(ibcache_dual,  0xFF, sizeof(ibcache_dual));
 }
 #else
 static void ibcache_clear(void) {}

@@ -362,9 +362,66 @@ return_to_main:
   bne   $2, $4, 8f                # miss: take the slow path
   nop
   lw    $2, 4($1)                 # cached host target
+#ifdef N64_JIT_IBPROF
+  # Hit counter, diagnostic builds only.  Misses are already counted in C
+  # by prof_jit_hit, so the two together give the cache's hit rate.
+  lui   $1, %hi(ibcache_hits)
+  lw    $5, %lo(ibcache_hits)($1)
+  addiu $5, $5, 1
+  sw    $5, %lo(ibcache_hits)($1)
+#endif
   jr    $2                        # hit: straight there, nothing spilled
   nop
 8:
+  addiu $sp, $sp, -16
+  sw    $1, 0($sp)                # keep the slot across the C call
+  sw    $4, 4($sp)                # and the branch target: $4 is caller-saved
+#endif
+.endm
+
+# The dual stub -- BX, and any branch that can switch instruction set -- is
+# where nearly all indirect branches actually go, and it had no inline
+# cache: measured on the overworld, the arm/thumb caches served 16 lookups
+# a frame while 490 went to C.  Simulated against the real trace, a
+# 256-entry direct-mapped cache on this stream hits 78%.
+#
+# The one extra thing the fast path owes: block_lookup_address_dual sets or
+# clears CPSR's Thumb bit according to the target's low bit before
+# forwarding, so a hit has to do it too.
+.macro ibcache_lookup_dual
+#ifdef N64_JIT_IBCACHE
+  lui   $1, %hi(ibcache_dual)
+  srl   $5, $4, 1
+  andi  $5, $5, 255
+  sll   $5, $5, 3                 # 8 bytes per {tag, target} entry
+  addiu $1, $1, %lo(ibcache_dual)
+  addu  $1, $1, $5                # $1 = &ibcache_dual[index]
+  lw    $2, 0($1)                 # cached ARM PC
+  bne   $2, $4, 9f                # miss: take the slow path
+  nop
+  lw    $5, REG_CPSR($16)
+  andi  $6, $4, 1                 # 1 when the target is Thumb
+  sll   $6, $6, 5                 # 0x20 when Thumb
+  ori   $5, $5, 0x20              # set T ...
+  xori  $6, $6, 0x20              # ... and clear it again when ARM
+  xor   $5, $5, $6
+  sw    $5, REG_CPSR($16)
+#ifdef N64_JIT_IBPROF
+  lui   $1, %hi(ibcache_hits)
+  lw    $5, %lo(ibcache_hits)($1)
+  addiu $5, $5, 1
+  sw    $5, %lo(ibcache_hits)($1)
+  lui   $1, %hi(ibcache_dual)
+  srl   $5, $4, 1
+  andi  $5, $5, 255
+  sll   $5, $5, 3
+  addiu $1, $1, %lo(ibcache_dual)
+  addu  $1, $1, $5
+#endif
+  lw    $2, 4($1)                 # cached host target
+  jr    $2                        # hit: nothing spilled, no C call
+  nop
+9:
   addiu $sp, $sp, -16
   sw    $1, 0($sp)                # keep the slot across the C call
   sw    $4, 4($sp)                # and the branch target: $4 is caller-saved
@@ -402,11 +459,13 @@ defsymbl(mips_indirect_branch_thumb)
   nop
 
 defsymbl(mips_indirect_branch_dual)
+  ibcache_lookup_dual
   save_registers
   cfncall block_lookup_address_dual, 3
   nop
   restore_registers
   sll $2, $2, 0                   # Sign-extend for MIPS III
+  ibcache_fill
   jr $2
   nop
 
@@ -784,6 +843,8 @@ fnptrs:
 defsymbl(ibcache_arm)
   .space 256 * 8
 defsymbl(ibcache_thumb)
+  .space 256 * 8
+defsymbl(ibcache_dual)
   .space 256 * 8
 
 defsymbl(rom_translation_cache)

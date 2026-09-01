@@ -96,6 +96,14 @@ u32 function_cc n64_jit_hle_swi(u32 swi_num, u32 swi_pc, u32 step)
   return reg[REG_PC];
 }
 
+#ifdef N64_JIT_IBPROF
+/* Storage for the inline-cache hit counter incremented by mips_stub.S.
+ * It lives here rather than beside the tables because those sit in the
+ * .jit section, which C cannot reach with the gp-relative addressing GCC
+ * picks for a small global. */
+u32 ibcache_hits;
+#endif
+
 /* Global state required by the emulator core */
 u32 skip_next_frame = 0;
 u32 num_skipped_frames = 0;
@@ -515,6 +523,19 @@ int main(void)
              rendering within prof_emu.  If emu+blit falls short of total,
              the missing time is in the frame loop itself -- input polling,
              or display_get()/display_show() blocking on vsync. */
+#ifdef N64_JIT_IBPROF
+          /* Indirect-branch inline cache: hits never reach C, misses do.
+           * 489 C-level block lookups a frame is the suspect for the
+           * emulation time the yield accounting cannot explain. */
+          { extern u32 ibcache_hits; extern u32 prof_jit_hit;
+            static u32 ph, pm;
+            u32 h = ibcache_hits - ph, m = prof_jit_hit - pm;
+            ph = ibcache_hits; pm = prof_jit_hit;
+            debugf("PROF:  ibcache: %lu hit + %lu miss per frame (%lu%% hit)\n",
+                   (unsigned long)(h / PROF_FRAMES),
+                   (unsigned long)(m / PROF_FRAMES),
+                   (unsigned long)((h + m) ? h * 100 / (h + m) : 0)); }
+#endif
 #ifdef N64_EVENT_PROF
           /* Which scheduler shortens the CPU window, and how often.  All
            * of the emulator's CPU time is per-event overhead in this
