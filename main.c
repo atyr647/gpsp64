@@ -47,6 +47,10 @@ timer_type timer[4];
 u32 frame_counter = 0;
 u32 cpu_ticks = 0;
 u32 execute_cycles = 0;
+#ifdef N64_EVENT_PROF
+u32 prof_ev_video, prof_ev_serial, prof_ev_dma, prof_ev_timer[4],
+    prof_ev_calls;
+#endif
 #ifdef N64_VIDEO_PROBE
 u32 prof_hb_irq = 0, prof_hb_dma = 0, prof_hb_calls = 0;
 #endif
@@ -91,6 +95,14 @@ static unsigned update_timers(irq_type *irq_raised, unsigned completed_cycles)
       if(timer[i].count > 0)
          continue;
 
+#ifdef N64_TIMER_BATCH
+      /* With the window no longer clamped to this timer's next overflow
+         (see the scheduler below), more than one can fall inside a single
+         call.  Service each of them; the samples handed to sound_timer are
+         the same ones, just produced in a burst rather than one per
+         yield. */
+      do {
+#endif
       /* irq_raised value range: IRQ_TIMER0, IRQ_TIMER1, IRQ_TIMER2, IRQ_TIMER3 */
       if(timer[i].irq)
          *irq_raised |= (IRQ_TIMER0 << i);
@@ -123,6 +135,11 @@ static unsigned update_timers(irq_type *irq_raised, unsigned completed_cycles)
       }
 
       timer[i].count += (timer[i].reload << timer[i].prescale);
+#ifdef N64_TIMER_BATCH
+      /* A zero reload would never lift count back above zero: bail rather
+         than spin. */
+      } while (timer[i].count <= 0 && (timer[i].reload << timer[i].prescale));
+#endif
    }
    return ret;
 }
@@ -448,6 +465,26 @@ u32 function_cc update_gba(int remaining_cycles)
     // Figure out when we need to stop CPU execution. The next event is
     // a video event or a timer event, whatever happens first.
     execute_cycles = MAX(video_count, 0);
+#ifdef N64_EVENT_PROF
+    /* 673 update_gba calls per frame against ~7400 executed GBA
+     * instructions: essentially all of the emulator's CPU time is this
+     * event machinery, not code execution.  Count what actually shortens
+     * the window, so it is clear which scheduler is responsible. */
+    { extern u32 prof_ev_video, prof_ev_serial, prof_ev_dma, prof_ev_timer[4],
+             prof_ev_calls;
+      u32 _base = execute_cycles; unsigned _t; u32 _who = 0;
+      prof_ev_calls++;
+      if (serial_next_event() < _base) { _who = 1; }
+      if (reg[CPU_HALT_STATE] == CPU_DMA) { _who = 2; }
+      for (_t = 0; _t < 4; _t++)
+        if (timer[_t].status == TIMER_PRESCALE && timer[_t].count < _base &&
+            timer[_t].count < execute_cycles)
+          { _who = 3 + _t; }
+      if (_who == 0)      prof_ev_video++;
+      else if (_who == 1) prof_ev_serial++;
+      else if (_who == 2) prof_ev_dma++;
+      else                prof_ev_timer[_who - 3]++; }
+#endif
     {
       u32 cc = serial_next_event();
       execute_cycles = MIN(execute_cycles, cc);
@@ -473,7 +510,24 @@ u32 function_cc update_gba(int remaining_cycles)
     {
        if (timer[i].status == TIMER_PRESCALE &&
            timer[i].count < execute_cycles)
+       {
+#ifdef N64_TIMER_BATCH
+          /* Stopping the CPU at every timer overflow is what makes the
+             event machinery the dominant cost of a frame: measured at 675
+             update_gba calls per frame in the overworld, 32% of them for
+             timer 0 alone, against ~7400 GBA instructions actually
+             executed.
+             An overflow only has to be timed precisely if something
+             observes it at that instant -- an IRQ, or a cascade into a
+             timer that may itself raise one.  A timer that only feeds the
+             direct-sound FIFO does not: update_timers now services however
+             many overflows fall inside the window, producing the same
+             samples in the same order. */
+          if (timer[i].irq ||
+              ((i != 3) && timer[i + 1].status == TIMER_CASCADE))
+#endif
           execute_cycles = timer[i].count;
+       }
     }
   } while(reg[CPU_HALT_STATE] != CPU_ACTIVE && !frame_complete);
 

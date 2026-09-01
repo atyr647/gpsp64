@@ -515,7 +515,28 @@ int main(void)
              rendering within prof_emu.  If emu+blit falls short of total,
              the missing time is in the frame loop itself -- input polling,
              or display_get()/display_show() blocking on vsync. */
-          debugf("PROF:  raw: total=%lu emu=%lu blit=%lu ppu=%lu"
+#ifdef N64_EVENT_PROF
+          /* Which scheduler shortens the CPU window, and how often.  All
+           * of the emulator's CPU time is per-event overhead in this
+           * scene, so the mix here is what decides whether that overhead
+           * can be reduced at all. */
+          { extern u32 prof_ev_video, prof_ev_serial, prof_ev_dma,
+                   prof_ev_timer[4], prof_ev_calls;
+            debugf("PROF:  event: %lu calls/frame | video %lu%% serial %lu%%"
+                   " dma %lu%% timer %lu/%lu/%lu/%lu%%\n",
+                   (unsigned long)(prof_ev_calls / PROF_FRAMES),
+                   (unsigned long)(prof_ev_video * 100 / (prof_ev_calls | 1)),
+                   (unsigned long)(prof_ev_serial * 100 / (prof_ev_calls | 1)),
+                   (unsigned long)(prof_ev_dma * 100 / (prof_ev_calls | 1)),
+                   (unsigned long)(prof_ev_timer[0] * 100 / (prof_ev_calls | 1)),
+                   (unsigned long)(prof_ev_timer[1] * 100 / (prof_ev_calls | 1)),
+                   (unsigned long)(prof_ev_timer[2] * 100 / (prof_ev_calls | 1)),
+                   (unsigned long)(prof_ev_timer[3] * 100 / (prof_ev_calls | 1)));
+            prof_ev_calls = prof_ev_video = prof_ev_serial = prof_ev_dma = 0;
+            prof_ev_timer[0] = prof_ev_timer[1] = 0;
+            prof_ev_timer[2] = prof_ev_timer[3] = 0; }
+#endif
+                    debugf("PROF:  raw: total=%lu emu=%lu blit=%lu ppu=%lu"
                  " | emu+blit=%lu (%lu%% of total)\n",
                  (unsigned long)prof_total, (unsigned long)prof_emu,
                  (unsigned long)prof_blit, (unsigned long)prof_ppu_ticks,
