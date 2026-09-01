@@ -262,3 +262,58 @@ It is useful for answering yes/no questions — it is how "all the uncached
 RDRAM traffic is the renderer's, emulation has none" was established —
 but never quote its absolute numbers. ares's own stderr reporting needs
 nothing from the ROM and does not perturb the build.
+
+## The time-weighted PC profiler
+
+`GPSP_PCPROF` samples every N executed *instructions*. On a VR4300 that is
+the wrong axis: a PC that stalls forty cycles on a D-cache miss counts
+exactly the same as one that retires in one, so an instruction-weighted
+profile systematically hides the stalls that dominate a frame. It also
+lives in `instructionEpilogue<0>`, which ares's recompiler barely runs.
+
+`GPSP_PCCYC=<cycles per sample>` samples from `CPU::step()`, which is
+handed the real cycle cost of everything — cache fills, DMA stalls, the
+lot — and runs under the recompiler. ares keeps a histogram and dumps the
+top 400 PCs every `GPSP_PCCYC_DUMP` samples (default 200,000):
+
+    GPSP_PCCYC=1009 GPSP_PCCYC_DUMP=300000 tools/jit-savestate-run.sh <label>
+    tools/pccyc.py <scratch>/gpsp.elf bench-results/<label>.jit.txt <watermark>
+
+1009 is prime, so the sampler does not beat against periodic guest code.
+The watermark is the byte count printed on the `JITSTUB scanning` line;
+without it the generated stubs and translated code are reported together.
+
+`tools/pccyc.py` also fixes an attribution trap. The dynarec's output lives
+in `rom_translation_cache` / `ram_translation_cache`, which are declared
+with `.space` in a nobits section and therefore carry **no ELF size** — nm
+reports them at zero bytes, so every sample inside them is filed under
+whatever symbol happens to precede them. That is how `ewram_raw +0x70d6c`
+appeared in an earlier debugging session as if it meant something, and how
+21.8% of the first profile taken with this tool arrived labelled
+`__text_end`. The script takes each such object's extent as running to the
+next symbol, and splits the stub area from translated code.
+
+### What it said the first time it was pointed at the default build
+
+    16.8%  dynarec stubs (mips_stub.S)      <- generated memory-access stubs
+    13.9%  n64_rdpbg_flush
+     9.8%  update_gba
+     8.8%  update_scanline
+     8.2%  n64_rdpbg_frame_end
+     6.6%  render_gbc_sound
+     5.4%  sound_timer
+     4.8%  translated code (ROM blocks)
+     2.5%  bios_hle_swi
+     2.5%  mips_indirect_branch_dual
+
+This overturned the conclusion reached the day before by subtraction —
+that roughly 40% of a frame was translated code executing. It is 4.8%.
+The dynarec's real cost is the generated **memory-access stubs**: every GBA
+load and store leaves translated code for a stub that decodes the region,
+masks the address and byte-swaps.
+
+The lesson is worth keeping separate from the numbers. Three hypotheses in
+a row — per-yield overhead, block lookups, translated code — were each
+reached by attributing a residual, and each over-predicted by roughly an
+order of magnitude. A residual is not a measurement. Point this profiler
+at the question instead.

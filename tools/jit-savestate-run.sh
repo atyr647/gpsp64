@@ -18,13 +18,13 @@ mkdir -p "$SCRATCH/filesystem/gba"
 cp "$REPO/Pokemon - Emerald Version (USA, Europe).gba" "$SCRATCH/filesystem/gba/emerald.gba"
 cp "$REPO/bench-results/states/overworld.sav" "$SCRATCH/filesystem/boot.sav"
 ( cd "$SCRATCH" && export N64_INST="$REPO/toolchain/opt/libdragon" \
-  && make -f Makefile.n64 ${JITSAVE_MAKE:-N64_JIT=1} EXTRA_CFLAGS="-DN64_BOOT_STATE $EXTRA" -j"$(nproc)" >build.log 2>&1 ) \
+  && make -f Makefile.n64 ${JITSAVE_MAKE:-} EXTRA_CFLAGS="-DN64_BOOT_STATE $EXTRA" -j"$(nproc)" >build.log 2>&1 ) \
   || { echo BUILD FAILED; tail -25 "$SCRATCH/build.log"; exit 1; }
 # The ROM must be newer than the log, always.  Guard rather than trust.
 rm -f "$LOG"
 DISP=":$((140 + RANDOM % 20))"; Xvfb "$DISP" -screen 0 640x480x24 >/dev/null 2>&1 & XPID=$!
 sleep 2
-( cd "$SCRATCH" && DISPLAY="$DISP" timeout "${JITSAVE_TIMEOUT:-240}" "$ARES" \
+( cd "$SCRATCH" && DISPLAY="$DISP" GPSP_PCCYC="${GPSP_PCCYC:-}" GPSP_PCCYC_DUMP="${GPSP_PCCYC_DUMP:-}" timeout "${JITSAVE_TIMEOUT:-240}" "$ARES" \
     --setting Nintendo64/ExpansionPak=true --system "Nintendo 64" gpsp.z64 ) >"$LOG" 2>&1
 kill -9 $XPID 2>/dev/null; wait 2>/dev/null
 [ "$LOG" -nt "$SCRATCH/gpsp.z64" ] || { echo "STALE LOG -- refusing to publish"; exit 1; }

@@ -1,8 +1,16 @@
 diff --git a/ares/n64/cpu/cpu.cpp b/ares/n64/cpu/cpu.cpp
-index 330d3d6..23dfc55 100644
+index 330d3d6..0265653 100644
 --- a/ares/n64/cpu/cpu.cpp
 +++ b/ares/n64/cpu/cpu.cpp
-@@ -35,7 +35,151 @@ auto CPU::unload() -> void {
+@@ -1,4 +1,7 @@
+ #include <n64/n64.hpp>
++#include <map>
++#include <vector>
++#include <algorithm>
+ #include <nall/gdb/server.hpp>
+ 
+ namespace ares::Nintendo64 {
+@@ -35,7 +38,151 @@ auto CPU::unload() -> void {
  }
  
  auto CPU::main() -> void {
@@ -154,7 +162,68 @@ index 330d3d6..23dfc55 100644
      if(instruction()) synchronize();
    }
  
-@@ -186,6 +330,33 @@ auto CPU::instructionEpilogue() -> void {
+@@ -107,6 +254,60 @@ auto CPU::synchronize() -> void {
+   scc.count += clocks;
+   profile.cpuCycles += clocks;
+   if (scc.status.exceptionLevel) profile.cpuCyclesExc += clocks;
++
++  /* gpsp64: time-weighted PC sampler.
++   *
++   * GPSP_PCPROF samples every N *instructions*, which is the wrong axis on
++   * this machine: a PC that stalls forty cycles on a D-cache miss counts
++   * the same as one that retires in one, so a profile taken that way
++   * systematically hides exactly the stalls that dominate a VR4300 frame.
++   * It also lives in instructionEpilogue<0>, which the recompiler barely
++   * runs.
++   *
++   * step() is called with the real cycle cost of everything -- cache
++   * fills, DMA stalls, the lot -- and is called under the recompiler too,
++   * so sampling here weights samples by time.  Under recompilation ipu.pc
++   * is only current at block boundaries, so treat the result as
++   * block-granular: it is exact for "which region/function", which is the
++   * question worth asking.
++   *
++   * GPSP_PCCYC=<cycles per sample>, e.g. 1009 (prime, to avoid beating
++   * against periodic guest code).  Output every GPSP_PCCYC_DUMP samples.
++   */
++  {
++    static u64 every = 0, dumpEvery = 0, acc = 0, taken = 0;
++    static bool init = false;
++    static std::map<u32, u64> *hist = nullptr;
++    if(!init) {
++      init = true;
++      if(const char *e = getenv("GPSP_PCCYC")) every = strtoull(e, nullptr, 0);
++      dumpEvery = 200000;
++      if(const char *e = getenv("GPSP_PCCYC_DUMP")) dumpEvery = strtoull(e, nullptr, 0);
++      if(every) hist = new std::map<u32, u64>();
++    }
++    if(every) {
++      acc += clocks;
++      while(acc >= every) {
++        acc -= every;
++        (*hist)[(u32)ipu.pc]++;
++        if(++taken % dumpEvery == 0) {
++          std::vector<std::pair<u64,u32>> v;
++          for(auto &kv : *hist) v.push_back({kv.second, kv.first});
++          std::sort(v.rbegin(), v.rend());
++          fprintf(stderr, "PCCYC-BEGIN samples=%llu distinct=%llu\n",
++                  (unsigned long long)taken, (unsigned long long)hist->size());
++          u32 n = 0;
++          for(auto &e : v) {
++            fprintf(stderr, "PCCYC %08x %llu\n", e.second,
++                    (unsigned long long)e.first);
++            if(++n >= 400) break;
++          }
++          fprintf(stderr, "PCCYC-END\n");
++          fflush(stderr);
++        }
++      }
++    }
++  }
+ }
+ 
+ auto CPU::setInterruptPending(u32 bit, bool value) -> void {
+@@ -186,6 +387,33 @@ auto CPU::instructionEpilogue() -> void {
    if constexpr(!Recompiled) {
      ipu.r[0].u64 = 0;
    }
@@ -188,7 +257,7 @@ index 330d3d6..23dfc55 100644
  }
  
  auto CPU::raiseCoprocessor1Exception() -> void {
-@@ -194,6 +365,20 @@ auto CPU::raiseCoprocessor1Exception() -> void {
+@@ -194,6 +422,20 @@ auto CPU::raiseCoprocessor1Exception() -> void {
  
  auto CPU::power(bool reset) -> void {
    Thread::reset();
