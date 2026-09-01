@@ -317,3 +317,81 @@ a row — per-yield overhead, block lookups, translated code — were each
 reached by attributing a residual, and each over-predicted by roughly an
 order of magnitude. A residual is not a measurement. Point this profiler
 at the question instead.
+
+## Attributing samples inside the stub area
+
+`-DN64_STUBMAP` makes the ROM print the address of every generated memory
+handler (`tmemld[11][16]`, `tmemst[4][16]`) as `STUBMAP <addr> <op>.<region>`.
+`tools/pccyc.py` reads those and labels a sample in the stub area with the
+operation that owns it, so "16.8% of the frame is in the stubs" becomes:
+
+    memory-access stubs, 13.3% of the frame
+      by direction:  store 8.4%   load 3.2%
+      by region:     iwram 9.7%   ewram 1.9%
+      top:  st_u32.iwram 2.7%, ld_u8.iwram 1.4%, st_u16.iwram 1.4%,
+            st_u8.iwram 1.2%, st_u32a.iwram 1.2%
+
+## The SMC tag aliases its own data in the D-cache
+
+Stores cost 2.6x what loads do, and the reason is a cache-index collision
+that is exact rather than incidental.
+
+Every GBA store to IWRAM or EWRAM runs an SMC check: load the tag byte for
+the address, and if it is non-zero the store landed on translated code.
+gpSP places that tag block exactly one region-size away from the data --
+32 KB for IWRAM, 256 KB for EWRAM. The VR4300's D-cache is 8 KB,
+direct-mapped, 16-byte lines, so the index is address bits 12:4, and **both
+of those separations are exact multiples of 8 KB**:
+
+    iwram: data 0x80244d00 -> line 208
+           tag  0x8023cd00 -> line 208     separation 0x8000 = 4 x 8 KB
+    ewram: data 0x80264d00 -> line 208
+           tag  0x802a4d00 -> line 208     separation 0x40000 = 32 x 8 KB
+
+The tag and its own data are permanently assigned to the same cache line.
+Every store misses twice: the tag load evicts the data line, the store
+evicts the tag line back.
+
+Confirmed, not just computed. The ares D-cache miss profiler's top PCs
+include an adjacent pair with **identical** counts:
+
+    DMISSPC ... 802eae44:128423 802eae4c:128423 ...
+
+two instructions eight bytes apart missing exactly as often as each other
+-- the tag load and the data store, ping-ponging. Symbolised, that pair is
+`stub st_u32.iwram`, and the memory stubs together are 14.5% of all
+sampled D-cache misses.
+
+### Two ways to fix it, neither started
+
+**Move the tag block** so the separation is not a multiple of 8 KB. The
+catch is the emitted code: the tag address is computed with a single
+`addiu`, whose immediate is limited to [-32768, 32767], and -0x8000 is
+exactly the boundary. Any non-aliasing distance needs a second
+instruction, plus growing `iwram_raw`/`ewram_raw` by a line and moving the
+data base -- 15 sites reference it.
+
+**Skip the tag load entirely** for stores that cannot be over code.
+`iwram_code_max` already bounds the highest address any RAM block has been
+translated from, and it is reset to zero by every flush, so
+`offset > iwram_code_max` means "no code here" and is conservative. That
+replaces a guaranteed-conflict-missing tag load with one load from a
+permanently hot global. It needs a forward branch over the SMC block and
+the store tail emitted twice, since the store currently sits in the SMC
+branch's delay slot.
+
+The second is contained to `emit_pmemst_stub` and changes no memory
+layout, so it is the one to try first.
+
+## The renderer is the largest single source of D-cache misses
+
+    40.5%  n64_rdpbg_flush
+    14.5%  memory-access stubs (above)
+    10.8%  n64_rdpbg_add
+     9.1%  n64_rdpbg_frame_end
+
+`n64_rdpbg_flush` alone is 40% of sampled misses and 13.9% of frame time,
+and the renderer as a whole (flush + frame_end + add + build_tlut) is about
+24% of a frame. It emits RDP command words from a sorted draw list; the
+sort and the emit both walk memory in an order the D-cache cannot follow.
+That is a bigger single lever than anything remaining on the dynarec side.

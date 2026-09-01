@@ -111,6 +111,18 @@ def main():
                             name, 'inline cache: ' + name)
                 regions.append((a, a + sz, label))
 
+    # -DN64_STUBMAP makes the ROM print the address of every generated
+    # memory handler.  With it, a sample in the stub area is attributed to
+    # the operation and region that own it rather than to "the stubs".
+    stubmap = []
+    for line in open(sys.argv[2], errors='ignore'):
+        if line.startswith('STUBMAP '):
+            f = line.split()
+            if len(f) >= 3:
+                stubmap.append(((int(f[1], 16) & 0x1FFFFFFF) | 0x80000000, f[2]))
+    stubmap.sort()
+    stubstarts = [a for a, _ in stubmap]
+
     counts, total = {}, 0
     for line in open(sys.argv[2], errors='ignore'):
         if not line.startswith('PCCYC '):
@@ -126,6 +138,10 @@ def main():
         total += n
         for lo, hi, label in regions:
             if lo <= pc < hi:
+                if label.startswith('dynarec stubs') and stubmap:
+                    j = bisect.bisect_right(stubstarts, pc) - 1
+                    if j >= 0:
+                        label = 'stub ' + stubmap[j][1]
                 counts[label] = counts.get(label, 0) + n
                 break
         else:

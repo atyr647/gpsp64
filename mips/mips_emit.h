@@ -3024,6 +3024,34 @@ void init_emitter(bool must_swap) {
   for (i = 0; i < 15*16; i++)
     thnjal[i] = ((tmemptr[i] >> 2) & 0x3FFFFFF) | (mips_opcode_jal << 26);
 
+#ifdef N64_STUBMAP
+  /* Address map of the generated memory handlers, so a time-weighted PC
+   * sample landing in the stub area can be attributed to the operation
+   * that owns it.  Without this the profiler can only say "16.8% of the
+   * frame is in the stubs", which names a region, not a target.
+   * tools/pccyc.py reads these lines. */
+  {
+    static const char *opn[11] = { "ld_u8","ld_s8","ld_u16","ld_u16u1",
+      "ld_s16","ld_s16u1","ld_u32","ld_u32u1","ld_u32u2","ld_u32u3",
+      "ld_u32a" };
+    static const char *stn[4] = { "st_u8","st_u16","st_u32","st_u32a" };
+    static const char *rgn[16] = { "bios","open1","ewram","iwram","io",
+      "palette","vram","oam","rom8","rom9","romA","romB","romC","eeprom",
+      "save","open15" };
+    unsigned o, r;
+    for (o = 0; o < 11; o++)
+      for (r = 0; r < 16; r++)
+        if (tmemld[o][r])
+          fprintf(stderr, "STUBMAP %08lx %s.%s\n",
+                  (unsigned long)tmemld[o][r], opn[o], rgn[r]);
+    for (o = 0; o < 4; o++)
+      for (r = 0; r < 16; r++)
+        if (tmemst[o][r])
+          fprintf(stderr, "STUBMAP %08lx %s.%s\n",
+                  (unsigned long)tmemst[o][r], stn[o], rgn[r]);
+  }
+#endif
+
   // Ensure rom flushes do not wipe this area
   rom_cache_watermark = (u32)(translation_ptr - rom_translation_cache);
 
