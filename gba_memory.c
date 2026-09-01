@@ -683,7 +683,7 @@ u32 function_cc read_eeprom(void)
                                                                               \
     case 0x03:                                                                \
       /* internal work RAM */                                                 \
-      value = readaddress##type(iwram_raw, (address & 0x7FFF) + 0x8000);      \
+      value = readaddress##type(iwram_raw, (address & 0x7FFF) + IWRAM_DATA_OFF);      \
       break;                                                                  \
                                                                               \
     case 0x04:                                                                \
@@ -1451,7 +1451,7 @@ void function_cc write_gpio(u32 address, u32 value) {
                                                                               \
     case 0x03:                                                                \
       /* internal work RAM */                                                 \
-      address##type(iwram_raw, (address & 0x7FFF) + 0x8000) = eswap##type(value); \
+      address##type(iwram_raw, (address & 0x7FFF) + IWRAM_DATA_OFF) = eswap##type(value); \
       break;                                                                  \
                                                                               \
     case 0x04:                                                                \
@@ -1767,7 +1767,7 @@ const dma_region_type dma_region_map[17] =
   }                                                                           \
 
 #define dma_read_iwram(type, tfsize)                                          \
-  read_value = readaddress##tfsize(iwram_raw + 0x8000, type##_ptr & 0x7FFF)   \
+  read_value = readaddress##tfsize(iwram_raw + IWRAM_DATA_OFF, type##_ptr & 0x7FFF)   \
 
 #define dma_read_vram(type, tfsize) {                                         \
   u32 rdaddr = type##_ptr & 0x1FFFF;                                          \
@@ -1800,7 +1800,7 @@ const dma_region_type dma_region_map[17] =
   read_value = read_memory##tfsize(type##_ptr)                                \
 
 #define dma_write_iwram(type, tfsize)                                         \
-  address##tfsize(iwram_raw + 0x8000, type##_ptr & 0x7FFF) =                  \
+  address##tfsize(iwram_raw + IWRAM_DATA_OFF, type##_ptr & 0x7FFF) =                  \
                                           eswap##tfsize(read_value);          \
   if (address##tfsize(iwram_raw, type##_ptr & 0x7FFF))                        \
     alerts |= CPU_ALERT_SMC;                                                  \
@@ -1827,7 +1827,7 @@ const dma_region_type dma_region_map[17] =
 
 #define dma_write_ewram(type, tfsize)                                         \
   address##tfsize(ewram_raw, type##_ptr & 0x3FFFF) = eswap##tfsize(read_value);   \
-  if (address##tfsize(ewram_raw, (type##_ptr & 0x3FFFF) + 0x40000))               \
+  if (address##tfsize(ewram_raw, (type##_ptr & 0x3FFFF) + EWRAM_TAG_OFF))               \
     alerts |= CPU_ALERT_SMC;                                                  \
 
 #define print_line()                                                          \
@@ -2358,7 +2358,7 @@ void init_memory(void)
   map_region(read, 0x0000000, 0x1000000, 1, bios_rom_raw);
   map_null(read, 0x1000000, 0x2000000);
   map_region(read, 0x2000000, 0x3000000, 8, ewram_raw);
-  map_region(read, 0x3000000, 0x4000000, 1, &iwram_raw[0x8000]);
+  map_region(read, 0x3000000, 0x4000000, 1, &iwram_raw[IWRAM_DATA_OFF]);
   map_region(read, 0x4000000, 0x5000000, 1, io_registers_raw);
   map_null(read, 0x5000000, 0x6000000);
   map_null(read, 0x6000000, 0x7000000);
@@ -2478,7 +2478,7 @@ bool memory_read_savestate(const u8 *src)
     return false;
 
   if (!(
-    bson_read_bytes(memdoc, "iwram", &iwram_raw[0x8000], 0x8000) &&
+    bson_read_bytes(memdoc, "iwram", &iwram_raw[IWRAM_DATA_OFF], 0x8000) &&
     bson_read_bytes(memdoc, "ewram", ewram_raw, 0x40000) &&
     bson_read_bytes(memdoc, "vram", vram_raw, sizeof(vram_raw)) &&
     bson_read_bytes(memdoc, "oamram", oam_ram_raw, sizeof(oam_ram_raw)) &&
@@ -2540,7 +2540,7 @@ unsigned memory_write_savestate(u8 *dst)
   u32 rtc_data_array[2] = { (u32)rtc_data, (u32)(rtc_data >> 32) };
 
   bson_start_document(dst, "memory", wbptr);
-  bson_write_bytes(dst, "iwram", &iwram_raw[0x8000], 0x8000);
+  bson_write_bytes(dst, "iwram", &iwram_raw[IWRAM_DATA_OFF], 0x8000);
   bson_write_bytes(dst, "ewram", ewram_raw, 0x40000);
   bson_write_bytes(dst, "vram", vram_raw, sizeof(vram_raw));
   bson_write_bytes(dst, "oamram", oam_ram_raw, sizeof(oam_ram_raw));

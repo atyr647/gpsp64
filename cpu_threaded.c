@@ -2764,7 +2764,7 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
     case 0x2:                                                                 \
     case 0x3:                                                                 \
     {                                                                         \
-      u16* tagp = (pcregion == 2) ? (u16 *)(ewram_raw + (pc & 0x3FFFF) + 0x40000) \
+      u16* tagp = (pcregion == 2) ? (u16 *)(ewram_raw + (pc & 0x3FFFF) + EWRAM_TAG_OFF) \
                                   : (u16 *)(iwram_raw + (pc & 0x7FFF));           \
       ramtag_type* trentry;                                                   \
       /* Allocate a tag if not a valid one, and initialize header */          \
@@ -2891,7 +2891,7 @@ void n64_jit_report_badpc(const char *mode, u32 pc)
     static const u32 spots[] = { 0x03001aa8, 0x03001ab4 };
     unsigned k;
     for (k = 0; k < sizeof(spots)/sizeof(spots[0]); k++) {
-      const u8 *m = &iwram_raw[0x8000 + (spots[k] & 0x7FFF)];
+      const u8 *m = &iwram_raw[IWRAM_DATA_OFF + (spots[k] & 0x7FFF)];
       fprintf(stderr, "BADPC mem %08lx:", (unsigned long)spots[k]);
       for (a = 0; a < 24; a++) fprintf(stderr, " %02x", m[a]);
       fprintf(stderr, "\n");
@@ -3661,9 +3661,9 @@ void flush_translation_cache_ram(void)
     if(ewram_code_max > ewram_code_min) {
       ewram_code_min &= ~15U;
       ewram_code_max = MIN(ewram_code_max + 8, 0x40000);
-      memset(&ewram_raw[0x40000 + ewram_code_min], 0, ewram_code_max - ewram_code_min);
+      memset(&ewram_raw[EWRAM_TAG_OFF + ewram_code_min], 0, ewram_code_max - ewram_code_min);
     } else
-      memset(&ewram_raw[0x40000], 0, 0x40000);
+      memset(&ewram_raw[EWRAM_TAG_OFF], 0, 0x40000);
   }
 
   iwram_code_min = ~0U;
@@ -3693,7 +3693,7 @@ void init_dynarec_caches(void)
 
   ram_translation_ptr = last_ram_translation_ptr = &ram_translation_cache[0];
   memset(iwram_raw, 0, 0x8000);
-  memset(&ewram_raw[0x40000], 0, 0x40000);
+  memset(&ewram_raw[EWRAM_TAG_OFF], 0, 0x40000);
 
   ewram_code_min = 0;
   ewram_code_max = 0x40000;

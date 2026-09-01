@@ -1678,8 +1678,8 @@ u8 *memory_map_read [8 * 1024];
 u16 oam_ram_raw[512];
 u16 palette_ram_raw[512];
 u16 palette_ram_converted[512];
-u8 ewram_raw[1024 * 256 * 2];
-u8 iwram_raw[1024 * 32 * 2];
+u8 ewram_raw[1024 * 256 * 2 + GBA_SMC_SKEW];
+u8 iwram_raw[1024 * 32 * 2 + GBA_SMC_SKEW];
 u8 vram_raw[1024 * 96];
 u16 io_registers_raw[512];
 #endif

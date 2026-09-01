@@ -236,7 +236,7 @@ static bool load_rom_and_bios(const char *rom_path)
          * itself forever; the interpreter reads 0x03001E20.  Print the raw
          * bytes to settle whether the memory or the load is wrong. */
 #ifdef N64_JIT_TRACE
-        { const u8 *ph = &iwram_raw[0x8000 + 0x7FFC];
+        { const u8 *ph = &iwram_raw[IWRAM_DATA_OFF + 0x7FFC];
           debugf("[gpSP]: iwram+7FFC raw = %02x %02x %02x %02x\n",
                  ph[0], ph[1], ph[2], ph[3]); }
 #endif

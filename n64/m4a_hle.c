@@ -110,7 +110,7 @@ static u32 m4a_scan_attempts = 0;
 #define M4A_MAX_SCANS 240
 
 /* gpSP keeps live IWRAM in the upper half of iwram_raw. */
-#define IW(off) (iwram_raw + 0x8000 + (off))
+#define IW(off) (iwram_raw + IWRAM_DATA_OFF + (off))
 
 static u32 m4a_rd32(const u8 *p)
 {

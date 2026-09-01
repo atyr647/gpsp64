@@ -772,12 +772,18 @@ defsymbl(execute_arm_translate_internal)
 
 # Ensure iwram+0x8000 and ewram addresses have identical 31..16 bits
 # We place them at 128KB offset to ensure so.
+# Both grown by GBA_SMC_SKEW (16 bytes): IWRAM data now starts at 0x8010
+# rather than 0x8000, and the EWRAM tag block at 0x40010 rather than
+# 0x40000, so a tag never shares a D-cache line with its own data.  The
+# .align 6 keeps everything after them 64-byte aligned.
 defsymbl(iwram_raw)
-  .space 0x10000
+  .space 0x10010
+.align 6
 defsymbl(vram_raw)
   .space 0x18000
 defsymbl(ewram_raw)
-  .space 0x80000
+  .space 0x80010
+.align 6
 defsymbl(io_registers_raw)
   .space 0x400
 

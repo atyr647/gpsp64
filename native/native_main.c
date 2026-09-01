@@ -728,7 +728,7 @@ int main(int argc, char **argv)
       if (ap) { FILE *f = fopen(ap, "wb");
         if (f) {
           extern u8 iwram_raw[], ewram_raw[], vram_raw[], gamepak_backup[];
-          fwrite(iwram_raw + 0x8000, 1, 0x8000, f);
+          fwrite(iwram_raw + IWRAM_DATA_OFF, 1, 0x8000, f);
           fwrite(ewram_raw, 1, 0x40000, f);
           fwrite(vram_raw, 1, 0x18000, f);
           fwrite(oam_ram_raw, 1, 0x400, f);

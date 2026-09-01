@@ -35,7 +35,7 @@ static u8 *dst_linear(u32 addr, u32 *avail)
   switch ((addr >> 24) & 0xF) {
   case 0x02: { u32 off = addr & 0x3FFFF;
                *avail = (1024 * 256) - off;  return ewram_raw + off; }
-  case 0x03: { u32 off = (addr & 0x7FFF) + 0x8000;
+  case 0x03: { u32 off = (addr & 0x7FFF) + IWRAM_DATA_OFF;
                *avail = (1024 * 32 * 2) - off; return iwram_raw + off; }
   case 0x06: { u32 a = addr & 0x1FFFF; if (a >= 0x18000) a -= 0x8000;
                *avail = (1024 * 96) - a;     return vram_raw + a; }

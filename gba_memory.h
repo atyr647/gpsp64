@@ -352,8 +352,23 @@ extern u16 io_registers_raw[512];
 extern u8 vram_raw[1024 * 96];
 extern u8 bios_rom_raw[1024 * 16];
 // Double buffer used for SMC detection
-extern u8 ewram_raw[1024 * 256 * 2];
-extern u8 iwram_raw[1024 * 32 * 2];
+/* The SMC tag block for a RAM region sits a fixed distance from that
+   region's data: every store checks the tag to see whether it just wrote
+   over translated code.  That distance must NOT be a multiple of the
+   VR4300's 8 KB direct-mapped D-cache, or each tag shares a cache line
+   with its own data and every store misses twice, evicting the other line.
+   Upstream uses exactly 0x8000 (IWRAM) and 0x40000 (EWRAM), both exact
+   multiples; measured at 14.5% of all D-cache misses on the overworld.
+   One cache line of skew separates them.  See docs/CACHE_PROFILING.md.
+
+   The arrays themselves are defined in mips/mips_stub.S for this port, not
+   in C -- growing them anywhere else silently runs IWRAM data into VRAM. */
+#define GBA_SMC_SKEW    0x10
+#define IWRAM_DATA_OFF  (0x8000  + GBA_SMC_SKEW)   /* data; tags at [0] */
+#define EWRAM_TAG_OFF   (0x40000 + GBA_SMC_SKEW)   /* tags; data at [0] */
+
+extern u8 ewram_raw[1024 * 256 * 2 + GBA_SMC_SKEW];
+extern u8 iwram_raw[1024 * 32 * 2 + GBA_SMC_SKEW];
 
 /* On non-N64 platforms, provide transparent aliases for compatibility.
    On N64, these names are intentionally absent — any direct use is a
