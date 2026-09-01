@@ -18,6 +18,19 @@
  */
 
 #include "common.h"
+
+/* Guest IWRAM traffic counters.  They are used inside backslash-continued
+   macro bodies that also do ## pasting, so they can carry neither #ifdef
+   nor an unescaped newline -- the switch lives here instead. */
+#ifdef N64_MEMCOUNT
+extern u32 prof_iwram_st, prof_iwram_ld;
+#define IWCOUNT_ST()  (prof_iwram_st++)
+#define IWCOUNT_LD()  (prof_iwram_ld++)
+#else
+#define IWCOUNT_ST()  ((void)0)
+#define IWCOUNT_LD()  ((void)0)
+#endif
+
 #ifdef N64
   #include <stdio.h>
   /* Provide compatibility shims for libretro file stream API */
@@ -683,6 +696,7 @@ u32 function_cc read_eeprom(void)
                                                                               \
     case 0x03:                                                                \
       /* internal work RAM */                                                 \
+      IWCOUNT_LD();                                                            \
       value = readaddress##type(iwram_raw, (address & 0x7FFF) + IWRAM_DATA_OFF);      \
       break;                                                                  \
                                                                               \
@@ -1451,6 +1465,7 @@ void function_cc write_gpio(u32 address, u32 value) {
                                                                               \
     case 0x03:                                                                \
       /* internal work RAM */                                                 \
+      IWCOUNT_ST();                                                            \
       address##type(iwram_raw, (address & 0x7FFF) + IWRAM_DATA_OFF) = eswap##type(value); \
       break;                                                                  \
                                                                               \

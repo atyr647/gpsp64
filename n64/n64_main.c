@@ -788,7 +788,14 @@ int main(void)
                      (unsigned long)((n64_rdpbg_t_sync * 2 / g2 % 93750) * 100 / 93750),
                      (unsigned long)(n64_rdpbg_t_upl * 2 / g2 / 93750),
                      (unsigned long)((n64_rdpbg_t_upl * 2 / g2 % 93750) * 100 / 93750));
-              { extern u32 n64_rdpbg_t_r;
+  #ifdef N64_MEMCOUNT
+            { extern u32 prof_iwram_st, prof_iwram_ld;
+              debugf("PROF:  iwram: %lu stores/frame, %lu loads/frame\n",
+                     (unsigned long)(prof_iwram_st / PROF_FRAMES),
+                     (unsigned long)(prof_iwram_ld / PROF_FRAMES));
+              prof_iwram_st = prof_iwram_ld = 0; }
+#endif
+            { extern u32 n64_rdpbg_t_r;
                 debugf("PROF:  rdpbg-range: %lu.%02lu ms/frame\n",
                        (unsigned long)(n64_rdpbg_t_r * 2 / g2 / 93750),
                        (unsigned long)((n64_rdpbg_t_r * 2 / g2 % 93750) * 100 / 93750));

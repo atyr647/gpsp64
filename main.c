@@ -47,6 +47,12 @@ timer_type timer[4];
 u32 frame_counter = 0;
 u32 cpu_ticks = 0;
 u32 execute_cycles = 0;
+#ifdef N64_MEMCOUNT
+/* Guest IWRAM traffic per frame -- the denominator the stub cost needs.
+ * Counted in the interpreter, which executes the same guest code as the
+ * JIT, so it does not perturb the build being measured. */
+u32 prof_iwram_st, prof_iwram_ld;
+#endif
 #ifdef N64_EVENT_PROF
 u32 prof_ev_video, prof_ev_serial, prof_ev_dma, prof_ev_timer[4],
     prof_ev_calls;
