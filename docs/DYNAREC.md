@@ -575,3 +575,26 @@ per-yield component is smaller than it first appeared. Splitting that
 bucket — a cycle counter around the spill/reload in `mips_update_gba`, and
 an instruction count for the JIT — is the next measurement, not the next
 optimisation.
+
+## The AOT static recompiler is unreachable in the default build
+
+`tools/thumb2c.py` statically recompiles hot Thumb functions to C, producing
+95,000 lines in `n64/aot_generated.c`. It is dispatched from `cpu.cc:3362`,
+inside the **Thumb interpreter loop**. `cpu_threaded.c` contains no
+reference to it at all.
+
+So making the dynarec the default switched the whole thing off. Nothing
+warns about this; the build simply stops using it.
+
+Priced, in an interpreter build with `-DPROFILE_CYCLES`:
+
+    interp 51%  aot 18%  event 21%  ppu 8%  snd 13%
+    388 AOT calls/frame, ~14 of 8192 4 KB pages covered
+
+18% of emulation time, and still not enough: interpreter+AOT is 35 ms/frame
+against the dynarec's 26.5. The AOT does not compensate for interpreting
+everything it does not cover.
+
+The combination nobody has built is AOT **plus** dynarec — at translate
+time, if a block's PC has AOT coverage, emit a call to the native function
+instead of translating it. The two paths have never run together.
