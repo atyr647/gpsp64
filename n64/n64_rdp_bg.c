@@ -356,7 +356,7 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
     /* Probe 2 (order): sequential over the full 20 KB, no gather. */
     const rdpbg_draw_t *d = &rdpbg_draws[i];
 #else
-#if RDPBG_R == 1
+#if RDPBG_R == 1 || RDPBG_R == 4
     u32 _rt1 = RDPBG_TICK_B();
 #endif
     const rdpbg_draw_t *d = &rdpbg_draws[rdpbg_order[i]];
@@ -409,6 +409,9 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
 #if RDPBG_R == 2
     n64_rdpbg_t_r += RDPBG_TICK_B() - _rt2; }
 #endif
+#if RDPBG_R == 4
+    if (x0 >= x1) n64_rdpbg_t_r += RDPBG_TICK_B() - _rt1;
+#endif
     if (x0 >= x1) continue;
 
 #if RDPBG_R == 3
@@ -420,6 +423,12 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
     n64_rdpbg_t_r += RDPBG_TICK_B() - _rt3; }
 #endif
     n64_rdpbg_tiles++;
+#if RDPBG_R == 4
+    /* Range 4: the whole 1216-iteration body, one wrapper.  Ranges 1-3
+     * wrapped three corners of it; this asks whether the ~95 COUNT/tile
+     * the emit subtraction implies is actually inside this loop at all. */
+    n64_rdpbg_t_r += RDPBG_TICK_B() - _rt1;
+#endif
   }
 
   RDPBG_SUBMIT();
