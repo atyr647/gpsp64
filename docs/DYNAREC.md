@@ -598,3 +598,66 @@ everything it does not cover.
 The combination nobody has built is AOT **plus** dynarec — at translate
 time, if a block's PC has AOT coverage, emit a call to the native function
 instead of translating it. The two paths have never run together.
+
+## Hybrid AOT + dynarec: the selection criterion is memory density, not hotness
+
+The two engines have opposite strengths, and the asymmetry is in the memory
+path rather than anywhere in the code generation.
+
+**Dynarec memory op.** A hand-written asm stub: region decode, mask, add to
+a direct base, byte-swap, SMC tag check, store. IWRAM and EWRAM never touch
+a page table.
+
+**AOT read** (`aot_read32`): a C call into `aot_map()`, which indexes
+`memory_map_read[addr >> 15]` — an 8192-entry pointer table, **32 KB, four
+times the D-cache** — then loads, eswaps and rotates. It pays that lookup
+for *every* region, including IWRAM and EWRAM where the dynarec uses a
+direct base.
+
+**AOT write** (`aot_write32`): a C call into `write_memory32`, the full C
+write path with its region switch, SMC handling and IO dispatch.
+
+So an AOT memory op is strictly more expensive than a dynarec one. What AOT
+buys instead is everything *between* the memory ops: GCC allocates registers
+across the whole function, does CSE and strength reduction, and never spills
+the flag cache at a block boundary.
+
+That gives the selection rule:
+
+> **AOT should take compute-dense functions. The dynarec should keep
+> memory-dense ones.**
+
+which is not the same as "AOT should take the hot ones", and explains why an
+earlier session measured AOT coverage expansion as a *loss*: expanding by
+hotness drags in memory-dense functions, which is exactly what AOT is worst
+at.
+
+Measured over the 690 generated functions (memory helper calls per 100 lines
+of generated C):
+
+    p0   1.6   p10  3.4   p25  3.4   p50  6.6   p75  9.1   p90 11.5   p100 23.5
+
+A 15x spread, so the criterion discriminates. The extremes:
+
+    worst AOT candidates            best AOT candidates
+    0x0806F694  23.5                0x0808904C   1.6
+    0x08001228  20.0                0x080894D4   1.7
+    0x082E0398  19.3                0x080898D4   2.0
+
+### The move that may dissolve the choice
+
+AOT's disadvantage is not inherent — it is that `aot_generated.c` calls C
+helpers instead of the dynarec's stubs. Those stubs already take the address
+in `$4` and return in `$2`, which is the C ABI for `u32 f(u32)`; what they
+additionally need is `$16` holding the register base. Pointing the AOT at
+them would give AOT the fast memory path *and* GCC's optimisation, and the
+hybrid question largely goes away.
+
+Worth testing before spending effort on per-function selection.
+
+### Mechanism, already proven
+
+`n64_jit_swi_hook` in mips/mips_stub.S is the exact shape required: spill the
+ARM registers, let `cfncall` restore `$gp`, call into C, reload. The dynarec
+would check `aot_page_bits[pc >> 12]` at translate time and, on a hit at the
+block's entry PC, emit that call instead of translating the block.
