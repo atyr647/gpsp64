@@ -241,6 +241,29 @@ CFLAGS  += $(N64_JIT_IBCACHE)
 ASFLAGS += $(N64_JIT_IBCACHE)
 endif
 
+# Hybrid AOT + dynarec: -DN64_JIT_AOT.
+#
+# tools/thumb2c.py statically recompiles ~690 hot Thumb functions to C
+# (n64/aot_generated.c).  That path was only ever dispatched from the Thumb
+# interpreter loop in cpu.cc, so it went dark when the dynarec became the
+# default.  With this flag the dynarec checks each block's entry PC at
+# translate time and, on AOT coverage, emits a call to the native function
+# instead of translating.
+#
+# OFF by default because it is currently a regression:
+#
+#   dynarec alone        27.14 ms/f   36.8 fps
+#   hybrid AOT+dynarec   30.44 ms/f   32.9 fps   +12.2%
+#   (326 of 1257 blocks became AOT thunks; rendering identical)
+#
+# The cause is the memory path, not the code generation -- see
+# docs/DYNAREC.md.  An AOT read is a C call through the 32 KB
+# memory_map_read table even for IWRAM; an AOT write is a C call into the
+# full write_memory32.  Both are dearer than the dynarec's asm stubs, and
+# GCC's whole-function optimisation does not cover the difference.  The
+# next step is to point aot_read*/aot_write* at those stubs and re-run this
+# same experiment.
+
 # Event-schedule levers.  Measured on the overworld savestate over an
 # identical 2384-frame window (see docs/DYNAREC.md); dynarec build:
 #

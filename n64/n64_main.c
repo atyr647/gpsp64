@@ -19,6 +19,7 @@
 #include "../gba_memory.h"
 #include "../gba_cc_lut.h"
 
+#include "aot_dispatch.h"
 #include "n64_video.h"
 #include "emux_prof.h"
 #include "n64_audio.h"
@@ -102,6 +103,37 @@ u32 function_cc n64_jit_hle_swi(u32 swi_num, u32 swi_pc, u32 step)
  * .jit section, which C cannot reach with the gp-relative addressing GCC
  * picks for a small global. */
 u32 ibcache_hits;
+#endif
+
+#ifdef N64_JIT_AOT
+/* Hybrid entry: run an AOT-translated function from a dynarec block.
+ *
+ * tools/thumb2c.py statically recompiles ~690 hot Thumb functions to C.
+ * That path was only ever dispatched from the Thumb interpreter loop
+ * (cpu.cc), so making the dynarec the default switched all of it off.
+ * This is the missing half: at translate time the dynarec checks whether a
+ * block's entry PC has AOT coverage and, if so, emits a call here instead
+ * of translating the block.
+ *
+ * The AOT function reads and writes reg[] directly and returns the GBA
+ * cycles it consumed, leaving the resume address in reg[REG_PC] -- exactly
+ * the contract cpu.cc:3362 relies on. */
+u32 function_cc n64_jit_aot_call(u32 pc)
+{
+  const struct aot_page_ent *pg = &aot_page_tab[(pc >> 12) & 0x1FFF];
+  if (pg->slots) {
+    u32 slot = pg->slots[(pc & 0xFFFu) >> 1];
+    if (slot) return pg->fns[slot - 1](pc);
+  }
+  reg[REG_PC] = pc;          /* no coverage: resume where we came in */
+  return 0;
+}
+
+int n64_jit_aot_covers(u32 pc)
+{
+  const struct aot_page_ent *pg = &aot_page_tab[(pc >> 12) & 0x1FFF];
+  return pg->slots && pg->slots[(pc & 0xFFFu) >> 1];
+}
 #endif
 
 /* Global state required by the emulator core */
@@ -794,6 +826,11 @@ int main(void)
                      (unsigned long)(prof_iwram_st / PROF_FRAMES),
                      (unsigned long)(prof_iwram_ld / PROF_FRAMES));
               prof_iwram_st = prof_iwram_ld = 0; }
+#endif
+#ifdef N64_JIT_AOT
+            { extern u32 prof_jit_aot, prof_jit_xlat;
+              debugf("PROF:  aot: %lu blocks emitted as AOT thunks of %lu translated\n",
+                     (unsigned long)prof_jit_aot, (unsigned long)prof_jit_xlat); }
 #endif
             { extern u32 n64_rdpbg_t_r;
                 debugf("PROF:  rdpbg-range: %lu.%02lu ms/frame\n",

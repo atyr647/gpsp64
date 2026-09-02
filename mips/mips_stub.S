@@ -603,6 +603,39 @@ defsymbl(n64_jit_swi_hook)
 
 #endif
 
+#ifdef N64_JIT_AOT
+# Call an AOT-translated function from a dynarec block.
+#
+# $4 = entry PC.  Returns with $4 = the PC to resume at and reg_cycles
+# already charged for what the function consumed.
+#
+# The AOT code keeps ARM flags in reg[REG_N_FLAG..REG_V_FLAG] -- the
+# interpreter's representation -- while the dynarec keeps them live in
+# $20-$23.  save_registers does not cover those, so they are spilled and
+# reloaded explicitly here; without that the dynarec would carry stale
+# flags out of every AOT call.
+
+defsymbl(n64_jit_aot_hook)
+  sw $ra, REG_SAVE3($16)
+  sw $20, REG_N_FLAG($16)
+  sw $21, REG_Z_FLAG($16)
+  sw $22, REG_C_FLAG($16)
+  sw $23, REG_V_FLAG($16)
+  collapse_flags                  # AOT reads reg[REG_CPSR] too
+  save_registers
+  cfncall n64_jit_aot_call, 11
+  restore_registers
+  lw $20, REG_N_FLAG($16)
+  lw $21, REG_Z_FLAG($16)
+  lw $22, REG_C_FLAG($16)
+  lw $23, REG_V_FLAG($16)
+  lw $ra, REG_SAVE3($16)
+  subu $17, $17, $2               # charge the GBA cycles it reported
+  jr $ra
+  lw $4, REG_PC($16)              # delay slot: resume PC for the caller
+
+#endif
+
 # Switch into SWI, has to collapse flags
 # $4: Current pc
 

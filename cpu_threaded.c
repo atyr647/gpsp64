@@ -289,6 +289,7 @@ u32 prof_icache_ticks = 0, prof_icache_calls = 0, prof_icache_work = 0;
  * lookup, which would mean the hash is missing or the cache is being
  * flushed in a loop.  These counters distinguish the two. */
 u32 prof_jit_xlat = 0, prof_jit_hit = 0, prof_jit_flush = 0;
+u32 prof_jit_aot = 0;   /* blocks emitted as AOT thunks instead of translated */
 
 /* Indirect-branch inline caches, defined in mips/mips_stub.S.  Entries
  * hold {ARM PC, host target}; the target points into a translation
@@ -3506,6 +3507,29 @@ bool translate_block_thumb(u32 pc, bool ram_region)
   }
 
   generate_block_prologue();
+
+#ifdef N64_JIT_AOT
+  /* Hybrid: if this entry PC has a statically recompiled body, call it
+     instead of translating.  n64_jit_aot_hook spills the ARM registers and
+     the flag cache, runs the AOT function, charges the GBA cycles it
+     reports, and returns the resume PC in reg_a0; the indirect-branch stub
+     takes it from there.  ~690 functions are covered, all Thumb, which is
+     why only this translator is hooked. */
+  {
+    extern int n64_jit_aot_covers(u32 pc);
+    extern void n64_jit_aot_hook(void);
+    extern u32 prof_jit_aot;
+    if (n64_jit_aot_covers(pc)) {
+      generate_load_pc(reg_a0, pc);
+      generate_function_call(n64_jit_aot_hook);
+      mips_emit_j(mips_absolute_offset(mips_indirect_branch_thumb));
+      mips_emit_nop();
+      prof_jit_aot++;
+      rom_translation_ptr = translation_ptr;
+      return true;
+    }
+  }
+#endif
 
   /* This is a function because it's used a lot more than it might seem (all
      of the data processing functions can access it), and its expansion was
