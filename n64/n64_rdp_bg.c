@@ -37,6 +37,7 @@
  */
 
 #include <libdragon.h>
+#include <rspq.h>
 #include <string.h>
 #include "../common.h"
 #include "n64_video.h"
@@ -113,6 +114,12 @@ u32 n64_rdpbg_t_sort = 0, n64_rdpbg_t_emit = 0, n64_rdpbg_t_wait = 0;
 u32 n64_rdpbg_t_r = 0;
 u32 n64_rdpbg_t_wb = 0, n64_rdpbg_t_exec = 0, n64_rdpbg_t_sync = 0,
     n64_rdpbg_t_upl = 0, n64_rdpbg_n_sub = 0;
+/* Time spent blocked on rspq_syncpoint_wait() in the live RSP path below --
+ * the CPU-side cost of the one-batch-deep pipeline actually not overlapping
+ * (a full pipeline would keep this near zero; a pipeline that has degenerated
+ * into lockstep submit/wait would show it equal to the RSP's own compute
+ * time). Meaningless, and left at 0, when N64_RSP_RDPBG_LIVE is off. */
+u32 n64_rdpbg_t_rspwait = 0;
 #define RDPBG_TICK() ({ u32 _t; __asm__ volatile("mfc0 %0, $9" : "=r"(_t)); _t; })
 /* Same read, but a full compiler barrier.  RDPBG_TICK has no memory clobber,
  * so GCC is free to schedule loads and stores across it -- which is exactly
@@ -232,6 +239,75 @@ static u32 rdpbg_csent = 0;   /* first word not yet submitted */
       n64_rdpbg_t_sync += RDPBG_TICK() - _a;                                \
     }                                                                       \
   } while (0)
+
+#ifdef N64_RSP_RDPBG_LIVE
+/* Live RSP offload of the per-tile clip/flip/encode arithmetic below --
+ * see rsp_rdpbg.S and n64/n64_rsp2.c.  Fixed-size output (every tile,
+ * kept or degenerate, is exactly 16 bytes) means the CPU knows a batch's
+ * footprint in rdpbg_cmds the instant it decides to queue it, without
+ * waiting for the RSP to say how many tiles it actually kept -- so the
+ * next batch's destination can be reserved immediately and the RSP can
+ * be left to work while the CPU goes on gathering the batch after that.
+ *
+ * Only one batch is ever in flight: at every tile/palette state change
+ * (and once more at end of frame, in n64_rdpbg_end()), the batch queued
+ * at the *previous* boundary is waited on and handed to rdpq_exec --
+ * which is also the earliest point it is safe to change tile state,
+ * since the RDP command stream only cares about the order the CPU calls
+ * rdpq_exec/rdpq_tex_upload/rdpq_set_tile in, not the order the RSP
+ * actually computed each batch's contents.  The batch just finished
+ * gathering is then queued (not waited on) as the new pending batch, and
+ * gathering continues into the other half of a two-slot ping-pong
+ * buffer -- safe because by the time gathering reaches a given slot
+ * again, that slot's previous occupant was drained one boundary ago. */
+extern bool n64_rsp_rdpbg_ready(void);
+extern rspq_syncpoint_t n64_rsp_rdpbg_queue(const void *src, u32 count, void *dst);
+
+/* Must match rsp_rdpbg.S's own RDPBG_RSP_MAXBATCH (IN_BUF/OUT_BUF sizing) --
+ * there is no shared header between the ucode's assembler and this file. */
+#define RDPBG_RSP_MAXBATCH 128
+static rdpbg_draw_t rsp_gather[2][RDPBG_RSP_MAXBATCH] __attribute__((aligned(16)));
+static int rsp_gather_slot = 0;
+
+static int              rsp_pending_valid = 0;
+static rspq_syncpoint_t rsp_pending_sp;
+static u32              rsp_pending_off;    /* word offset into rdpbg_cmds */
+static u32              rsp_pending_words;  /* word count (count*4) */
+
+static void rdpbg_rsp_drain(void)
+{
+  u32 _a, _b, _c;
+  if (!rsp_pending_valid) return;
+  _a = RDPBG_TICK();
+  rspq_syncpoint_wait(rsp_pending_sp);
+  _b = RDPBG_TICK(); n64_rdpbg_t_rspwait += _b - _a;
+  rdpq_exec(&rdpbg_cmds[rsp_pending_off], (int)(rsp_pending_words * 4));
+  _c = RDPBG_TICK(); n64_rdpbg_t_exec += _c - _b;
+  rdpbg_csent = rdpbg_cw;
+  rdpq_sync_load();
+  rdpq_sync_tile();
+  n64_rdpbg_t_sync += RDPBG_TICK() - _c;
+  n64_rdpbg_n_sub++;
+  rsp_pending_valid = 0;
+}
+
+/* Drain the previous pending batch, then queue the batch just finished
+ * gathering (rsp_gather[rsp_gather_slot], "count" records) as the new
+ * pending one, reserving its output slot in rdpbg_cmds up front. */
+static void rdpbg_rsp_close_batch(u32 count)
+{
+  void *dst;
+  rdpbg_rsp_drain();
+  dst = &rdpbg_cmds[rdpbg_cw];
+  rsp_pending_sp    = n64_rsp_rdpbg_queue(rsp_gather[rsp_gather_slot], count, dst);
+  rsp_pending_off   = rdpbg_cw;
+  rsp_pending_words = count * 4;
+  rdpbg_cw += count * 4;
+  rsp_pending_valid = 1;
+  rsp_gather_slot ^= 1;
+  n64_rdpbg_tiles += count;
+}
+#endif /* N64_RSP_RDPBG_LIVE */
 #else
 #define RDPBG_RECT(X0, Y0, X1, Y1, S0, T0, DSDX, DTDY) \
   rdpq_texture_rectangle_raw(TILE0, X0, Y0, X1, Y1, S0, T0, DSDX, DTDY)
@@ -243,6 +319,17 @@ int n64_rdpbg_begin(void)
   rdpbg_ndraws = 0;
 #ifdef N64_RDP_EXEC
   rdpbg_cw = rdpbg_csent = 0;
+#ifdef N64_RSP_RDPBG_LIVE
+  /* The RSP DMAs its output straight into rdpbg_cmds, bypassing the CPU
+   * D-cache entirely -- so any dirty line left over this buffer from a
+   * previous frame (or, with the flag off, a previous CPU-authored run)
+   * would eventually get evicted and clobber what the RSP just wrote.
+   * One bulk writeback+invalidate per frame, before anything touches the
+   * buffer this frame, rules that out. */
+  data_cache_hit_writeback_invalidate(rdpbg_cmds, sizeof(rdpbg_cmds));
+  rsp_pending_valid = 0;
+  rsp_gather_slot = 0;
+#endif
 #endif
   return 1;
 }
@@ -347,6 +434,65 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
     n64_rdpbg_tluts++;
   }
 
+#ifdef N64_RSP_RDPBG_LIVE
+  if (n64_rsp_rdpbg_ready()) {
+    /* RSP-driven: no per-tile clip/flip/encode arithmetic on the CPU at
+     * all.  Runs of same-(slice,palette) draws -- already contiguous in
+     * rdpbg_order thanks to the counting sort above -- are gathered
+     * (a plain struct copy, not the branchy RDPBG_RECT math) into batches
+     * of up to RDPBG_RSP_MAXBATCH and handed to the RSP; see
+     * rdpbg_rsp_close_batch() above for the pipelining.
+     *
+     * n64_rdpbg_tiles counts tiles *submitted* here (kept + degenerate
+     * zero-width, see rsp_rdpbg.S), not just kept ones as the CPU path
+     * below counts -- the fixed-size-output design that makes the async
+     * pipeline possible means the CPU never learns which were dropped.
+     * The screen-coverage canary in video.cc is unaffected and remains
+     * the thing to trust for correctness. */
+    u32 gcount = 0;
+    for (i = 0; i < n; i++) {
+      const rdpbg_draw_t *d = &rdpbg_draws[rdpbg_order[i]];
+      u32 key = RDPBG_KEY(d);
+      u32 slice = key >> 4;
+
+      if (slice != cur_slice || key != cur_key) {
+        if (gcount) { rdpbg_rsp_close_batch(gcount); gcount = 0; }
+        if (slice != cur_slice) {
+          surface_t sl = surface_make_linear(&vram_swapped[slice * 1024],
+                                             FMT_CI4, 8, 256);
+          { u32 _u = RDPBG_TICK();
+            rdpq_tex_upload(TILE0, &sl, NULL);
+            n64_rdpbg_t_upl += RDPBG_TICK() - _u; }
+          cur_slice = slice; cur_key = 0xFFFF;
+          n64_rdpbg_slices++;
+        }
+        if (key != cur_key) {
+          rdpq_tileparms_t p = {0};
+          p.palette = (u8)(key & 15);
+          rdpq_set_tile(TILE0, FMT_CI4, 0, 8, &p);
+          rdpq_set_tile_size(TILE0, 0, 0, 8, 256);
+          cur_key = key;
+          n64_rdpbg_groups++;
+        }
+      } else if (gcount >= RDPBG_RSP_MAXBATCH) {
+        /* Group too big for one batch: close it out like any other
+         * boundary, but the tile state hasn't changed so skip straight
+         * back to gathering the rest of the same group. */
+        rdpbg_rsp_close_batch(gcount);
+        gcount = 0;
+      }
+
+      rsp_gather[rsp_gather_slot][gcount++] = *d;
+    }
+    if (gcount) rdpbg_rsp_close_batch(gcount);
+    /* Deliberately no RDPBG_SUBMIT()/drain here: the last batch is left
+     * pending, to be drained at the next boundary (this flush() call's
+     * CPU-side successor -- rdpbg_emit_bg/rdpbg_emit_objs in video.cc --
+     * runs while it is still in flight) or, if this was the last flush()
+     * of the frame, by n64_rdpbg_end() below. */
+  } else
+#endif
+  {
   for (i = 0; i < n; i++) {
 #if   RDPBG_PROBE == 1
     /* Probe 1 (capacity): same gather shape, working set forced to 4 KB.
@@ -440,6 +586,7 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
   }
 
   RDPBG_SUBMIT();
+  }
   n64_rdpbg_t_emit += RDPBG_TICK() - _t0;
   rdpbg_ndraws = 0;
 }
@@ -470,6 +617,14 @@ surface_t *n64_rdpbg_end(void)
    * per-frame figure by the number of groups -- which is why the tile
    * count appeared to *fall* when coverage went from 45% to 100%. */
   n64_rdpbg_frames++;
+#if defined(N64_RDP_EXEC) && defined(N64_RSP_RDPBG_LIVE)
+  /* At most one RSP batch is ever left outstanding by flush() -- the last
+   * group of whichever flush() call happened to be the last one this
+   * frame.  Drain it here, once, rather than forcing every flush() call
+   * to drain its own tail and losing the overlap with the next layer's
+   * tilemap walk in between calls. */
+  rdpbg_rsp_drain();
+#endif
   if (rdpbg_attached) {
     u32 _t = RDPBG_TICK();
     rdpq_detach_wait();

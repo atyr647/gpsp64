@@ -90,6 +90,24 @@ CFLAGS += -DUSE_XBGR1555_FORMAT
 N64_RDP ?= -DN64_RDP_BG -DN64_RDP_EXEC
 CFLAGS += $(N64_RDP)
 
+# RSP offload of n64_rdpbg_flush's per-tile clip/flip/encode loop
+# (rsp_rdpbg.S, n64/n64_rsp2.c): a scalar rspq overlay that coexists with
+# rdpq (both are RSP ucode, dispatched through the same command queue) and
+# reproduces RDPBG_RECT's arithmetic on the RSP instead of the CPU, writing
+# the encoded TEXTURE_RECTANGLE words straight into rdpbg_cmds over DMA.
+#
+# Requires N64_RDP_EXEC: the RSP writes into the same cached command
+# buffer rdpq_exec() hands to the RDP, rather than rspq's own per-rectangle
+# uncached path.
+#
+# OFF by default -- verified correct in isolation (byte-identical output
+# against a CPU reference over synthetic edge cases, see
+# n64_rsp_rdpbg_selftest() behind -DN64_RSP_RDPBG_TEST) but not yet
+# measured live, wired through the async one-batch-deep pipeline in
+# n64_rdpbg_flush().  See docs/DYNAREC.md.
+N64_RSP_RDPBG_LIVE ?=
+CFLAGS += $(N64_RSP_RDPBG_LIVE)
+
 # The RDP renderer takes the RSP blit with it: rspq is a command
 # processor running as RSP ucode, so rsp_gbascan and rdpq cannot both be
 # loaded.  The blit returns to the CPU, where it now only has to convert

@@ -375,14 +375,17 @@ int main(void)
   n64_input_init();
   n64_storage_init();
 
-#ifdef N64_RSP_RDPBG_TEST
-  /* RSP-offload correctness check, not live -- see rsp_rdpbg.S and
-     n64/n64_rsp2.c. Must run after n64_video_init()'s rdpq_init(), since
-     this registers an rspq overlay alongside rdpq rather than loading
+#if defined(N64_RSP_RDPBG_TEST) || defined(N64_RSP_RDPBG_LIVE)
+  /* Registers the RDP-command-generation RSP overlay -- see rsp_rdpbg.S
+     and n64/n64_rsp2.c. Must run after n64_video_init()'s rdpq_init(),
+     since this adds an rspq overlay alongside rdpq rather than loading
      its own exclusive ucode the way the old n64_rsp.c path does. */
-  { extern void n64_rsp_rdpbg_init(void); extern void n64_rsp_rdpbg_selftest(void);
-    n64_rsp_rdpbg_init();
+  { extern void n64_rsp_rdpbg_init(void);
+    n64_rsp_rdpbg_init(); }
+#ifdef N64_RSP_RDPBG_TEST
+  { extern void n64_rsp_rdpbg_selftest(void);
     n64_rsp_rdpbg_selftest(); }
+#endif
 #endif
 
   info_msg("gpSP N64 - GBA Emulator");
@@ -861,6 +864,18 @@ int main(void)
                      (unsigned long)((n64_rdpbg_t_sync * 2 / g2 % 93750) * 100 / 93750),
                      (unsigned long)(n64_rdpbg_t_upl * 2 / g2 / 93750),
                      (unsigned long)((n64_rdpbg_t_upl * 2 / g2 % 93750) * 100 / 93750));
+#ifdef N64_RSP_RDPBG_LIVE
+            { extern u32 n64_rdpbg_t_rspwait;
+              /* Near zero means the pipeline is genuinely overlapping RSP
+               * compute with CPU work between batches; near the RSP's own
+               * per-batch compute time means it has degenerated into
+               * lockstep submit/wait (no real gain over the CPU path). */
+              debugf("PROF:  rdpbg-rsp: %lu.%02lu ms/frame blocked on"
+                     " rspq_syncpoint_wait\n",
+                     (unsigned long)(n64_rdpbg_t_rspwait * 2 / g2 / 93750),
+                     (unsigned long)((n64_rdpbg_t_rspwait * 2 / g2 % 93750) * 100 / 93750));
+              n64_rdpbg_t_rspwait = 0; }
+#endif
   #ifdef N64_MEMCOUNT
             { extern u32 prof_iwram_st, prof_iwram_ld;
               debugf("PROF:  iwram: %lu stores/frame, %lu loads/frame\n",
