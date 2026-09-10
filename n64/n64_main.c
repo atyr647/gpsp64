@@ -86,6 +86,7 @@ u32 function_cc n64_jit_update_gba(int remaining_cycles)
  * An unhandled SWI in this block is a no-op the BIOS would also ignore. */
 u32 n64_jit_swi_cycles;
 u32 prof_swi_calls;   /* HLE SWI dispatches, for the AOT-hybrid comparison */
+u32 prof_m4a_flush;   /* dynarec flushes forced by an m4a patch/unpatch */
 
 u32 function_cc n64_jit_hle_swi(u32 swi_num, u32 swi_pc, u32 step)
 {
@@ -842,9 +843,10 @@ int main(void)
               debugf("PROF:  aot: %lu blocks emitted as AOT thunks of %lu translated\n",
                      (unsigned long)prof_jit_aot, (unsigned long)prof_jit_xlat); }
 #endif
-            { extern u32 prof_swi_calls;
-              debugf("PROF:  swi: %lu HLE SWI dispatches/frame\n",
-                     (unsigned long)(prof_swi_calls / PROF_FRAMES));
+            { extern u32 prof_swi_calls, prof_m4a_flush;
+              debugf("PROF:  swi: %lu HLE SWI dispatches/frame, %lu m4a code-change flushes\n",
+                     (unsigned long)(prof_swi_calls / PROF_FRAMES),
+                     (unsigned long)prof_m4a_flush);
               prof_swi_calls = 0; }
             { extern u32 n64_rdpbg_t_r;
                 debugf("PROF:  rdpbg-range: %lu.%02lu ms/frame\n",

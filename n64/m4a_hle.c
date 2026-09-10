@@ -117,6 +117,37 @@ static u32 m4a_rd32(const u8 *p)
   return (u32)p[0] | ((u32)p[1] << 8) | ((u32)p[2] << 16) | ((u32)p[3] << 24);
 }
 
+/* Patching or unpatching the driver rewrites GBA code with a direct store.
+ * That never goes through the dynarec's store stubs, so it never trips the
+ * SMC tag, so any block already translated from those bytes keeps running
+ * the old code.
+ *
+ * Both directions break:
+ *   install  -- a stale block runs the original mixer loop and the HLE
+ *               silently never engages for it.
+ *   unpatch  -- the stale block still contains the SWI marker, so the
+ *               marker fires again, m4a unpatches again, and the emulator
+ *               deadlocks.  Measured: the AOT+dynarec hybrid ran ~540
+ *               frames and then spun forever across 27 addresses --
+ *               mips_indirect_branch_arm -> the SWI hook -> bios_hle_swi
+ *               -> m4a_src_window -> back.
+ *
+ * The interpreter is immune because it re-fetches every instruction, which
+ * is why this survived until the dynarec became the default.
+ *
+ * Flushing here is safe: the caller returns through a couple of
+ * instructions into an indirect-branch stub, which lives below the ROM
+ * watermark and is not freed, and no new translation happens in between. */
+static void m4a_code_changed(void)
+{
+#ifdef HAVE_DYNAREC
+  extern int dynarec_enable;
+  extern void flush_dynarec_caches(void);
+  extern u32 prof_m4a_flush;
+  if (dynarec_enable) { prof_m4a_flush++; flush_dynarec_caches(); }
+#endif
+}
+
 static void m4a_wr32(u8 *p, u32 v)
 {
   p[0] = (u8)v; p[1] = (u8)(v >> 8); p[2] = (u8)(v >> 16); p[3] = (u8)(v >> 24);
@@ -306,6 +337,7 @@ static int m4a_install(u8 *iw, u32 off)
   }
   for (u32 l = 0; l < M4A_NLOOPS; l++)
     m4a_wr32(iw + off + m4a_loops[l].off, M4A_SWI(m4a_loops[l].swi));
+  m4a_code_changed();
   return 1;
 }
 
@@ -636,6 +668,7 @@ static int m4a_unpatch_and_rerun(u32 swi_num)
   for (u32 l = 0; l < M4A_NLOOPS; l++) {
     if (m4a_loops[l].swi != swi_num) continue;
     m4a_wr32(IW(pc & 0x7FFF), m4a_loops[l].code[0]);
+    m4a_code_changed();
     reg[REG_PC] = pc - 4;       /* gpSP adds 4 to step over the SWI */
     return 1;
   }
