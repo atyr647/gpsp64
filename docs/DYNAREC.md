@@ -858,7 +858,7 @@ not yet known is whether the live, asynchronous version delivers on the
 frame-time promise; that is the next thing to build and measure, not
 something this proves by itself.
 
-## RSP offload, wired live: a real but small win, and why it isn't bigger
+## RSP offload, wired live: initially a real but small win (superseded below)
 
 Built the live path, behind `-DN64_RSP_RDPBG_LIVE` (off by default,
 requires `N64_RDP_EXEC`). `n64_rdpbg_flush()`'s per-tile loop no longer
@@ -968,3 +968,87 @@ depends on, in either direction. Default build (flag off) is unaffected:
 same 27.0 ms/frame, same object files, same everything -- verified by a
 byte-identical `.text`/`.data`/`.bss` size to a build from before this
 change.
+
+## Deepening the RSP pipeline: the real win was behind a missing flush, not just depth
+
+Follow-up to the "small win" above, doing exactly what its last section
+proposed: queue more than one RSP batch ahead of the CPU instead of
+waiting on each one at the very next boundary.
+
+### What changed
+
+`n64_rdp_bg.c`'s single `rsp_pending_valid`/`sp`/`off`/`words` scalars
+became a small ring, `rsp_pending[RDPBG_RSP_DEPTH]`, with a head index and
+an outstanding count. `rdpbg_rsp_close_batch()` now only drains the
+*oldest* outstanding batch once `RDPBG_RSP_DEPTH` are already queued,
+instead of draining the previous one every single time; `n64_rdpbg_end()`
+drains whatever is left in a loop rather than a single call. Gathering
+cycles through `RDPBG_RSP_DEPTH + 1` scratch buffers (one more than the
+number that can be outstanding, for the one the CPU is actively filling).
+None of this touches the RSP kernel itself -- rspq already serialises
+queued commands on the RSP side one at a time, reusing the same static
+DMEM buffers safely between them; deepening the pipeline is pure CPU-side
+bookkeeping about *when to wait*, not a ucode change.
+
+`RDPBG_RSP_DEPTH` is a plain `#ifndef`-guarded macro, overridable via
+`EXTRA_CFLAGS=-DRDPBG_RSP_DEPTH=N` for A/B testing without editing the
+file.
+
+### DEPTH=8 hung, and why
+
+Measured DEPTH=1, 4 and 8 on ares (overworld savestate). DEPTH=4 worked
+and helped (see numbers below); DEPTH=8 hung solid -- ares's own PC
+sampler stuck reporting the same PC and `ra` indefinitely, no further PROF
+output, for the entire run.
+
+Cause: `n64/n64_rsp2.c`'s `n64_rsp_rdpbg_queue()` called `rspq_write()` to
+enqueue a batch but never `rspq_flush()`. Only `rspq_syncpoint_wait()` is
+documented to imply a flush. At DEPTH=1 and DEPTH=4, this code happens to
+call `rspq_syncpoint_wait` often enough (draining the previous/oldest
+batch at nearly every boundary) that the RSP was kept fed as a side
+effect. At DEPTH=8, enough batches queue up between waits that this
+stopped being true, and the RSP was apparently never told the new
+commands existed. Fixed by adding an explicit, non-blocking
+`rspq_flush()` right after `rspq_write()` in `n64_rsp_rdpbg_queue()` --
+cheap at any depth, since it does not block, and it is what let DEPTH=8
+actually run.
+
+### Results
+
+All measured on ares, overworld savestate, 17-25 steady PROF windows
+(60 frames each) per configuration, with the flush fix in place for every
+row:
+
+| DEPTH | rspwait/frame | emit/frame | frame time (median / mean) |
+|---|---|---|---|
+| 1 | 1.39 ms | 4.00 ms | 26.0 / 26.0 ms |
+| 4 | 1.10 ms | 3.40 ms | 26.0 / 26.0 ms |
+| **8** | **0.06 ms** | **2.83 ms** | **25.0 / 24.6 ms** |
+
+(DEPTH=1 here is *with* the flush fix -- 1.39 ms rspwait, down from the
+2.40 ms measured for the original one-deep design before the fix. That
+0.9-1.0 ms of reclaimed emit time did not move frame time at all: a
+smaller, unrelated shift in GBA-CPU-emulation time -- this project's
+established direct-mapped-I-cache layout sensitivity, see
+`docs/CACHE_PROFILING.md` -- happened to land in the opposite direction
+that run and cancel it out. DEPTH=8 reclaimed enough that it showed
+through regardless of that noise: a real, reproducible **~2 ms/frame,
++3 FPS (37.0 -> 40.0) win over the original DEPTH=1 baseline**.)
+
+DEPTH=8 is confirmed correct the same way every step of this feature has
+been: the 9-case selftest still passes with 0 mismatches, and the canary
+is unchanged -- 100% of screen, 21 TMEM slices, 27 palette groups, same
+~1257 submitted-tile count as every other live configuration. Shipped as
+the new default (`RDPBG_RSP_DEPTH` defaults to 8). DEPTH=16 was not
+tried: rspwait at 8 is already down to 0.06 ms, i.e. already almost
+entirely hidden, so there is very little left for a deeper pipeline to
+reclaim.
+
+### What this does not cover
+
+Same caveat as before: measured on one savestate, one scene (the
+overworld). A scene with a different draw-list shape -- larger or fewer
+(slice,palette) groups -- would change how much CPU-side gather work is
+available to overlap against a given depth, in either direction. The
+default (flag off) build is unaffected, verified the same way as always:
+byte-identical `.text`/`.data`/`.bss` to a build from before this change.

@@ -247,64 +247,121 @@ static u32 rdpbg_csent = 0;   /* first word not yet submitted */
  * footprint in rdpbg_cmds the instant it decides to queue it, without
  * waiting for the RSP to say how many tiles it actually kept -- so the
  * next batch's destination can be reserved immediately and the RSP can
- * be left to work while the CPU goes on gathering the batch after that.
+ * be left to work while the CPU goes on gathering more batches.
  *
- * Only one batch is ever in flight: at every tile/palette state change
- * (and once more at end of frame, in n64_rdpbg_end()), the batch queued
- * at the *previous* boundary is waited on and handed to rdpq_exec --
- * which is also the earliest point it is safe to change tile state,
- * since the RDP command stream only cares about the order the CPU calls
- * rdpq_exec/rdpq_tex_upload/rdpq_set_tile in, not the order the RSP
- * actually computed each batch's contents.  The batch just finished
- * gathering is then queued (not waited on) as the new pending batch, and
- * gathering continues into the other half of a two-slot ping-pong
- * buffer -- safe because by the time gathering reaches a given slot
- * again, that slot's previous occupant was drained one boundary ago. */
+ * Up to RDPBG_RSP_DEPTH batches may be in flight at once: at every
+ * tile/palette state change (and once more, draining everything left, at
+ * end of frame in n64_rdpbg_end()), a new batch is queued and, only once
+ * DEPTH are already outstanding, the *oldest* one is waited on and handed
+ * to rdpq_exec first -- which is also the earliest point it is safe to
+ * change tile state, since the RDP command stream only cares about the
+ * order the CPU calls rdpq_exec/rdpq_tex_upload/rdpq_set_tile in, not the
+ * order the RSP actually computed each batch's contents.  Draining oldest
+ * first, in the same order batches were queued, is what keeps this
+ * correct: rdpq_exec calls must reach the RDP command stream in the same
+ * relative order their tiles were gathered in.
+ *
+ * A one-deep pipeline (the original version of this) could only hide one
+ * batch's RSP round trip behind the next group's own gather time -- a
+ * measured 2.4ms/frame of the 4.68ms loop was spent just blocked waiting,
+ * because this renderer's (slice,palette) groups average only ~40 tiles,
+ * nowhere near enough CPU-side gathering to cover one batch's RSP time.
+ * Going DEPTH batches deep lets DEPTH groups' worth of gathering
+ * accumulate against the oldest batch's RSP time instead of just one.
+ * Measured on ares (overworld savestate, 17-25 steady windows each):
+ *
+ *   DEPTH=1   rspwait 2.40 ms/f   emit 4.68 ms/f   26.0 ms/f frame
+ *   DEPTH=4   rspwait 1.10 ms/f   emit 3.40 ms/f   26.0 ms/f frame
+ *   DEPTH=8   rspwait 0.06 ms/f   emit 2.83 ms/f   25.0 ms/f frame (24.6 mean)
+ *
+ * DEPTH=4's 1.3ms of reclaimed emit time did not show up in frame time at
+ * all -- a smaller, unrelated shift in GBA-CPU-emulation time (the classic
+ * direct-mapped-I-cache layout sensitivity this project has hit before,
+ * see docs/CACHE_PROFILING.md) happened to cancel it out that run. DEPTH=8
+ * reclaimed enough (rspwait down to noise) to show through regardless:
+ * a real ~2ms/frame, +3 FPS win over the DEPTH=1 baseline. Shipped as the
+ * default. DEPTH=16 was not tried -- rspwait at 8 is already down to where
+ * going deeper has little left to reclaim.
+ *
+ * DEPTH=8 did not work until n64_rsp2.c's n64_rsp_rdpbg_queue() gained an
+ * explicit rspq_flush() after rspq_write(): without it, DEPTH=8 hung
+ * solid (ares PCSAMPLE stuck at one PC). Only rspq_syncpoint_wait is
+ * documented to imply a flush, and at DEPTH=8 enough batches can queue up
+ * before this code ever waits on one that the RSP apparently never
+ * learned they existed. DEPTH=1 and 4 happened to wait often enough to
+ * avoid this by accident.
+ *
+ * Gathering cycles through DEPTH+1 scratch buffers (not DEPTH): DEPTH of
+ * them can be outstanding (queued, RSP still working or done but not yet
+ * drained) at once, plus the one currently being filled by the CPU. Safe
+ * to reuse a buffer once its previous occupant, DEPTH+1 batches back in
+ * FIFO order, has been drained. */
 extern bool n64_rsp_rdpbg_ready(void);
 extern rspq_syncpoint_t n64_rsp_rdpbg_queue(const void *src, u32 count, void *dst);
 
 /* Must match rsp_rdpbg.S's own RDPBG_RSP_MAXBATCH (IN_BUF/OUT_BUF sizing) --
  * there is no shared header between the ucode's assembler and this file. */
 #define RDPBG_RSP_MAXBATCH 128
-static rdpbg_draw_t rsp_gather[2][RDPBG_RSP_MAXBATCH] __attribute__((aligned(16)));
+
+/* Tunable via EXTRA_CFLAGS=-DRDPBG_RSP_DEPTH=N for A/B testing without
+ * editing this file.  Costs RDPBG_RSP_DEPTH+1 gather buffers of 1 KB each
+ * -- trivial RAM, unlike the RSP's own fixed DMEM budget, which this
+ * does not touch at all: each queued command still uses the same static
+ * IN_BUF/OUT_BUF in turn, one command fully finishing before the next
+ * starts, exactly as rspq already serialises them. */
+#ifndef RDPBG_RSP_DEPTH
+#define RDPBG_RSP_DEPTH 8
+#endif
+static rdpbg_draw_t rsp_gather[RDPBG_RSP_DEPTH + 1][RDPBG_RSP_MAXBATCH] __attribute__((aligned(16)));
 static int rsp_gather_slot = 0;
 
-static int              rsp_pending_valid = 0;
-static rspq_syncpoint_t rsp_pending_sp;
-static u32              rsp_pending_off;    /* word offset into rdpbg_cmds */
-static u32              rsp_pending_words;  /* word count (count*4) */
+typedef struct {
+  rspq_syncpoint_t sp;
+  u32 off;    /* word offset into rdpbg_cmds */
+  u32 words;  /* word count (count*4) */
+} rsp_pending_t;
+static rsp_pending_t rsp_pending[RDPBG_RSP_DEPTH];
+static int rsp_pending_head  = 0;  /* oldest not-yet-drained batch */
+static int rsp_pending_count = 0;  /* batches outstanding, 0..RDPBG_RSP_DEPTH */
 
-static void rdpbg_rsp_drain(void)
+/* Wait for and submit the single oldest outstanding batch. */
+static void rdpbg_rsp_drain_one(void)
 {
+  rsp_pending_t *p;
   u32 _a, _b, _c;
-  if (!rsp_pending_valid) return;
+  if (!rsp_pending_count) return;
+  p = &rsp_pending[rsp_pending_head];
   _a = RDPBG_TICK();
-  rspq_syncpoint_wait(rsp_pending_sp);
+  rspq_syncpoint_wait(p->sp);
   _b = RDPBG_TICK(); n64_rdpbg_t_rspwait += _b - _a;
-  rdpq_exec(&rdpbg_cmds[rsp_pending_off], (int)(rsp_pending_words * 4));
+  rdpq_exec(&rdpbg_cmds[p->off], (int)(p->words * 4));
   _c = RDPBG_TICK(); n64_rdpbg_t_exec += _c - _b;
-  rdpbg_csent = rdpbg_cw;
   rdpq_sync_load();
   rdpq_sync_tile();
   n64_rdpbg_t_sync += RDPBG_TICK() - _c;
   n64_rdpbg_n_sub++;
-  rsp_pending_valid = 0;
+  rsp_pending_head = (rsp_pending_head + 1) % RDPBG_RSP_DEPTH;
+  rsp_pending_count--;
 }
 
-/* Drain the previous pending batch, then queue the batch just finished
- * gathering (rsp_gather[rsp_gather_slot], "count" records) as the new
- * pending one, reserving its output slot in rdpbg_cmds up front. */
+/* If DEPTH batches are already outstanding, drain the oldest first, then
+ * queue the batch just finished gathering (rsp_gather[rsp_gather_slot],
+ * "count" records) as the newest pending one, reserving its output slot
+ * in rdpbg_cmds up front. */
 static void rdpbg_rsp_close_batch(u32 count)
 {
   void *dst;
-  rdpbg_rsp_drain();
+  int tail;
+  if (rsp_pending_count >= RDPBG_RSP_DEPTH)
+    rdpbg_rsp_drain_one();
   dst = &rdpbg_cmds[rdpbg_cw];
-  rsp_pending_sp    = n64_rsp_rdpbg_queue(rsp_gather[rsp_gather_slot], count, dst);
-  rsp_pending_off   = rdpbg_cw;
-  rsp_pending_words = count * 4;
+  tail = (rsp_pending_head + rsp_pending_count) % RDPBG_RSP_DEPTH;
+  rsp_pending[tail].sp    = n64_rsp_rdpbg_queue(rsp_gather[rsp_gather_slot], count, dst);
+  rsp_pending[tail].off   = rdpbg_cw;
+  rsp_pending[tail].words = count * 4;
   rdpbg_cw += count * 4;
-  rsp_pending_valid = 1;
-  rsp_gather_slot ^= 1;
+  rsp_pending_count++;
+  rsp_gather_slot = (rsp_gather_slot + 1) % (RDPBG_RSP_DEPTH + 1);
   n64_rdpbg_tiles += count;
 }
 #endif /* N64_RSP_RDPBG_LIVE */
@@ -327,7 +384,7 @@ int n64_rdpbg_begin(void)
    * One bulk writeback+invalidate per frame, before anything touches the
    * buffer this frame, rules that out. */
   data_cache_hit_writeback_invalidate(rdpbg_cmds, sizeof(rdpbg_cmds));
-  rsp_pending_valid = 0;
+  rsp_pending_head = rsp_pending_count = 0;
   rsp_gather_slot = 0;
 #endif
 #endif
@@ -618,12 +675,12 @@ surface_t *n64_rdpbg_end(void)
    * count appeared to *fall* when coverage went from 45% to 100%. */
   n64_rdpbg_frames++;
 #if defined(N64_RDP_EXEC) && defined(N64_RSP_RDPBG_LIVE)
-  /* At most one RSP batch is ever left outstanding by flush() -- the last
-   * group of whichever flush() call happened to be the last one this
-   * frame.  Drain it here, once, rather than forcing every flush() call
-   * to drain its own tail and losing the overlap with the next layer's
-   * tilemap walk in between calls. */
-  rdpbg_rsp_drain();
+  /* Up to RDPBG_RSP_DEPTH RSP batches can be left outstanding by flush()
+   * at the end of the frame's last call.  Drain them all here, once,
+   * rather than forcing every flush() call to drain its own tail and
+   * losing the overlap with the next layer's tilemap walk in between
+   * calls. */
+  while (rsp_pending_count) rdpbg_rsp_drain_one();
 #endif
   if (rdpbg_attached) {
     u32 _t = RDPBG_TICK();

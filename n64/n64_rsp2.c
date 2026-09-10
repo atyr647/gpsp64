@@ -56,10 +56,21 @@ static uint32_t rdpbg_count_sink[4] __attribute__((aligned(16)));
 
 rspq_syncpoint_t n64_rsp_rdpbg_queue(const void *src, uint32_t count, void *dst)
 {
+  rspq_syncpoint_t sp;
   rspq_write(rdpbg_ovl_id, 0,
              PhysicalAddr(src), count,
              PhysicalAddr(dst), PhysicalAddr((void*)rdpbg_count_sink));
-  return rspq_syncpoint_new();
+  sp = rspq_syncpoint_new();
+  /* A deep pipeline (n64_rdp_bg.c's RDPBG_RSP_DEPTH) can queue several of
+   * these before ever calling rspq_syncpoint_wait -- and only *_wait is
+   * documented to imply a flush, so without an explicit one here the RSP
+   * would not learn these commands exist until whatever eventually waits.
+   * Confirmed to matter: RDPBG_RSP_DEPTH=8 hung solid (stuck PC, ares
+   * PCSAMPLE unchanging) before this flush was added. rspq_flush() is
+   * non-blocking, so this costs nothing at the shallow depths that were
+   * already fine. */
+  rspq_flush();
+  return sp;
 }
 
 /* Mirrors rdpbg_draw_t in n64/n64_rdp_bg.c exactly -- the ucode's DMA-in
