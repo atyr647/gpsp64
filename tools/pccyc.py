@@ -123,8 +123,16 @@ def main():
     stubmap.sort()
     stubstarts = [a for a, _ in stubmap]
 
+    # ares keeps ONE cumulative histogram and dumps it repeatedly, so the
+    # dumps are snapshots of the same running total, not increments.  Summing
+    # them over-counts every long-lived entry roughly in proportion to how
+    # many dumps it appeared in.  Only the final block is the truth.
+    log = open(sys.argv[2], errors='ignore').read()
+    last = log.rfind('PCCYC-BEGIN')
+    body = log[last:] if last >= 0 else log
+
     counts, total = {}, 0
-    for line in open(sys.argv[2], errors='ignore'):
+    for line in body.splitlines():
         if not line.startswith('PCCYC '):
             continue
         f = line.split()

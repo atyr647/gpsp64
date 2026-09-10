@@ -85,12 +85,14 @@ u32 function_cc n64_jit_update_gba(int remaining_cycles)
  * rather than computed here, exactly as arm_pc_offset(4) does in cpu.cc.
  * An unhandled SWI in this block is a no-op the BIOS would also ignore. */
 u32 n64_jit_swi_cycles;
+u32 prof_swi_calls;   /* HLE SWI dispatches, for the AOT-hybrid comparison */
 
 u32 function_cc n64_jit_hle_swi(u32 swi_num, u32 swi_pc, u32 step)
 {
   extern int bios_hle_swi(u32 swi_num, u32 *cycles);
   u32 cyc = 0;
   reg[REG_PC] = swi_pc;
+  { extern u32 prof_swi_calls; prof_swi_calls++; }
   bios_hle_swi(swi_num, &cyc);
   n64_jit_swi_cycles = cyc;
   reg[REG_PC] += step;
@@ -121,11 +123,19 @@ u32 ibcache_hits;
 u32 function_cc n64_jit_aot_call(u32 pc)
 {
   const struct aot_page_ent *pg = &aot_page_tab[(pc >> 12) & 0x1FFF];
+  /* reg[REG_PC] must hold the entry PC before dispatch, not just $4.  The
+     interpreter calls fns[slot](reg[REG_PC]) so it is true there by
+     construction; from a dynarec block it is whatever the previous block
+     left behind.  Generated bodies read it, and so does the m4a SWI
+     handler downstream -- m4a_hle_arm_swi derives the driver entry as
+     reg[REG_PC] - lp->off, so a stale value sends the native mixer at
+     garbage and it grinds: the profiler saw a 150,000-sample window
+     covering only 27 distinct PCs, against 4,889 for the dynarec alone. */
+  reg[REG_PC] = pc;
   if (pg->slots) {
     u32 slot = pg->slots[(pc & 0xFFFu) >> 1];
     if (slot) return pg->fns[slot - 1](pc);
   }
-  reg[REG_PC] = pc;          /* no coverage: resume where we came in */
   return 0;
 }
 
@@ -832,6 +842,10 @@ int main(void)
               debugf("PROF:  aot: %lu blocks emitted as AOT thunks of %lu translated\n",
                      (unsigned long)prof_jit_aot, (unsigned long)prof_jit_xlat); }
 #endif
+            { extern u32 prof_swi_calls;
+              debugf("PROF:  swi: %lu HLE SWI dispatches/frame\n",
+                     (unsigned long)(prof_swi_calls / PROF_FRAMES));
+              prof_swi_calls = 0; }
             { extern u32 n64_rdpbg_t_r;
                 debugf("PROF:  rdpbg-range: %lu.%02lu ms/frame\n",
                        (unsigned long)(n64_rdpbg_t_r * 2 / g2 / 93750),
