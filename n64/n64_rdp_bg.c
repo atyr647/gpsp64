@@ -371,9 +371,12 @@ static void rdpbg_rsp_close_batch(u32 count)
 #define RDPBG_SUBMIT() do {} while (0)
 #endif
 
+static int rdpbg_tile_load_ready = 0;
+
 int n64_rdpbg_begin(void)
 {
   rdpbg_ndraws = 0;
+  rdpbg_tile_load_ready = 0;
 #ifdef N64_RDP_EXEC
   rdpbg_cw = rdpbg_csent = 0;
 #ifdef N64_RSP_RDPBG_LIVE
@@ -419,6 +422,50 @@ void n64_rdpbg_add(int x, int y, int y0, int y1, u32 vt, u32 pal, u32 flip)
 static u16 rdpbg_count[96 * 16];
 #define RDPBG_MAX_KEYS 64
 static u16 rdpbg_order[RDPBG_MAX_DRAWS];
+
+/* Internal helper tile used only to DMA a slice into TMEM -- see
+ * rdpbg_load_slice() below.  TILE1 (tex_loader's own choice, (TILE0+1)&7,
+ * for the exact same purpose) is free for this: rdpq's TLUT path uses
+ * RDPQ_TILE_INTERNAL = TILE7, and the only other TILE1 user in this tree
+ * is n64_rdp_bench.c's one-shot boot selftest, never concurrent with a
+ * real frame. */
+#define RDPBG_TILE_LOAD TILE1
+
+/* Replacement for rdpq_tex_upload(TILE0, &sl, NULL), specialised for this
+ * renderer's one fixed shape: an 8-texel-wide, 256-tall CI4 slice of
+ * vram_swapped, tmem_addr 0, no wrap/mirror/shift.
+ *
+ * rdpq_tex_upload rebuilds a fresh tex_loader_t from scratch on every
+ * call -- geometry recompute, asserts -- and because a CI4 8-texel-wide
+ * row is 4 bytes (not 8-byte aligned), it always takes its LOAD_TILE path
+ * rather than the cheaper LOAD_BLOCK: SET_TEXTURE_IMAGE, TWO SET_TILE
+ * calls (one for its own internal helper tile, one for TILE0 with
+ * palette 0), LOAD_TILE, SET_TILE_SIZE. That TILE0 SET_TILE and
+ * SET_TILE_SIZE are immediately overwritten by this file's OWN key-change
+ * handling right below every call site, since a slice change always
+ * forces an immediate key change (cur_key resets to 0xFFFF) -- pure
+ * waste. And the internal helper tile's own descriptor (format/pitch/
+ * address) never changes call to call, so it does not need reissuing 21
+ * times a frame either; RDPBG_TILE_LOAD is set up once a frame instead,
+ * in n64_rdpbg_begin().
+ *
+ * So the only two RDP commands actually needed per slice change are
+ * SET_TEXTURE_IMAGE (new source address) and LOAD_TILE (trigger the DMA
+ * via the pre-configured helper tile) -- both already thin, single-call
+ * inline wrappers in rdpq.h (see rdpq_set_texture_image_raw/
+ * rdpq_load_tile), not rdpq_tex_upload's generic tex_loader_t machinery.
+ * FMT_I8 is the same "lie about the format to address by byte instead of
+ * by 4-bit texel" trick rdpq_tex_upload itself uses for CI4 -- a normal,
+ * documented, supported way to drive LOAD_TILE, not a raw/undocumented
+ * shortcut: what matters for correctness is that TILE0 (the tile actually
+ * used to draw) is configured as CI4, which the key-change code already
+ * does right after this runs. */
+static inline void rdpbg_load_slice(u32 slice)
+{
+  rdpq_set_texture_image_raw(0, PhysicalAddr(&vram_swapped[slice * 1024]),
+                              FMT_I8, 4, 256);
+  rdpq_load_tile(RDPBG_TILE_LOAD, 0, 0, 4, 256);
+}
 
 void n64_rdpbg_flush(int obj_palette, int sortable)
 {
@@ -484,6 +531,11 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
   rdpq_set_mode_standard();
   rdpq_mode_tlut(TLUT_RGBA16);
   rdpq_mode_alphacompare(1);          /* index 0 of each sub-palette is transparent */
+  if (!rdpbg_tile_load_ready) {
+    /* Once a frame, not once per slice change -- see rdpbg_load_slice(). */
+    rdpq_set_tile(RDPBG_TILE_LOAD, FMT_I8, 0, 8, NULL);
+    rdpbg_tile_load_ready = 1;
+  }
   if (rdpbg_tlut_loaded != obj_palette) {
     data_cache_hit_writeback(rdpbg_tlut[obj_palette], 512);
     rdpq_tex_upload_tlut(rdpbg_tlut[obj_palette], 0, 256);
@@ -515,10 +567,8 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
       if (slice != cur_slice || key != cur_key) {
         if (gcount) { rdpbg_rsp_close_batch(gcount); gcount = 0; }
         if (slice != cur_slice) {
-          surface_t sl = surface_make_linear(&vram_swapped[slice * 1024],
-                                             FMT_CI4, 8, 256);
           { u32 _u = RDPBG_TICK();
-            rdpq_tex_upload(TILE0, &sl, NULL);
+            rdpbg_load_slice(slice);
             n64_rdpbg_t_upl += RDPBG_TICK() - _u; }
           cur_slice = slice; cur_key = 0xFFFF;
           n64_rdpbg_slices++;
@@ -573,11 +623,9 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
 #endif
 
     if (slice != cur_slice) {
-      surface_t sl = surface_make_linear(&vram_swapped[slice * 1024],
-                                         FMT_CI4, 8, 256);
       RDPBG_SUBMIT();
       { u32 _u = RDPBG_TICK();
-        rdpq_tex_upload(TILE0, &sl, NULL);
+        rdpbg_load_slice(slice);
         n64_rdpbg_t_upl += RDPBG_TICK() - _u; }
       cur_slice = slice; cur_key = 0xFFFF;
       n64_rdpbg_slices++;

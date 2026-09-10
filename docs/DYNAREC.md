@@ -1052,3 +1052,93 @@ overworld). A scene with a different draw-list shape -- larger or fewer
 available to overlap against a given depth, in either direction. The
 default (flag off) build is unaffected, verified the same way as always:
 byte-identical `.text`/`.data`/`.bss` to a build from before this change.
+
+## What's left in `emit`, and the two ideas that followed from it
+
+With DEPTH=8 shipped and `rspwait` down to noise, `emit` (2.83 ms/frame)
+broke down roughly as: ~0.6 ms in `rdpq_tex_upload` (21 calls/frame),
+~0.17 ms in exec+sync+rspwait combined, ~0.83 ms in a separate `sort`
+bucket (the counting sort building `rdpbg_order`), and the rest (~2.1 ms)
+in the loop itself -- boundary checks, gather copies, RSP dispatch.
+Looked into pushing on both the `sort` cost and the `tex_upload` cost.
+
+### The sort step: left alone
+
+It is already a tight two-pass counting sort over a tiny key space (at
+most 64 distinct keys a call). There is no obvious algorithmic fat, and
+this project already has a directly relevant data point:
+`docs/CACHE_PROFILING.md` records an attempt to write draw records out in
+sorted order (to turn the emit loop's gather into a sequential walk)
+that measured *worse* -- the scatter cost just moved from one pass to
+another, it didn't disappear. RSP offload doesn't fit this the way the
+render loop did, either: a counting sort has a genuine data dependency
+(nothing can be placed until the whole count/prefix-sum is known), unlike
+per-tile rendering, which is independent per item and freely batchable.
+Concluded this isn't worth pursuing for a ~0.83 ms ceiling.
+
+### `rdpq_tex_upload`: real, avoidable overhead, fixed without touching the RSP
+
+Read rdpq's actual source (`rdpq_tex.c`) instead of guessing. Our upload
+is always the same fixed shape: an 8-texel-wide, 256-tall `FMT_CI4` slice
+of `vram_swapped`, `tmem_addr` 0. Two things about `rdpq_tex_upload` cost
+real time on every one of those 21 calls a frame that don't need to:
+
+  - It builds a fresh `tex_loader_t` from scratch every call (assertions,
+    geometry recompute -- `texload_set_rect`'s TMEM-pitch and
+    LOAD_BLOCK-eligibility calculations), even though the shape never
+    changes call to call.
+  - Because an 8-texel-wide CI4 row is 4 bytes (not 8-byte aligned), it
+    always takes the generic `texload_tile_4bpp` path rather than the
+    cheaper `LOAD_BLOCK` one, emitting `SET_TEXTURE_IMAGE`, *two*
+    `SET_TILE` calls (one for an internal helper tile, one for `TILE0`
+    with palette 0), `LOAD_TILE`, and `SET_TILE_SIZE`. This file's own
+    key-change handling, right below every call site, *immediately*
+    overwrites that `TILE0` `SET_TILE` (wrong palette) and `SET_TILE_SIZE`
+    the instant it runs -- a slice change always forces an immediate key
+    change (`cur_key` resets to `0xFFFF`) -- so those two commands were
+    pure waste every single time.
+
+Fixed by calling the already-thin, single-call primitives
+(`rdpq_set_texture_image_raw`, `rdpq_load_tile`) directly, skipping
+`rdpq_tex_upload`'s generic wrapper entirely -- see `rdpbg_load_slice()`
+in `n64_rdp_bg.c`. Two further simplifications fell out of the same
+analysis:
+
+  - The internal helper tile (`RDPBG_TILE_LOAD`, `TILE1` -- the same
+    choice `tex_loader_t` itself makes) needs its own descriptor
+    (format/pitch/address) configured only once, since it never changes
+    call to call; it is now set up once a frame in `n64_rdpbg_flush()`
+    instead of 21 times. Confirmed free to use: rdpq's own TLUT path uses
+    a *different* internal tile (`RDPQ_TILE_INTERNAL` = `TILE7`), and the
+    only other `TILE1` user in this tree is `n64_rdp_bench.c`'s one-shot
+    boot selftest, never concurrent with a real frame.
+  - `FMT_I8` is the same "lie about the format to address by byte instead
+    of by 4-bit texel" trick `rdpq_tex_upload` itself already uses for
+    CI4 -- not a raw/undocumented shortcut. What matters for correctness
+    is that `TILE0`, the tile actually used to draw, is configured as
+    CI4, which this file's key-change handling still does right
+    afterward, unchanged.
+
+This is a CPU-side fix, not an RSP one -- there was nothing here to
+parallelise, just unnecessary genericity to cut through, the same way
+`RDPBG_RECT` already hand-encodes `TEXTURE_RECTANGLE` instead of calling
+rdpq's own version of that.
+
+Applies to every build, not just `-DN64_RSP_RDPBG_LIVE` (`rdpq_tex_upload`
+was called the same way from both the CPU path and the live path).
+Verified correct in both: selftest still PASS 0 mismatches, and the
+canary is unchanged in each -- CPU path 100% of screen / 1223 kept tiles
+/ 21 slices / 27 groups, live path 100% of screen / 1257 submitted tiles
+/ 21 slices / 27 groups, both exactly as before this change.
+
+Measured on ares, overworld savestate, 17-25 steady windows:
+
+| build | before | after |
+|---|---|---|
+| CPU path (no RSP) | 27.0 ms/f, 37.0 FPS | 26.0 ms/f, 38.5 FPS |
+| RSP live (DEPTH=8) | 25.0 ms/f, 40.0 FPS | 24.0 ms/f, 41.7 FPS |
+
+`emit` dropped from 2.83 to ~2.13 ms/frame on the live path -- almost
+exactly the ~0.6 ms `rdpq_tex_upload` was measured costing, all of it
+recovered. Same caveat as every number in this document: one savestate,
+one scene.
