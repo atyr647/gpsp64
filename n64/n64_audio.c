@@ -25,10 +25,23 @@ void n64_audio_init(void)
   audio_init(N64_AUDIO_FREQUENCY, 4);
 }
 
+#ifdef N64_AUDIO_VERIFY
+u32 prof_audio_samples = 0, prof_audio_calls = 0, prof_audio_zero = 0;
+#endif
+
 void n64_audio_render_frame(void)
 {
   /* Read samples from the GBA sound engine */
   u32 samples_read = sound_read_samples(audio_buffer, SAMPLES_PER_FRAME);
+
+#ifdef N64_AUDIO_VERIFY
+  /* Confirm real PCM is flowing before trusting a frame-time delta as the
+     cost of pushing it -- a silently-empty mixer would make audio look
+     free rather than actually cheap. */
+  prof_audio_calls++;
+  prof_audio_samples += samples_read;
+  if (samples_read == 0) prof_audio_zero++;
+#endif
 
   if (samples_read == 0)
     return;

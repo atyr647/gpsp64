@@ -891,6 +891,13 @@ int main(void)
                      (unsigned long)(prof_swi_calls / PROF_FRAMES),
                      (unsigned long)prof_m4a_flush);
               prof_swi_calls = 0; }
+#ifdef N64_AUDIO_VERIFY
+            { extern u32 prof_audio_samples, prof_audio_calls, prof_audio_zero;
+              debugf("PROF:  audio: %lu samples/frame avg, %lu/%lu calls returned zero\n",
+                     (unsigned long)(prof_audio_calls ? prof_audio_samples / prof_audio_calls : 0),
+                     (unsigned long)prof_audio_zero, (unsigned long)prof_audio_calls);
+              prof_audio_samples = 0; prof_audio_calls = 0; prof_audio_zero = 0; }
+#endif
             { extern u32 n64_rdpbg_t_r;
                 debugf("PROF:  rdpbg-range: %lu.%02lu ms/frame\n",
                        (unsigned long)(n64_rdpbg_t_r * 2 / g2 / 93750),

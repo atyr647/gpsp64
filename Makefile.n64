@@ -115,14 +115,25 @@ CFLAGS += $(N64_BLIT_OPT)
 # be played (-DN64_AUDIO_OUT).  -DN64_M4A_STUB is the skip-it variant.
 # Set N64_M4A= to build without either.
 #
-# Audio output is a separate switch and is off by default.  Measured in
-# ares, calling n64_audio_render_frame() costs 15.5 ms/frame (61.0 ->
-# 75.5 ms, a fifth of the frame), and all of it is libdragon's
-# audio_push: building with -DN64_AUDIO_NOPUSH, so that the samples are
-# still read and resampled but never handed to the AI, measures 61.0
-# ms/f -- identical to not producing audio at all.  So the cost is
-# neither the mixer nor gpSP's resampling.  Add -DN64_AUDIO_OUT to turn
-# sound on.
+# Audio output is a separate switch and is off by default.
+#
+# STALE MEASUREMENT, corrected below: the 15.5 ms figure that used to be
+# here (61.0 -> 75.5 ms) was taken against a 61 ms/frame build -- before
+# the dynarec, the RDP renderer, or any of the cache work in this file.
+# Re-measured against the current default build (dynarec + RDP + all
+# landed levers, 27.65 ms/frame silent):
+#
+#   silent                27.65 ms/frame   36.2 fps
+#   -DN64_AUDIO_OUT        29.11 ms/frame   34.4 fps   (+1.46 ms, +5.3%)
+#
+# Verified real, not a silently-empty mixer producing a free no-op:
+# -DN64_AUDIO_VERIFY (n64/n64_audio.c) counts samples actually pushed --
+# 369/frame, every frame, 0 empty calls, matching SAMPLES_PER_FRAME
+# exactly.  audio_push is called non-blocking (see n64/n64_audio.c), so
+# this is close to what it should cost: a per-frame DMA handoff, not a
+# stall.  Add -DN64_AUDIO_OUT to turn sound on; the two are now close
+# enough (1.66x real GBA speed either way) that audio is not the
+# obstacle to 60 fps this project once expected it to be.
 N64_M4A ?= -DN64_M4A_NATIVE
 CFLAGS += $(N64_M4A)
 # DIAGNOSTIC flags (off by default; re-enable for profiling passes):
