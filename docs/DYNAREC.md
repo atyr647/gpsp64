@@ -857,3 +857,114 @@ computation right -- are now answered, with evidence, both yes. What is
 not yet known is whether the live, asynchronous version delivers on the
 frame-time promise; that is the next thing to build and measure, not
 something this proves by itself.
+
+## RSP offload, wired live: a real but small win, and why it isn't bigger
+
+Built the live path, behind `-DN64_RSP_RDPBG_LIVE` (off by default,
+requires `N64_RDP_EXEC`). `n64_rdpbg_flush()`'s per-tile loop no longer
+does any clip/flip/encode arithmetic on the CPU when this is on: runs of
+same-(slice,palette) draws (already contiguous in `rdpbg_order` from the
+counting sort) are copied -- a plain struct copy, not the branchy
+`RDPBG_RECT` math -- into batches of up to 128 and hidden to the RSP.
+
+Two things had to change from the proof-of-concept to make this safe to
+run asynchronously rather than just as a synchronous probe:
+
+  - **Fixed-size output.** The RSP kernel now emits exactly 16 bytes per
+    tile *always* -- a dropped tile becomes a degenerate zero-width
+    `TEXTURE_RECTANGLE` instead of no output. Without this the CPU cannot
+    know where a batch's output ends until the RSP reports back how many
+    tiles it kept, which would mean waiting on every batch before placing
+    the next one -- exactly the serialisation this is supposed to avoid.
+    With it, the CPU reserves each batch's slot in `rdpbg_cmds` the
+    instant it decides to queue the batch.
+  - **One-batch-deep pipeline**, not a synchronous call per batch: at
+    every tile-state boundary, the batch queued at the *previous*
+    boundary is waited on and handed to `rdpq_exec` -- which is also the
+    earliest point it's safe to change tile state, since the RDP command
+    stream only cares about the order the CPU calls
+    `rdpq_exec`/`rdpq_tex_upload`/`rdpq_set_tile` in, not the order the
+    RSP actually computed each batch's contents -- and the batch just
+    finished gathering is queued (not waited on) as the new pending one.
+    Gathering alternates between two scratch buffers, safe because by the
+    time gathering reaches a given slot again, that slot's previous
+    occupant was drained one boundary ago.
+  - The pending batch is deliberately **not** drained at the end of every
+    `n64_rdpbg_flush()` call (there are ~30 of those a frame, one per BG
+    layer entry and one per sprite-priority group). It is left in flight
+    across the call boundary so it can overlap with the CPU work that
+    happens *between* flush() calls -- `rdpbg_emit_bg`/`rdpbg_emit_objs`
+    walking the next layer's tilemap in video.cc. `n64_rdpbg_end()` drains
+    whatever is left exactly once, at the true end of frame.
+
+### Correctness
+
+Ran the existing 9-case selftest plus a full boot-to-gameplay session on
+ares from the overworld savestate. Selftest: PASS, 0 mismatches, same as
+the synchronous proof-of-concept. Canary across every window: 100% of
+screen, 21 TMEM slices, 27 palette groups -- unchanged. No freeze across
+boot or sustained gameplay.
+
+One canary number does change, deliberately and for a documented reason:
+tile count reads ~1257 instead of ~1216-1223. The CPU path's
+`n64_rdpbg_tiles` counts only *kept* tiles (it increments after the
+`x0 >= x1` clip-and-continue check); the RSP path counts tiles
+*submitted* to a batch, because the fixed-size-output design that makes
+the async pipeline possible means the CPU never learns which ones the
+RSP silently turned into degenerate rects. The ~3% difference is exactly
+the fully-clipped-away tiles at layer edges, rendering nothing either
+way -- it is not corruption, and the screen-coverage figure next to it
+(the actual correctness canary) is computed independently in video.cc and
+is unaffected.
+
+### Performance
+
+Measured on ares against the dynarec-only baseline, both from the same
+overworld savestate, same PROF window count:
+
+| build                    | ms/frame (median) | ms/frame (mean) | FPS  |
+|---------------------------|-------------------|------------------|------|
+| baseline (CPU path)        | 27.0               | 27.0             | 37.0 |
+| RSP live (8-window sample) | 26.0               | 27.6             | 38.5 |
+| RSP live (22-window sample)| 26.0               | 26.0             | 38.5 |
+
+A real, reproducible win -- about 1 ms/frame, +1.5 FPS, +4% -- and it
+holds up going from 8 to 22 steady windows (median and mean converge to
+the same 26.0, unlike the 8-window sample's noisier 27.6 mean). Small,
+though, and a new `rdpbg-rsp` PROF line explains why: it reports time
+blocked in `rspq_syncpoint_wait`, and on this workload that is **2.4 ms of
+the loop's 4.68 ms own wall time** -- over half of it. The one-batch-deep
+pipeline is not hiding most of the RSP's cost; it is mostly still waiting
+for it.
+
+The reason follows directly from this renderer's shape: the average
+(slice,palette) group is only ~40 tiles, and the CPU-side "overlap work"
+available while a batch is in flight is just gathering the *next* group's
+~40 tiles into the other scratch slot -- a handful of struct copies, a
+few hundred VR4300 cycles. The RSP's own round trip for a ~40-tile batch
+(DMA in, compute, DMA out, at the ~150 PClock/tile measured earlier) is
+several times longer than that. A one-group-deep pipeline can only hide
+as much latency as one group's worth of CPU-side gathering takes, and for
+groups this small, that is not much. The net win is coming from the RSP
+genuinely being a second execution unit doing this arithmetic in
+parallel with *something* (a partial hide of the ~40 group's compute
+behind the next group's gather, plus the CPU no longer running the
+branchy clip/flip/encode math itself at all), not from a deep pipeline
+successfully hiding the whole cost.
+
+Deepening the pipeline (queue two or three groups ahead before draining
+the oldest) would let more CPU-side gather work accumulate against a
+given batch's RSP time and should recover more of that 2.4 ms -- untried
+here, and the natural next step if this is worth pursuing further.
+
+### What is and is not covered
+
+Tested on one savestate, one scene (the overworld). Not tested: menus,
+battles, or any scene with a substantially different draw-list shape --
+this renderer's whole design assumes small (slice,palette) groups, so a
+scene with larger, fewer groups (fewer distinct tiles on screen at once)
+would change the CPU-gather-vs-RSP-batch-time ratio the discussion above
+depends on, in either direction. Default build (flag off) is unaffected:
+same 27.0 ms/frame, same object files, same everything -- verified by a
+byte-identical `.text`/`.data`/`.bss` size to a build from before this
+change.
