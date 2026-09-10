@@ -456,6 +456,9 @@ int main(void)
 
   /* Initialize emulator core memory */
   init_gamepak_buffer();
+  { extern u32 gamepak_buffer_count;
+    debugf("[gpSP]: ROM page cache: %lu MB allocated (requested %d MB)\n",
+           (unsigned long)gamepak_buffer_count, ROM_BUFFER_SIZE); }
 
   /* Initialize assembly Thumb dispatch handler table */
   extern void init_thumb_handler_table(void);
