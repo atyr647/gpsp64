@@ -636,6 +636,41 @@ defsymbl(n64_jit_aot_hook)
 
 #endif
 
+#ifdef N64_JIT_AOT
+# Call one of the dynarec's load stubs from C, for AOT-translated code.
+#
+# $4 = address, $5 = stub entry point.  The stubs already match the C ABI
+# for u32 f(u32) -- address in $4, result in $2 -- and additionally need
+# $16 holding the register base.
+#
+# ONLY the IWRAM and EWRAM entries may be called this way.  The ROM path
+# (region 8-12) faults pages in via load_gamepak_page and brackets that
+# call with emit_save_regs/emit_restore_regs, which spill the ARM register
+# set out of the MIPS registers and reload it.  From dynarec context those
+# registers hold ARM state; from C they hold the caller's callee-saved
+# locals, so it writes C garbage into reg[] and restores garbage into $gp
+# and $fp.  aot_read* dispatches on the region and leaves everything else
+# on the C path.
+#
+# The win being chased: aot_map() indexes memory_map_read[addr >> 15], an
+# 8192-entry pointer table -- 32 KB against an 8 KB D-cache -- and pays it
+# even for IWRAM and EWRAM, where these stubs use a direct base and a mask.
+
+defsymbl(aot_stub_ld)
+  addiu $sp, $sp, -32
+  REG_S $16, 8($sp)
+  REG_S $ra, 16($sp)
+  lui   $16, %hi(reg)
+  addiu $16, $16, %lo(reg)
+  jalr  $5
+  nop
+  REG_L $ra, 16($sp)
+  REG_L $16, 8($sp)
+  jr    $ra
+  addiu $sp, $sp, 32
+
+#endif
+
 # Switch into SWI, has to collapse flags
 # $4: Current pc
 

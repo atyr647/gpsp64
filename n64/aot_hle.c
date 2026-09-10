@@ -50,6 +50,46 @@ static u8 *aot_map(u32 addr)
     return map;
 }
 
+#ifdef N64_JIT_AOT
+/* Route AOT loads through the dynarec's own stubs rather than aot_map().
+ *
+ * aot_map() indexes memory_map_read[addr >> 15] -- 8192 pointers, 32 KB
+ * against an 8 KB D-cache -- and pays it for every region, including IWRAM
+ * and EWRAM where the stubs use a direct base and a mask.  The stubs also
+ * fault in gamepak pages themselves (load_gamepak_page), so the ROM path
+ * that aot_map() exists to handle is covered.
+ *
+ * Loads only: see aot_stub_read* in mips/mips_stub.S for why stores cannot
+ * go the same way. */
+extern u32 aot_stub_ld(u32 addr, u32 stub);
+extern u32 tmemld[11][16];
+
+/* Only EWRAM (2) and IWRAM (3): the ROM stub is not callable from C. */
+/* Measured SLOWER and therefore off by default: -DN64_AOT_STUBLD to
+   re-enable.  The trampoline (push, save $16/$ra, materialise the register
+   base, indirect call, pop) costs more than the memory_map_read lookup it
+   replaces -- so the 32 KB table was not the expense the plan assumed.
+   Hybrid: 30.24 ms with the C helpers, 32.38 ms routed through the stubs. */
+#ifdef N64_AOT_STUBLD
+#define AOT_STUB_REGION(a) (((a) >> 24) == 2 || ((a) >> 24) == 3)
+#else
+#define AOT_STUB_REGION(a) (0)
+#endif
+
+u32 aot_read32(u32 addr) {
+    u32 value;
+    if (AOT_STUB_REGION(addr))
+        value = aot_stub_ld(addr & ~3u, tmemld[10][addr >> 24]);
+    else {
+        u8 *map = aot_map(addr);
+        if (!map) return 0;
+        value = eswap32(*(u32*)(map + (addr & 0x7FFC)));
+    }
+    { u32 rotate = (addr & 3u) * 8u;
+      if (rotate) value = (value >> rotate) | (value << (32u - rotate)); }
+    return value;
+}
+#else
 u32 aot_read32(u32 addr) {
     u8 *map = aot_map(addr);
     if (!map) return 0;
@@ -58,7 +98,29 @@ u32 aot_read32(u32 addr) {
     if (rotate) value = (value >> rotate) | (value << (32u - rotate));
     return value;
 }
+#endif
 
+#ifdef N64_JIT_AOT
+u16 aot_read16(u32 addr) {
+    u32 value;
+    if (AOT_STUB_REGION(addr))
+        value = aot_stub_ld(addr & ~1u, tmemld[2][addr >> 24]);
+    else {
+        u8 *map = aot_map(addr);
+        if (!map) return 0;
+        value = eswap16(*(u16*)(map + (addr & 0x7FFE)));
+    }
+    if (addr & 1u) value = ((value >> 8) | (value << 8)) & 0xFFFFu;
+    return (u16)value;
+}
+
+u8 aot_read8(u32 addr) {
+    if (AOT_STUB_REGION(addr))
+        return (u8)aot_stub_ld(addr, tmemld[0][addr >> 24]);
+    { u8 *map = aot_map(addr);
+      return map ? *(u8*)(map + (addr & 0x7FFF)) : 0; }
+}
+#else
 u16 aot_read16(u32 addr) {
     u8 *map = aot_map(addr);
     if (!map) return 0;
@@ -73,6 +135,7 @@ u8 aot_read8(u32 addr) {
     if (map) return *(u8*)(map + (addr & 0x7FFF));
     return 0;
 }
+#endif
 
 /* Writes route through gpSP's full write_memory* path so OAM updates
  * the OAM_UPDATED flag, palette/VRAM go through their format/mirror
