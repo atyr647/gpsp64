@@ -170,8 +170,17 @@ RDPBG_noclipright:
     slt     t4, t8, t9                # t4 = (x0 < x1) ? 1 : 0
     bnez    t4, RDPBG_keep
      nop
-    b       RDPBG_tile_loop           # x0 >= x1: drop this tile entirely
-     nop
+    # x0 >= x1: rather than skip output entirely (which the CPU path does
+    # via "continue"), force a zero-width rect and fall through to the
+    # SAME emission code.  This makes every tile's output exactly 16
+    # bytes, always -- the CPU driving this asynchronously needs to know
+    # each batch's total output size to place the NEXT batch immediately
+    # after it in rdpbg_cmds, without waiting for this one to finish and
+    # report back how many tiles it actually kept.  A zero-width
+    # TEXTURE_RECTANGLE draws zero columns: the same "nothing visible"
+    # result as the CPU's continue, at the cost of one harmless RDP
+    # command instead of none.
+    move    t9, t8
 
 RDPBG_keep:
     # word0 = 0xE4000000 | ((X1)<<14) | ((Y1)<<2), X1 = x1+40, Y1 = y1+40

@@ -31,6 +31,37 @@ void n64_rsp_rdpbg_init(void)
   rdpbg_rsp_ready = true;
 }
 
+bool n64_rsp_rdpbg_ready(void)
+{
+  return rdpbg_rsp_ready;
+}
+
+/* Live async path: queue one batch, non-blocking, and hand back a
+ * syncpoint the caller can wait on whenever it actually needs the
+ * result -- which, done well, is considerably later than "right away".
+ * See n64/n64_rdp_bg.c's N64_RSP_RDPBG_LIVE path for the pipelining this
+ * exists to support.
+ *
+ * The per-batch byte count (META in the ucode) is not needed here: every
+ * tile now produces exactly 16 bytes of output, kept or dropped (see
+ * rsp_rdpbg.S's RDPBG_keep -- a dropped tile becomes a zero-width rect
+ * instead of being omitted), specifically so the CALLER can compute
+ * every batch's destination offset in rdpbg_cmds immediately, without
+ * waiting on any RSP result first.  All batches share one throwaway
+ * destination for it: the RSP processes queued commands strictly in
+ * order, one at a time, so there is never more than one writer to it at
+ * once despite many batches being in flight from the CPU's point of
+ * view. */
+static uint32_t rdpbg_count_sink[4] __attribute__((aligned(16)));
+
+rspq_syncpoint_t n64_rsp_rdpbg_queue(const void *src, uint32_t count, void *dst)
+{
+  rspq_write(rdpbg_ovl_id, 0,
+             PhysicalAddr(src), count,
+             PhysicalAddr(dst), PhysicalAddr((void*)rdpbg_count_sink));
+  return rspq_syncpoint_new();
+}
+
 /* Mirrors rdpbg_draw_t in n64/n64_rdp_bg.c exactly -- the ucode's DMA-in
  * assumes this layout (s16 x, s16 y, u8 yy, u8 pf, u16 vt, 8 bytes). */
 typedef struct {
@@ -44,7 +75,17 @@ typedef struct {
  * transcribed rather than shared, so a bug common to both sides could
  * still slip through -- but it is checked separately below against
  * hand-computed expected words for a few cases, which a shared-code bug
- * could not fake. */
+ * could not fake.
+ *
+ * A dropped tile (x0>=x1 after clip) now produces a degenerate
+ * zero-width rect rather than no output at all -- see the comment on
+ * RDPBG_keep in rsp_rdpbg.S for why: the live path needs every batch's
+ * output size to be exactly count*16 bytes, known before the RSP has
+ * necessarily run, so it can place the NEXT batch immediately after
+ * without waiting on this one's result first.  *kept still reports
+ * whether the ORIGINAL CPU path would have emitted anything, purely so
+ * the selftest can log it; it is no longer used to decide how much
+ * output to compare. */
 static void cpu_reference(const test_draw_t *d, uint32_t out[4], int *kept)
 {
   int y0f = d->yy & 15, y1f = d->yy >> 4;
@@ -60,8 +101,8 @@ static void cpu_reference(const test_draw_t *d, uint32_t out[4], int *kept)
   if (x0 < 0) { if (dsdx > 0) s0 -= x0; else s0 += x0; x0 = 0; }
   if (x1 > 240) x1 = 240;
 
-  if (x0 >= x1) { *kept = 0; return; }
-  *kept = 1;
+  *kept = (x0 < x1);
+  if (!*kept) x1 = x0;    /* degenerate: zero width, same as RDPBG_keep now does */
 
   { int X0 = 40 + x0, Y0 = 40 + y0, X1 = 40 + x1, Y1 = 40 + y1;
     out[0] = 0xE4000000u | ((uint32_t)(X1 * 4) << 12) | (uint32_t)(Y1 * 4);
@@ -138,30 +179,29 @@ void n64_rsp_rdpbg_selftest(void)
   data_cache_hit_invalidate((void*)rsp_count_buf, sizeof(rsp_count_buf));
 
   {
-    int i, fail = 0, kept_expected = 0, out_idx = 0;
+    /* Output is now fixed-size: every tile, kept or degenerate, produces
+       exactly 4 words, at index i for input tile i.  Compare all n. */
+    int i, fail = 0, kept_expected = 0;
     for (i = 0; i < n; i++) {
       uint32_t ref[4]; int kept;
       cpu_reference(&in[i], ref, &kept);
-      if (kept) {
-        kept_expected++;
-        if (memcmp(&rsp_out[out_idx], ref, sizeof(ref)) != 0) {
-          fail++;
-          debugf("[gpSP]: rdpbg-rsp MISMATCH tile %d: "
-                 "cpu %08lx %08lx %08lx %08lx  rsp %08lx %08lx %08lx %08lx\n",
-                 i, (unsigned long)ref[0], (unsigned long)ref[1],
-                 (unsigned long)ref[2], (unsigned long)ref[3],
-                 (unsigned long)rsp_out[out_idx], (unsigned long)rsp_out[out_idx+1],
-                 (unsigned long)rsp_out[out_idx+2], (unsigned long)rsp_out[out_idx+3]);
-        }
-        out_idx += 4;
+      if (kept) kept_expected++;
+      if (memcmp(&rsp_out[i * 4], ref, sizeof(ref)) != 0) {
+        fail++;
+        debugf("[gpSP]: rdpbg-rsp MISMATCH tile %d (kept=%d): "
+               "cpu %08lx %08lx %08lx %08lx  rsp %08lx %08lx %08lx %08lx\n",
+               i, kept, (unsigned long)ref[0], (unsigned long)ref[1],
+               (unsigned long)ref[2], (unsigned long)ref[3],
+               (unsigned long)rsp_out[i*4], (unsigned long)rsp_out[i*4+1],
+               (unsigned long)rsp_out[i*4+2], (unsigned long)rsp_out[i*4+3]);
       }
     }
-    if (rsp_count != (uint32_t)(kept_expected * 16)) {
+    if (rsp_count != (uint32_t)(n * 16)) {
       fail++;
-      debugf("[gpSP]: rdpbg-rsp MISMATCH: byte count %lu, expected %d\n",
-             (unsigned long)rsp_count, kept_expected * 16);
+      debugf("[gpSP]: rdpbg-rsp MISMATCH: byte count %lu, expected %d (fixed-size output)\n",
+             (unsigned long)rsp_count, n * 16);
     }
-    debugf("[gpSP]: rdpbg-rsp selftest: %d tiles, %d kept, %s (%d mismatches)\n",
+    debugf("[gpSP]: rdpbg-rsp selftest: %d tiles, %d would-be-kept, %s (%d mismatches)\n",
            n, kept_expected, fail ? "FAIL" : "PASS", fail);
   }
 
