@@ -919,6 +919,20 @@ int main(void)
                      (unsigned long)(prof_swi_calls / PROF_FRAMES),
                      (unsigned long)prof_m4a_flush);
               prof_swi_calls = 0; }
+            /* ROM_TRANSLATION_CACHE_SIZE (512 KB under -DTINY_TRANSLATION_CACHE)
+             * holds every translated block since boot or the last flush --
+             * flush_translation_cache_rom() fires either because m4a's
+             * native-patch hook called flush_dynarec_caches() (counted
+             * above, in m4a code-change flushes) or because the cache
+             * genuinely filled up and had to be reclaimed. If this ever
+             * runs noticeably more than the m4a figure above, the cache is
+             * too small for this scene's actual working set of translated
+             * blocks -- worth knowing before deciding whether growing it
+             * (SMALL_TRANSLATION_CACHE or larger) is worth the RAM, which
+             * would otherwise go to the ROM page cache instead. */
+            { extern u32 prof_jit_flush;
+              debugf("PROF:  jit: %lu total ROM translation cache flushes since boot\n",
+                     (unsigned long)prof_jit_flush); }
 #ifdef N64_AUDIO_VERIFY
             { extern u32 prof_audio_samples, prof_audio_calls, prof_audio_zero;
               debugf("PROF:  audio: %lu samples/frame avg, %lu/%lu calls returned zero\n",
