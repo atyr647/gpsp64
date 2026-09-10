@@ -333,6 +333,11 @@ operation that owns it, so "16.8% of the frame is in the stubs" becomes:
 
 ## The SMC tag aliases its own data in the D-cache
 
+**Historical: this described the bug this section's fix (below) has
+since shipped.** The 2.6x/14.5% figures below are pre-fix; they are not
+this build's current cost, kept only as the diagnosis that motivated
+`GBA_SMC_SKEW`.
+
 Stores cost 2.6x what loads do, and the reason is a cache-index collision
 that is exact rather than incidental.
 
@@ -362,26 +367,34 @@ two instructions eight bytes apart missing exactly as often as each other
 `stub st_u32.iwram`, and the memory stubs together are 14.5% of all
 sampled D-cache misses.
 
-### Two ways to fix it, neither started
+### Update: the first fix shipped, the second is a closed dead end
 
-**Move the tag block** so the separation is not a multiple of 8 KB. The
-catch is the emitted code: the tag address is computed with a single
-`addiu`, whose immediate is limited to [-32768, 32767], and -0x8000 is
-exactly the boundary. Any non-aliasing distance needs a second
-instruction, plus growing `iwram_raw`/`ewram_raw` by a line and moving the
-data base -- 15 sites reference it.
+**Move the tag block: done.** `mips/mips_emit.h`'s `emit_pmemst_stub` now
+subtracts `GBA_SMC_SKEW` (`gba_memory.h`) from the tag address, so the
+separation from its data is no longer a multiple of 8 KB -- exactly the
+fix this section originally proposed. Undocumented until now; this file
+just hadn't caught up with the code. `iwram_raw`/`ewram_raw` were grown
+and every reference site updated to make room.
 
-**Skip the tag load entirely** for stores that cannot be over code.
-`iwram_code_max` already bounds the highest address any RAM block has been
-translated from, and it is reset to zero by every flush, so
-`offset > iwram_code_max` means "no code here" and is conservative. That
-replaces a guaranteed-conflict-missing tag load with one load from a
-permanently hot global. It needs a forward branch over the SMC block and
-the store tail emitted twice, since the store currently sits in the SMC
-branch's delay slot.
+**Skip the tag load entirely via `iwram_code_max`: measured not worth
+it, before ever being built.** `emit_pmemst_stub` already carries a
+validation-only `-DN64_NOSMC` flag that removes the tag check completely
+-- a strictly *larger* win than the conservative `iwram_code_max` bound
+could ever reach, since it drops the load unconditionally instead of only
+when provably safe. Under `-DN64_STUBPAD` (which holds the stub region's
+size fixed, so removing code from it does not also shift every
+translated block's I-cache alignment and confound the result), the
+measurement is on record in the same file: `-DN64_NOSMC` made the stub
+code itself 0.85 ms/frame faster, and made `update_scanline` -- an
+unrelated, fixed `.text` function that calls no stub at all -- 0.77 ms
+*slower*, because the resulting layout re-aliases it against the rest of
+the ROM in the 16 KB I-cache differently. Net frame time: unchanged.
 
-The second is contained to `emit_pmemst_stub` and changes no memory
-layout, so it is the one to try first.
+So the *maximum possible* ceiling here, achieved by deleting the check
+altogether (which cannot ship -- it is a correctness hole, not just a
+performance one), already nets to ~0. The strictly smaller,
+correctness-preserving `iwram_code_max` partial skip cannot do better
+than that ceiling. Not worth building. Closed.
 
 ## The renderer is the largest single source of D-cache misses
 

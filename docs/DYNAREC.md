@@ -1142,3 +1142,61 @@ Measured on ares, overworld savestate, 17-25 steady windows:
 exactly the ~0.6 ms `rdpq_tex_upload` was measured costing, all of it
 recovered. Same caveat as every number in this document: one savestate,
 one scene.
+
+## The SMC tag-check skip: closed as not worth building
+
+Went looking for the next-cheapest lever. `docs/CACHE_PROFILING.md` had
+an "SMC tag aliasing" section reading as two open ideas, "neither
+started." Checked the actual code first rather than trusting the doc:
+the first idea (move the tag block off the aliasing distance) was
+already shipped as `GBA_SMC_SKEW`, just never written up. The second
+(skip the tag-load entirely for stores that provably cannot be over
+code, via the existing `iwram_code_max` bound) turned out to already have
+its ceiling measured, in a code comment, via the *strictly larger* win of
+removing the check altogether (`-DN64_NOSMC`, layout-controlled with
+`-DN64_STUBPAD`): the stub code got 0.85 ms/frame faster and an unrelated
+fixed function (`update_scanline`) got 0.77 ms slower from the resulting
+I-cache re-alignment, netting to ~0. A conservative partial skip cannot
+beat the ceiling set by removing the check outright, so it was closed
+without ever being built. See `docs/CACHE_PROFILING.md`'s corrected
+section for the full account.
+
+Net result of this pass: no code change, but a real dead end closed
+cheaply (reading existing comments and one already-run measurement,
+instead of writing risky assembly-level dynarec changes to find out).
+
+## Parked for later (not investigated further this pass)
+
+Recorded per request, not pursued -- each would need its own dedicated
+pass:
+
+- **Dynarec code-generation quality.** The single largest remaining
+  lever by this document's own analysis (register allocation, redundant
+  flag computation, the instruction sequence per ARM opcode) -- but a
+  real engineering project, not an afternoon change, and bugs here
+  corrupt game logic rather than just pixels. Highest ceiling, highest
+  risk, most effort.
+- **Hand-encoding `SET_TILE`/`LOAD_TILE`/`SET_TILE_SIZE` directly into
+  `rdpbg_cmds`**, bypassing `rspq_write`'s per-call dispatch the same way
+  `RDPBG_RECT` already bypasses it for `TEXTURE_RECTANGLE`. Real but
+  smaller now that `rdpq_tex_upload`'s generic-wrapper fat is already
+  cut (see above) -- likely on the order of noise-floor-sized savings
+  for ~48-53 calls/frame. `SET_TEXTURE_IMAGE` itself would still have to
+  go through rdpq's normal call (it is an rdpq "fixup" command needing
+  RSP-side interpretation, not safe to hand-encode without understanding
+  that mechanism fully).
+- **`$gp` liberation** (`-G0`, or freeing `$gp` in the register
+  allocator instead of the current defer-interrupts-across-the-block
+  workaround). "Modest direct payoff" per the earlier measurement notes
+  above -- small, bounded scope, lowest priority of the dynarec-adjacent
+  ideas.
+- **Reusing the last rendered frame when nothing changed** (static
+  dialogue/menu screens) instead of re-running the BG renderer. Distinct
+  from frameskip -- the GBA CPU still runs and a frame still displays
+  every tick, only the *re-render* would be skipped. Needs a judgement
+  call against this project's standing "displayed fps is what matters"
+  framing before it's worth prototyping, and an RPG overworld scrolls
+  often enough that the applicable fraction of frames may be small.
+- **Repo hygiene, not performance**: 14 old bisection-experiment `.z64`
+  files (`gpsp_add1-8.z64`, `gpsp_bisect_*.z64`, `gpsp_cyc20_*.z64`) are
+  checked into the repo root. Noted, not touched.
