@@ -616,6 +616,29 @@ defsymbl(n64_jit_swi_hook)
 # flags out of every AOT call.
 
 defsymbl(n64_jit_aot_hook)
+#ifdef N64_JIT_AOT_HOOKPROF
+  # Count every call and total the COUNT ticks spent in the whole round
+  # trip (spill, the C call, reload) -- not the AOT function's own body,
+  # which is not the question here.  The question is what the hook costs
+  # to get in and out of, on top of whatever the AOT body does.
+  #
+  # Each counter gets its own %hi/%lo pair: reusing one lui's $1 across two
+  # different symbols' %lo is only correct if they land in the same 64KB
+  # page, which nothing here guarantees.
+  addiu $sp, $sp, -16
+  sw    $1, 0($sp)
+  sw    $2, 4($sp)
+  lui   $1, %hi(prof_aot_hook_calls)
+  lw    $2, %lo(prof_aot_hook_calls)($1)
+  addiu $2, $2, 1
+  sw    $2, %lo(prof_aot_hook_calls)($1)
+  lui   $1, %hi(prof_aot_hook_t0)
+  mfc0  $2, $9
+  sw    $2, %lo(prof_aot_hook_t0)($1)
+  lw    $2, 4($sp)
+  lw    $1, 0($sp)
+  addiu $sp, $sp, 16
+#endif
   sw $ra, REG_SAVE3($16)
   sw $20, REG_N_FLAG($16)
   sw $21, REG_Z_FLAG($16)
@@ -631,6 +654,24 @@ defsymbl(n64_jit_aot_hook)
   lw $23, REG_V_FLAG($16)
   lw $ra, REG_SAVE3($16)
   subu $17, $17, $2               # charge the GBA cycles it reported
+#ifdef N64_JIT_AOT_HOOKPROF
+  addiu $sp, $sp, -16
+  sw    $1, 0($sp)
+  sw    $2, 4($sp)
+  sw    $3, 8($sp)
+  lui   $1, %hi(prof_aot_hook_t0)
+  lw    $2, %lo(prof_aot_hook_t0)($1)
+  mfc0  $3, $9
+  subu  $3, $3, $2
+  lui   $1, %hi(prof_aot_hook_ticks)
+  lw    $2, %lo(prof_aot_hook_ticks)($1)
+  addu  $2, $2, $3
+  sw    $2, %lo(prof_aot_hook_ticks)($1)
+  lw    $3, 8($sp)
+  lw    $2, 4($sp)
+  lw    $1, 0($sp)
+  addiu $sp, $sp, 16
+#endif
   jr $ra
   lw $4, REG_PC($16)              # delay slot: resume PC for the caller
 

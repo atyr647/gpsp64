@@ -290,6 +290,11 @@ u32 prof_icache_ticks = 0, prof_icache_calls = 0, prof_icache_work = 0;
  * flushed in a loop.  These counters distinguish the two. */
 u32 prof_jit_xlat = 0, prof_jit_hit = 0, prof_jit_flush = 0;
 u32 prof_jit_aot = 0;   /* blocks emitted as AOT thunks instead of translated */
+#ifdef N64_JIT_AOT_HOOKPROF
+u32 prof_aot_hook_calls = 0;   /* runtime calls into n64_jit_aot_hook */
+u32 prof_aot_hook_ticks = 0;   /* COUNT ticks spent in the whole round trip */
+u32 prof_aot_hook_t0;          /* scratch: entry COUNT for the in-flight call */
+#endif
 
 /* Indirect-branch inline caches, defined in mips/mips_stub.S.  Entries
  * hold {ARM PC, host target}; the target points into a translation

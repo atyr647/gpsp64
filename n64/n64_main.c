@@ -121,6 +121,10 @@ u32 ibcache_hits;
  * The AOT function reads and writes reg[] directly and returns the GBA
  * cycles it consumed, leaving the resume address in reg[REG_PC] -- exactly
  * the contract cpu.cc:3362 relies on. */
+#ifdef N64_JIT_AOT_BODYPROF
+u32 prof_aot_body_ticks = 0;
+#endif
+
 u32 function_cc n64_jit_aot_call(u32 pc)
 {
   const struct aot_page_ent *pg = &aot_page_tab[(pc >> 12) & 0x1FFF];
@@ -135,7 +139,23 @@ u32 function_cc n64_jit_aot_call(u32 pc)
   reg[REG_PC] = pc;
   if (pg->slots) {
     u32 slot = pg->slots[(pc & 0xFFFu) >> 1];
-    if (slot) return pg->fns[slot - 1](pc);
+    if (slot) {
+#ifdef N64_JIT_AOT_BODYPROF
+      /* Split the hook's round trip: this brackets only the generated
+         function itself, so (round trip) - (body) is the asm hook's own
+         spill/dispatch/restore overhead -- the part actually payable back
+         if the hybrid's per-call cost turns out to be the problem. */
+      extern u32 prof_aot_body_ticks;
+      u32 _t0, _t1, _rv;
+      __asm__ __volatile__("mfc0 %0, $9" : "=r"(_t0));
+      _rv = pg->fns[slot - 1](pc);
+      __asm__ __volatile__("mfc0 %0, $9" : "=r"(_t1));
+      prof_aot_body_ticks += _t1 - _t0;
+      return _rv;
+#else
+      return pg->fns[slot - 1](pc);
+#endif
+    }
   }
   return 0;
 }
@@ -842,6 +862,29 @@ int main(void)
             { extern u32 prof_jit_aot, prof_jit_xlat;
               debugf("PROF:  aot: %lu blocks emitted as AOT thunks of %lu translated\n",
                      (unsigned long)prof_jit_aot, (unsigned long)prof_jit_xlat); }
+#endif
+#ifdef N64_JIT_AOT_HOOKPROF
+            /* COUNT ticks at CPU/2, so x2 gives PClock; /93750 gives ms.
+               Same conversion as the rdpbg-sub report above. */
+            { extern u32 prof_aot_hook_calls, prof_aot_hook_ticks;
+              u32 calls = prof_aot_hook_calls;
+              u32 ticks = prof_aot_hook_ticks;
+              debugf("PROF:  aot-hook: %lu calls/frame, %lu ticks/call avg, "
+                     "%lu.%02lu ms/frame in the hook round trip\n",
+                     (unsigned long)(calls / PROF_FRAMES),
+                     (unsigned long)(calls ? ticks / calls : 0),
+                     (unsigned long)(ticks * 2 / PROF_FRAMES / 93750),
+                     (unsigned long)((ticks * 2 / PROF_FRAMES % 93750) * 100 / 93750));
+              prof_aot_hook_calls = 0; prof_aot_hook_ticks = 0; }
+#ifdef N64_JIT_AOT_BODYPROF
+            { extern u32 prof_aot_body_ticks;
+              u32 bticks = prof_aot_body_ticks;
+              debugf("PROF:  aot-body: %lu.%02lu ms/frame inside the generated "
+                     "function itself (round trip minus this = hook overhead)\n",
+                     (unsigned long)(bticks * 2 / PROF_FRAMES / 93750),
+                     (unsigned long)((bticks * 2 / PROF_FRAMES % 93750) * 100 / 93750));
+              prof_aot_body_ticks = 0; }
+#endif
 #endif
             { extern u32 prof_swi_calls, prof_m4a_flush;
               debugf("PROF:  swi: %lu HLE SWI dispatches/frame, %lu m4a code-change flushes\n",

@@ -343,6 +343,56 @@ N64_OPT ?= -O2
 AOT_OPT ?= -Os
 n64/aot_generated.o: CFLAGS += $(AOT_OPT)
 
+# The AOT+dynarec hybrid (-DN64_JIT_AOT, see mips/mips_stub.S and
+# n64/n64_main.c's n64_jit_aot_hook/n64_jit_aot_call) needs the OPPOSITE
+# choice from the block above, and for a reason that generalises rather
+# than contradicts it.
+#
+# -Os was measured and chosen for AOT running under the INTERPRETER: there,
+# AOT competes with interpreted dispatch for the same 16 KB I-cache, and
+# interpretation itself is universally slow (150-175 cyc/insn), so any
+# working AOT is a discount off a bad baseline -- keeping it small to
+# avoid mutual eviction matters more than how fast the body itself runs.
+#
+# Under the hybrid, AOT instead competes against the dynarec's own
+# translated code, which is not slow -- it runs at native VR4300 speed,
+# no interpreter dispatch tax to discount against.  A body compiled for
+# size at the cost of speed is then a straight loss.  Measured on the
+# same 690-function AOT corpus, hybrid build, identical set of blocks
+# routed to AOT (3433 of 12265, confirmed unchanged across every run):
+#
+#   AOT_OPT=-Os (this file's default)   30.1-30.2 ms/frame
+#   AOT_OPT=-O2                         28.3 ms/frame
+#   AOT_OPT=-O3                         29.6 ms/frame  (worse than -O2:
+#     matches this project's other -O3-on-N64-code findings -- more
+#     aggressive inlining/unrolling grows the 95,000-line AOT blob past
+#     what the 16 KB I-cache can hold resident)
+#
+# Static disassembly of the hottest AOT function ruled out the tempting
+# explanation (that -Os was blocking cross-TU inlining of the tiny
+# aot_read32/aot_write32 helpers into their ~4500 call sites): the call
+# count and call targets are IDENTICAL between -Os and -O2 builds, and
+# the function only grows ~7% at -O2.  The 2 ms/frame difference is
+# ordinary -Os-vs-O2 codegen quality (register allocation, instruction
+# scheduling) across the ~34 AOT functions that are actually hit at
+# runtime in this scene -- not a hidden crossing cost.
+#
+# So: this file's AOT_OPT default (-Os) stays correct for the existing
+# interpreter+AOT path.  Anyone building the hybrid should override it:
+#
+#   make -f Makefile.n64 N64_JIT=1 AOT_OPT=-O2 \
+#     EXTRA_CFLAGS="-DN64_JIT_AOT -DN64_AOT_DIRECTMEM"
+#
+# N64_AOT_DIRECTMEM (n64/aot_hle.c) routes AOT's IWRAM/EWRAM reads through
+# the same direct base+mask the interpreter uses, skipping the
+# memory_map_read table -- a further, smaller win (~0.3 ms/frame) once the
+# opt-level fix has been applied.
+#
+# Even with both, the hybrid (28.0 ms/frame) is not clearly faster than
+# the dynarec alone (27.6-27.7 ms/frame): the gap is inside this branch's
+# established ~2.2% layout-noise floor (see N64_STUBPAD in mips/mips_emit.h
+# and docs/DYNAREC.md).  -DN64_JIT_AOT stays off by default.
+
 # Same knob for the interpreter alone.  cpu.cc is one enormous switch per
 # instruction set, and a host-side PC profile (GPSP_PCPROF, see
 # native/ares_bench.sh) puts 33.6% of the frame inside execute_arm for

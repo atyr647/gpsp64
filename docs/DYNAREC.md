@@ -661,3 +661,98 @@ Worth testing before spending effort on per-function selection.
 ARM registers, let `cfncall` restore `$gp`, call into C, reload. The dynarec
 would check `aot_page_bits[pc >> 12]` at translate time and, on a hit at the
 block's entry PC, emit that call instead of translating the block.
+
+## The memory-density hypothesis, tested to completion, and what actually explained the gap
+
+The hybrid was built (`-DN64_JIT_AOT`), and it deadlocked, and the deadlock
+was fixed (m4a's code-patching bypassed the dynarec's store stubs, so a
+stale translated block kept running the unpatched SWI marker forever --
+see the git history for `n64/m4a_hle.c`). With that fixed, the hybrid ran
+cleanly end to end for the first time: **30.24 ms/frame against the
+dynarec alone's 27.65 ms** -- genuinely ~9% slower, not deadlocked.
+
+The "AOT's memory path is strictly worse" theory from the previous section
+was then tested directly, in two independent ways, and **both came back
+negative**:
+
+- Routing AOT's IWRAM/EWRAM loads through the dynarec's own asm stubs
+  (`aot_stub_ld` in mips/mips_stub.S) measured **worse**: 32.38 ms/frame.
+  The trampoline needed to call an asm stub from C -- push, save `$16` and
+  `$ra`, materialise the register base, indirect call, pop -- cost more
+  than the `memory_map_read` lookup it replaced.
+- Skipping that trampoline and reading IWRAM/EWRAM directly in C
+  (`N64_AOT_DIRECTMEM`, a `static inline` doing exactly what the
+  interpreter's `readaddress32(iwram_raw, ...)` does, zero call-boundary
+  crossing at all) measured **flat**: 30.34 ms/frame, statistically the
+  same as going through `aot_map()`'s 32 KB table.
+
+So the 32 KB page table was never the expense. Both experiments that were
+supposed to remove it did nothing.
+
+### What it actually was
+
+`AOT_OPT=-Os` (see Makefile.n64) applies only to `aot_generated.c` -- the
+file holding the 690 translated function bodies -- and it was chosen and
+measured for the *interpreter*+AOT combination, where it is the right
+choice for a real reason: AOT there competes with interpreted dispatch for
+the same 16 KB I-cache, and interpretation is universally slow (150-175
+cyc/insn), so keeping AOT's footprint small to avoid mutual eviction
+matters more than how fast any individual AOT body runs.
+
+Rebuilding just that file at `-O2` (`AOT_OPT=-O2`), with the hybrid,
+dropped the frame to **28.34 ms** -- essentially the whole gap -- with the
+memory path completely unchanged (still `aot_map()`, no direct-mem, no
+stub routing). Adding `N64_AOT_DIRECTMEM` on top brought it to **28.02
+ms**, so the direct-memory idea was real but small (~0.3 ms), not the
+story. `AOT_OPT=-O3` made it worse again (29.56 ms) -- consistent with
+this project's other findings about `-O3` on N64 code: more aggressive
+inlining and unrolling grows the AOT blob past what the 16 KB I-cache can
+hold resident.
+
+Reproduced exactly on a second independent build (30.06/30.24 vs 28.02 ms,
+twice), and the block-routing count (3433 of 12265 blocks emitted as AOT
+thunks) was verified identical across every one of these runs, so none of
+it is a difference in which code ran -- only how well it was compiled.
+
+**The tempting explanation -- that `-Os` was blocking cross-TU inlining of
+the tiny `aot_read32`/`aot_write32` helpers into their thousands of call
+sites, and `-O2` fixed that -- is wrong**, and was ruled out by
+disassembling the hottest AOT function in both builds: the call count and
+call targets to `aot_read32`/`aot_read16`/`aot_read8` are *identical*
+between `-Os` and `-O2`, and the function itself only grows ~7% at `-O2`.
+No inlining of the memory helpers happens at either level. The `-Os`/`-O2`
+difference is ordinary codegen quality -- register allocation, instruction
+scheduling on the VR4300's in-order pipeline -- applied to code that was
+being deliberately compiled for size, in a context (the hybrid) where size
+no longer buys anything, because there is no slow interpreter fallback
+left to discount against.
+
+### Where the hybrid actually stands
+
+    dynarec alone                       27.6-27.7 ms/frame
+    hybrid, AOT_OPT=-Os (as committed)  30.1-30.2 ms/frame   -9% vs dynarec
+    hybrid, AOT_OPT=-O2                 28.3 ms/frame        -2% vs dynarec
+    hybrid, AOT_OPT=-O2 + DIRECTMEM     28.0 ms/frame         within the
+                                                               ~2.2% layout
+                                                               noise floor
+
+So with both fixes, the hybrid is no longer clearly worse than the
+dynarec -- but it is not clearly better either. `-DN64_JIT_AOT` stays off
+by default. If it is revisited, the AOT_OPT override is not optional: the
+existing `-Os` default is correct for the interpreter path and actively
+wrong for this one, and shipping the hybrid without changing it would
+regress by 9% for no reason anyone would notice was fixable.
+
+One process note: an earlier attempt to characterise this used
+`-DN64_JIT_AOT_HOOKPROF`/`-DN64_JIT_AOT_BODYPROF` (COUNT-wrapped timers
+around the hook and the AOT call) and got a result in the *opposite*
+direction from the clean frame-time comparison -- more hook/body time at
+`-O2` than at `-Os`, which would have implied `-O2` made things worse.
+That instrumentation is real and kept in the tree, but it was not trusted
+here: adding it is itself a nontrivial code-size change to files outside
+`aot_generated.c`, and this branch has already demonstrated (the
+`N64_STUBPAD` result) that layout alone is worth ~2.2% of a frame. An
+instrumented A/B comparing two *differently-sized* binaries is exactly the
+condition that number was measured under. The uninstrumented frame-time
+numbers, and the static disassembly, are what the conclusion above rests
+on -- not the hook/body timers.

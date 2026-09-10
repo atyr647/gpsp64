@@ -50,6 +50,52 @@ static u8 *aot_map(u32 addr)
     return map;
 }
 
+/* Read IWRAM/EWRAM directly, the same way the interpreter's
+ * readaddress32(iwram_raw, ...) does -- no memory_map_read lookup, no
+ * function-call boundary at all, just a base + mask computed inline.
+ *
+ * This isolates one thing from the failed -DN64_AOT_STUBLD experiment:
+ * that result showed an asm trampoline into the dynarec's own load stubs
+ * was SLOWER than aot_map()'s 32 KB table lookup, which reads as "the
+ * table isn't the expense".  But that trampoline also paid setup cost
+ * (push, save $16/$ra, materialise the register base) that has nothing to
+ * do with the table.  This tests the table alone, with zero crossing:
+ * pure C, inlinable, same as the interpreter's own fast path.
+ *
+ * Defined unconditionally: even the dead `if (AOT_DIRECT_REGION(addr))`
+ * branch below needs these declared, or it's an implicit-declaration
+ * error rather than a dead-code elimination -- the call is still valid C
+ * that has to typecheck, whether or not it survives to codegen.
+ *
+ * Measured contribution: small.  With AOT_OPT=-O2 (see Makefile.n64), this
+ * saves ~0.3 ms/frame on top of the ~2 ms that recompiling the AOT bodies
+ * at -O2 already buys.  The 32 KB memory_map_read table was never the
+ * expense the plan assumed -- see the -DN64_JIT_AOT comment in
+ * Makefile.n64 for what was. */
+static inline u32 aot_iwram_read32(u32 addr) {
+    return eswap32(*(u32*)(iwram_raw + IWRAM_DATA_OFF + (addr & 0x7FFC)));
+}
+static inline u32 aot_iwram_read16(u32 addr) {
+    return eswap16(*(u16*)(iwram_raw + IWRAM_DATA_OFF + (addr & 0x7FFE)));
+}
+static inline u32 aot_iwram_read8(u32 addr) {
+    return *(u8*)(iwram_raw + IWRAM_DATA_OFF + (addr & 0x7FFF));
+}
+static inline u32 aot_ewram_read32(u32 addr) {
+    return eswap32(*(u32*)(ewram_raw + (addr & 0x3FFFC)));
+}
+static inline u32 aot_ewram_read16(u32 addr) {
+    return eswap16(*(u16*)(ewram_raw + (addr & 0x3FFFE)));
+}
+static inline u32 aot_ewram_read8(u32 addr) {
+    return *(u8*)(ewram_raw + (addr & 0x3FFFF));
+}
+#ifdef N64_AOT_DIRECTMEM
+#define AOT_DIRECT_REGION(a) (((a) >> 24) == 2 || ((a) >> 24) == 3)
+#else
+#define AOT_DIRECT_REGION(a) (0)
+#endif
+
 #ifdef N64_JIT_AOT
 /* Route AOT loads through the dynarec's own stubs rather than aot_map().
  *
@@ -78,7 +124,9 @@ extern u32 tmemld[11][16];
 
 u32 aot_read32(u32 addr) {
     u32 value;
-    if (AOT_STUB_REGION(addr))
+    if (AOT_DIRECT_REGION(addr))
+        value = ((addr >> 24) == 3) ? aot_iwram_read32(addr) : aot_ewram_read32(addr);
+    else if (AOT_STUB_REGION(addr))
         value = aot_stub_ld(addr & ~3u, tmemld[10][addr >> 24]);
     else {
         u8 *map = aot_map(addr);
@@ -103,7 +151,9 @@ u32 aot_read32(u32 addr) {
 #ifdef N64_JIT_AOT
 u16 aot_read16(u32 addr) {
     u32 value;
-    if (AOT_STUB_REGION(addr))
+    if (AOT_DIRECT_REGION(addr))
+        value = ((addr >> 24) == 3) ? aot_iwram_read16(addr) : aot_ewram_read16(addr);
+    else if (AOT_STUB_REGION(addr))
         value = aot_stub_ld(addr & ~1u, tmemld[2][addr >> 24]);
     else {
         u8 *map = aot_map(addr);
@@ -115,6 +165,8 @@ u16 aot_read16(u32 addr) {
 }
 
 u8 aot_read8(u32 addr) {
+    if (AOT_DIRECT_REGION(addr))
+        return (u8)(((addr >> 24) == 3) ? aot_iwram_read8(addr) : aot_ewram_read8(addr));
     if (AOT_STUB_REGION(addr))
         return (u8)aot_stub_ld(addr, tmemld[0][addr >> 24]);
     { u8 *map = aot_map(addr);
