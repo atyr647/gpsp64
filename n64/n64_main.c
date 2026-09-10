@@ -375,6 +375,16 @@ int main(void)
   n64_input_init();
   n64_storage_init();
 
+#ifdef N64_RSP_RDPBG_TEST
+  /* RSP-offload correctness check, not live -- see rsp_rdpbg.S and
+     n64/n64_rsp2.c. Must run after n64_video_init()'s rdpq_init(), since
+     this registers an rspq overlay alongside rdpq rather than loading
+     its own exclusive ucode the way the old n64_rsp.c path does. */
+  { extern void n64_rsp_rdpbg_init(void); extern void n64_rsp_rdpbg_selftest(void);
+    n64_rsp_rdpbg_init();
+    n64_rsp_rdpbg_selftest(); }
+#endif
+
   info_msg("gpSP N64 - GBA Emulator");
   info_msg("Initializing...");
 

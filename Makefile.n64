@@ -508,6 +508,8 @@ OBJS = main.o \
        n64/n64_video.o \
        n64/n64_rsp.o \
        rsp_gbascan.o \
+       rsp_rdpbg.o \
+       n64/n64_rsp2.o \
        n64/n64_audio.o \
        n64/n64_input.o \
        n64/n64_storage.o \

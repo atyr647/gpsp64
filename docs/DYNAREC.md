@@ -756,3 +756,104 @@ instrumented A/B comparing two *differently-sized* binaries is exactly the
 condition that number was measured under. The uninstrumented frame-time
 numbers, and the static disassembly, are what the conclusion above rests
 on -- not the hook/body timers.
+
+## RSP offload for RDP command generation: proof of concept, verified correct
+
+Followed up on the per-tile emit loop residual (~2.44 ms/frame, 95% of it
+unexplained by any of the three instrumented ranges -- see above) with a
+genuinely different approach: move the computation to the RSP, which sits
+nearly idle once the RDP renderer absorbed the blit, rather than continue
+trying to explain why it is slow on the VR4300.
+
+The obstacle this project had already hit once: the old `rsp_gbascan.S`
+(a full CPU-rasterization-era compositing engine -- palette lookup,
+blending, 582 lines, now dead code with the RDP doing that job in
+hardware) uses the raw `rsp_init`/`rsp_load` API, which loads its own
+ucode over whatever is resident and cannot coexist with `rdpq`, which
+also drives the RSP. That is a real architectural constraint, not
+incidental -- see the Makefile.n64 comment next to `N64_RSP_BLIT`.
+
+The actual fix is libdragon's `rspq` overlay mechanism: `rspq_overlay_register()`
+lets a *second* ucode's command handlers coexist with rdpq's in one
+combined RSP binary, dispatched by (overlay ID, command index) from a
+lockless CPU/RSP queue. This is precisely how rdpq itself is implemented
+-- one overlay among however many are registered -- and it was previously
+undocumented in this codebase (the earlier "AOT+dynarec" work concluded
+"the RSP is nearly idle" without ever testing whether a second overlay
+could actually share it).
+
+### What was built
+
+`rsp_rdpbg.S` -- a new rspq overlay, scalar RSP code (no vector unit; the
+per-tile work is a handful of branchy integer compares and shifts, not
+lane-parallel). One command, `RDPBGCmd_Batch`: DMA in a contiguous batch
+of `rdpbg_draw_t` records (the CPU has already sorted these into one
+(slice,palette) run), reproduce `RDPBG_RECT` exactly -- clip against the
+0..240 screen width, flip handling, the 10.2/10.5/s5.10 fixed-point
+encoding of the RDP's `TEXTURE_RECTANGLE` (0xE4) command -- and DMA the
+resulting words back out, dropping tiles that clip away entirely, same as
+the CPU path.
+
+`n64/n64_rsp2.c` -- registers the overlay and runs two checks at boot,
+behind `-DN64_RSP_RDPBG_TEST` (off by default; nothing live depends on
+this yet):
+
+  1. **Correctness**: 9 synthetic tiles covering every branch combination
+     (unflipped / h-flip / v-flip / both, on-screen / left-clip /
+     right-clip / fully-clipped-away, and left-clip crossed with h-flip,
+     the one case where the clip math takes the "s0 += x0" branch instead
+     of "s0 -= x0") are run through the RSP command and compared word for
+     word against a from-scratch C reference of the same computation.
+     **Result: 9 tiles, 8 kept, PASS, 0 mismatches.** The 9th (fully
+     off-screen) tile is correctly dropped with no output, matching the
+     CPU's silent `continue`.
+
+  2. **Throughput**: a 64-tile synthetic batch (closer to the real
+     ~45-tile average per (slice,palette) group than the 9-tile
+     correctness set, whose fixed per-call overhead -- DMA setup, rspq
+     dispatch -- would dominate and say nothing about steady state).
+     **Result: 9392 PClock total, 146 PClock/tile**, fully synchronous
+     (the CPU is blocked on `rspq_syncpoint_wait` for the entire
+     measurement -- this is an upper bound on RSP cost, not a hidden-
+     latency number). For comparison, the CPU's own per-tile cost for
+     this same work is ~190 PClock (the ~95 COUNT/tile figure from the
+     chassis measurement above, `x2` for PClock). The RSP is not
+     dramatically slower doing this scalar -- it is in the same order of
+     magnitude as the CPU, synchronously, with none of the overlap
+     benefit realised yet.
+
+Verified end to end: default build compiles and runs identically
+(27.66 ms/frame, canary green, no freeze) with these two new files
+unconditionally in the object list -- the whole thing costs nothing when
+`-DN64_RSP_RDPBG_TEST` is not set. With it set, the emulator boots,
+selftest passes, and 38 further PROF windows run clean (canary green,
+1216-1217 tiles, no freeze) -- the RSP command coexists with rdpq's own
+real per-frame rendering commands in the same running session.
+
+### What this does NOT yet prove
+
+This is a synchronous correctness-and-throughput probe, not a live
+feature, and the gap between the two is real work:
+
+  - **No overlap.** The whole point of RSP offload is hiding this cost
+    behind CPU work happening at the same time; nothing here runs
+    asynchronously yet. Realising it needs double-buffering the draw
+    list across frames (CPU builds frame N+1's list while the RSP still
+    emits frame N's commands) and a real synchronisation point in the
+    frame loop, not `rspq_syncpoint_wait` called inline.
+  - **No live per-frame wiring.** `n64_rdp_bg.c`'s actual flush loop is
+    untouched; this runs a synthetic self-test alongside the real
+    pipeline, not in place of it.
+  - **Only synthetic input verified.** The 9-case set is a real
+    correctness gate (every branch, checked byte-for-byte), but it is not
+    the actual game's draw lists across menus, battles, or other scenes.
+  - **The rdpq_tex_upload / rdpq_set_tile calls at group boundaries** (21
+    slice changes, 27 key changes a frame) still have to happen on the
+    CPU, or be reimplemented on the RSP too -- neither attempted here.
+
+So: the two biggest unknowns -- can a second overlay actually coexist
+with rdpq, and can hand-written RSP assembly get this specific
+computation right -- are now answered, with evidence, both yes. What is
+not yet known is whether the live, asynchronous version delivers on the
+frame-time promise; that is the next thing to build and measure, not
+something this proves by itself.
