@@ -70,10 +70,16 @@ misses land, by 1 KB bucket: the stack 7%, the interpreter's rodata and
 jump tables 7%, `memory_map_read` and `reg` 5%, the EWRAM tail 4%, the
 RDP renderer's own draw list and sort arrays 7%, the IWRAM tail 2%.
 
-**The I-cache miss count is an undercount.** The recompiler charges the
-48 cycles but does not increment `icacheMisses` on its fill path, so the
-number only reflects misses the interpreter and `jitFetch` saw. Treat
-`IMISS` as a comparative signal between builds, not an absolute.
+**Correction: the I-cache miss count is complete, not an undercount.**
+This used to say the recompiler charged the 48 cycles without
+incrementing `icacheMisses`, so only interpreter and `jitFetch` misses
+were counted. That is wrong. The recompiler increments it with an inline
+`add64` in emitted code (`recompiler.cpp`, in the I-cache refill slow
+path) whenever `system.homebrewMode` is set -- which is what
+`ARES_HOMEBREW=true` turns on. Proven by construction: the `IMISSHIST`
+histogram added at that same inline site sums to exactly the `IMISS`
+delta, every interval. `IMISS` is an absolute figure, provided homebrew
+mode is on; with it off, both counters read zero.
 
 ## Why this matters more than it sounds
 
@@ -450,3 +456,79 @@ tiles a frame fall into only 21 TMEM slices and 27 palette groups, so
 horizontally adjacent tiles sharing a slice and palette could merge into
 one wider texrect. That reduces the array being walked *and* the RDP
 command count, rather than trying to walk the same array faster.
+
+## Where the I-cache misses actually are: 57% is code the dynarec wrote
+
+The D-cache had a per-address histogram from early on; the I-cache only
+ever had an aggregate rate. That gap mattered, because it left the single
+most important question about dynarec code quality unanswerable: the
+generated code lives in `rom_translation_cache` and the emulator's own C
+in `.text`, and **shrinking generated code is only worth doing if
+generated code is what is missing.**
+
+`IMISSHIST` now answers it. It buckets I-cache misses by 64 KB of
+physical address exactly as `DMISS` does, so the two regions fall in
+disjoint buckets and can simply be added up. Getting it working took four
+attempts, which is worth recording because the obvious hook points all
+silently report zero: with the recompiler driving, misses do not go
+through `ICache::fetch`, `ICache::jitFetch`, or `CPU::jitIcacheFillMiss`.
+The recompiler emits the *entire* refill inline -- tag write, clock step,
+two `mov128`s -- and only calls `icacheFillLine` on the non-identity-map
+path, which this workload never takes. The histogram therefore has to be
+an emitted increment too; `slow.icachePaddr` is a compile-time constant
+there, so the bucket address is one as well and it costs a single `add`
+on the miss path.
+
+Measured on the overworld savestate, current default build
+(`ARES_HOMEBREW=true`, which is free -- frame time is 24.0 ms either way):
+
+| region | buckets | share of I-cache misses |
+| --- | --- | --- |
+| dynarec ROM blocks | `2e`-`35` | **55.3%** |
+| dynarec RAM blocks | `36` | 2.0% |
+| emulator `.text` | `00`-`13` | 42.7% |
+
+**57.3% of all I-cache misses are in code the dynarec generated.** The
+buckets also say the generated working set is real and not a hot spot:
+misses span `2e` through `33`, i.e. ~384 KB of the 512 KB ROM cache is
+being touched, against a 16 KB I-cache. These are capacity misses, so a
+proportional shrink of the generated code should buy a proportional
+reduction in them.
+
+Costing it, over one 600-VI-frame (10 s emulated, 937.5 M cycle)
+reporting interval at 48 cycles a fill:
+
+| | share of all CPU cycles | of a 24.0 ms frame |
+| --- | --- | --- |
+| I-cache stalls, total | 23.2% | 5.57 ms |
+| — of which generated code | 13.3% | **3.19 ms** |
+| D-cache stalls | 13.5% | 3.24 ms |
+
+I+D together come to 36.8%, which independently reproduces this
+document's own older "roughly a third of the frame is cache-miss stalls"
+from a completely different measurement. That agreement is the reason to
+trust the rest of the table.
+
+### What this does and does not justify
+
+It says plainly that **generated-code footprint, not generated-instruction
+count, is the lever** -- and that retroactively explains the ARM dead-flag
+elimination result in `docs/DYNAREC.md`. That change was correct and did
+remove emitted instructions, but it added ~22 KB of `.text` for the
+classifier: it moved cost out of the 57% bucket and into the 43% one. Net
+negative, exactly as measured.
+
+It also sizes the delay-slot work honestly. `tools/jitdis.py` puts
+unfilled `j` delay slots at 8.4% of everything the dynarec emits. If that
+footprint went away entirely, footprint-proportional scaling gives
+~0.27 ms/frame of recovered I-cache stall plus ~0.13 ms of saved issue,
+so **~0.4 ms of 24.0 ms, about 1.7%** -- and the single largest component
+of it, block links, is only 3.7% of emitted code, worth ~0.75% on its own.
+
+That is below this project's documented ~2.2% layout-noise floor, which
+means **a frame-time A/B cannot prove any of it.** The useful conclusion
+is not "don't bother" but "measure it with the right instrument":
+`IMISSHIST`'s generated-code buckets are a direct, low-variance count of
+the thing such a change actually moves, where frame time is a noisy proxy
+for it. Any future codegen-size change should be judged on whether
+buckets `2e`-`36` fall, and only then on whether the frame follows.

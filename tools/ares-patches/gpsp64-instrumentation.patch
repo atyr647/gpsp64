@@ -1,5 +1,5 @@
 diff --git a/ares/n64/cpu/cpu.cpp b/ares/n64/cpu/cpu.cpp
-index 330d3d6..308f85a 100644
+index 330d3d6..f3ed32f 100644
 --- a/ares/n64/cpu/cpu.cpp
 +++ b/ares/n64/cpu/cpu.cpp
 @@ -1,4 +1,7 @@
@@ -10,7 +10,7 @@ index 330d3d6..308f85a 100644
  #include <nall/gdb/server.hpp>
  
  namespace ares::Nintendo64 {
-@@ -35,7 +38,151 @@ auto CPU::unload() -> void {
+@@ -35,7 +38,168 @@ auto CPU::unload() -> void {
  }
  
  auto CPU::main() -> void {
@@ -33,7 +33,24 @@ index 330d3d6..308f85a 100644
 +        pmiss = profile.icacheMisses; phit = profile.icacheHits;
 +        fprintf(stderr, "IMISS +%lld hits +%lld (%lld%% miss)\n",
 +                (long long)dm, (long long)dh,
-+                (long long)((dm + dh) ? dm * 100 / (dm + dh) : 0)); }
++                (long long)((dm + dh) ? dm * 100 / (dm + dh) : 0));
++        /* gpsp64: and where those misses land, by 64KB of physical
++         * address.  .text sits low (bucket 0x00 up), the dynarec's
++         * rom_translation_cache around 0x2e and ram_translation_cache
++         * around 0x36, so this separates "the emulator's own code is
++         * missing" from "the code it generates is missing" -- which is
++         * what decides whether shrinking generated code buys anything. */
++        { extern u64 gpsp_imiss_hist[128];
++          static u64 pi[128] = {0};
++          u64 di[128]; u64 isum = 0;
++          for(u32 i = 0; i < 128; i++) { di[i] = gpsp_imiss_hist[i] - pi[i]; pi[i] = gpsp_imiss_hist[i]; isum += di[i]; }
++          /* Every non-zero bucket, in address order: the interesting split
++           * (emulator .text low, dynarec translation caches high) is by
++           * region, so a top-N list hides exactly what needs adding up. */
++          fprintf(stderr, "IMISSHIST total=%llu |", (unsigned long long)isum);
++          for(u32 i = 0; i < 128; i++)
++            if(di[i]) fprintf(stderr, " %02x:%llu", i, (unsigned long long)di[i]);
++          fprintf(stderr, "\n"); } }
 +      { extern u64 gpsp_ares_emits; static u64 pe = 0;
 +        fprintf(stderr, "ARESEMIT +%llu (total %llu)  <- ares recompiles of guest code\n",
 +                (unsigned long long)(gpsp_ares_emits - pe),
@@ -162,7 +179,7 @@ index 330d3d6..308f85a 100644
      if(instruction()) synchronize();
    }
  
-@@ -107,6 +254,67 @@ auto CPU::synchronize() -> void {
+@@ -107,6 +271,67 @@ auto CPU::synchronize() -> void {
    scc.count += clocks;
    profile.cpuCycles += clocks;
    if (scc.status.exceptionLevel) profile.cpuCyclesExc += clocks;
@@ -230,7 +247,19 @@ index 330d3d6..308f85a 100644
  }
  
  auto CPU::setInterruptPending(u32 bit, bool value) -> void {
-@@ -186,6 +394,33 @@ auto CPU::instructionEpilogue() -> void {
+@@ -178,6 +403,11 @@ auto CPU::instructionPrologue(u64 address, u32 instruction) -> void {
+ }
+ 
+ auto CPU::icacheFillLine(u64 vaddr, u32 paddr) -> void {
++  /* gpsp64: the recompiler increments profile.icacheMisses with an inline
++   * add in emitted code and only *calls* out to do the fill, so this is
++   * the one place every recompiled miss passes through.  Histogramming at
++   * ICache::fetch/jitFetch or jitIcacheFillMiss reports nothing. */
++  { extern u64 gpsp_imiss_hist[128]; gpsp_imiss_hist[(paddr >> 16) & 127]++; }
+   icache.line(vaddr).fill(paddr, *this);
+ }
+ 
+@@ -186,6 +416,33 @@ auto CPU::instructionEpilogue() -> void {
    if constexpr(!Recompiled) {
      ipu.r[0].u64 = 0;
    }
@@ -264,7 +293,7 @@ index 330d3d6..308f85a 100644
  }
  
  auto CPU::raiseCoprocessor1Exception() -> void {
-@@ -194,6 +429,20 @@ auto CPU::raiseCoprocessor1Exception() -> void {
+@@ -194,6 +451,20 @@ auto CPU::raiseCoprocessor1Exception() -> void {
  
  auto CPU::power(bool reset) -> void {
    Thread::reset();
@@ -285,15 +314,55 @@ index 330d3d6..308f85a 100644
  
    context.endian = Context::Endian::Big;
    context.mode = Context::Mode::Kernel;
+diff --git a/ares/n64/cpu/cpu.hpp b/ares/n64/cpu/cpu.hpp
+index 3c0be63..9fd1fbe 100644
+--- a/ares/n64/cpu/cpu.hpp
++++ b/ares/n64/cpu/cpu.hpp
+@@ -146,6 +146,7 @@ struct CPU : Thread {
+       auto& line = this->line(vaddr);
+       if(!line.hit(paddr)) {
+         self.profile.icacheMisses++;
++        { extern u64 gpsp_imiss_hist[128]; gpsp_imiss_hist[(paddr >> 16) & 127]++; }
+         line.fill(paddr, cpu);
+       } else {
+         self.profile.icacheHits++;
+@@ -157,6 +158,7 @@ struct CPU : Thread {
+       auto& line = this->line(vaddr);
+       if(!line.hit(paddr)) {
+         self.profile.icacheMisses++;
++        { extern u64 gpsp_imiss_hist[128]; gpsp_imiss_hist[(paddr >> 16) & 127]++; }
+         line.fill(paddr, cpu);
+       } else {
+         self.profile.icacheHits++;
+@@ -346,6 +348,10 @@ struct CPU : Thread {
+   auto jitIcacheFillMiss(u64 vaddr, u32 paddr) -> void {
+     auto& line = icache.line(vaddr);
+     profile.icacheMisses++;
++    /* gpsp64: this, not ICache::fetch/jitFetch, is where misses land when
++     * the recompiler is driving -- the emitted tag check calls straight
++     * here.  Histogram the same way, or IMISSHIST reports nothing. */
++    { extern u64 gpsp_imiss_hist[128]; gpsp_imiss_hist[(paddr >> 16) & 127]++; }
+     line.fill(paddr, *this);
+   }
+   template<u32 Size> auto busWrite(u32 address, u64 data) -> void;
 diff --git a/ares/n64/cpu/dcache.cpp b/ares/n64/cpu/dcache.cpp
-index 4de28e0..85ea1cf 100644
+index 4de28e0..67d8bf0 100644
 --- a/ares/n64/cpu/dcache.cpp
 +++ b/ares/n64/cpu/dcache.cpp
-@@ -3,7 +3,42 @@ auto CPU::DataCache::Line::hit(u32 paddr) const -> bool {
+@@ -3,7 +3,51 @@ auto CPU::DataCache::Line::hit(u32 paddr) const -> bool {
    return valid() && (tagKey & ~1u) == t;
  }
  
 +u64 gpsp_dmiss_hist[128] = {0};
++/* gpsp64: the same histogram for the INSTRUCTION cache.  The aggregate
++ * IMISS line says ~7% of fetches miss and, at 48 cycles a fill, that those
++ * stalls cost several times what issuing the instructions does -- but not
++ * *whose* instructions.  That distinction decides a real question for the
++ * port: the dynarec's generated code lives in rom_translation_cache while
++ * the emulator's own C is in .text, and shrinking generated code is only
++ * worth doing if generated code is what is actually missing.  Bucketed by
++ * 64KB of physical address the two land in disjoint buckets. */
++u64 gpsp_imiss_hist[128] = {0};
 +u32 gpsp_misspc[512] = {0}; u32 gpsp_misscnt[512] = {0};
 +u64 gpsp_dmiss_total = 0, gpsp_dwb_total = 0;
 +u64 gpsp_dmiss_fine[8192] = {0};
@@ -332,7 +401,7 @@ index 4de28e0..85ea1cf 100644
    cpu.step(40 * 2);
    const u32 tag = paddr & ~0x0000'0fffu;
    dirty  = 0;
-@@ -13,6 +48,7 @@ auto CPU::DataCache::Line::fill(u32 paddr) -> void {
+@@ -13,6 +57,7 @@ auto CPU::DataCache::Line::fill(u32 paddr) -> void {
  }
  
  auto CPU::DataCache::Line::writeBack() -> void {
@@ -432,7 +501,7 @@ index f362ef6..762869c 100644
  }
  
 diff --git a/ares/n64/cpu/recompiler.cpp b/ares/n64/cpu/recompiler.cpp
-index 9ff94ea..c0230c4 100644
+index 9ff94ea..ad9b7f5 100644
 --- a/ares/n64/cpu/recompiler.cpp
 +++ b/ares/n64/cpu/recompiler.cpp
 @@ -556,6 +556,14 @@ auto buildEmitPlan(ares::Nintendo64::CPU::Recompiler& recompiler, u64 vaddr, u32
@@ -450,6 +519,22 @@ index 9ff94ea..c0230c4 100644
    // Phase 0: initialize emit state and clear temporary outputs.
    emitStateKey = stateKey;
    emitStateKeyChanged = false;
+@@ -821,6 +829,15 @@ auto CPU::Recompiler::emit(u64 vaddr, u32 address, u64 stateKey) -> Block* {
+         const u32 ramByteOff = sdram ? (burst & 0xffffffu) : burst;
+         if(system.homebrewMode) {
+           add64(ProfileIcacheMissesMem, ProfileIcacheMissesMem, imm(1));
++          /* gpsp64: attribute the miss by 64KB of physical address.  This
++           * refill is emitted fully inline -- icacheFillLine is only called
++           * on the non-identity-map path -- so the histogram has to be an
++           * emitted increment too.  slow.icachePaddr is a compile-time
++           * constant here, so the bucket's address is one as well and this
++           * costs a single add on the miss path, like the counter above. */
++          { extern u64 gpsp_imiss_hist[128];
++            const sljit_sw slot = (sljit_sw)(uintptr_t)&gpsp_imiss_hist[(slow.icachePaddr >> 16) & 127];
++            add64(mem0(slot), mem0(slot), imm(1)); }
+           if(!sdram) add64(mem0(RdramRbusIcacheReadsAddr), mem0(RdramRbusIcacheReadsAddr), imm(ICache));
+         }
+         emitCpuStep(96);
 diff --git a/ares/n64/memory/bus.hpp b/ares/n64/memory/bus.hpp
 index 3673082..efc247d 100644
 --- a/ares/n64/memory/bus.hpp
