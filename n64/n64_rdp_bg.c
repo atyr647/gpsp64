@@ -425,6 +425,43 @@ void n64_rdpbg_add(int x, int y, int y0, int y1, u32 vt, u32 pal, u32 flip)
  * palettes.  Kept zeroed between calls so it never has to be memset. */
 static u16 rdpbg_count[96 * 16];
 #define RDPBG_MAX_KEYS 64
+/* The counting sort's output: indices, not records.
+ *
+ * Carrying the 8-byte record through the sort instead was tried, on the
+ * theory that it would remove two things at once -- the emit loop's
+ * random walk back through these indices over ~10KB of rdpbg_draws
+ * against an 8KB D-cache, and (on the RSP path) the 8-byte copy into a
+ * staging buffer that exists only because the sorted records are not
+ * contiguous.  Both of those did go away, and it was still not worth it:
+ *
+ *                     sort    emit     sum
+ *   index sort        0.82    2.36    3.18 ms
+ *   record sort       1.52    1.73    3.25 ms
+ *
+ * The emit side fell by 0.63 ms exactly as expected.  The sort side rose
+ * by 0.70 and ate it.  The reason is the same 8KB D-cache at both ends:
+ * the placement pass writes 9.7KB of records to as many cursors as there
+ * are live keys, and every 16-byte line it touches costs a fetch it does
+ * not need (the line is about to be fully overwritten) plus a writeback.
+ * Moving work between the two passes does not help, because the cost is
+ * the pass over 10KB, not which pass it is in.
+ *
+ * It also introduced a race worth remembering: rdpbg_sorted would be
+ * rewritten by the next flush()'s sort while the RSP still had batches
+ * from this one in flight -- flush() deliberately leaves its last batch
+ * pending, and up to RDPBG_RSP_DEPTH can be outstanding.  The staging
+ * ring is what makes that safe today.  The RDP's pixel counter caught it
+ * without any visible symptom: 38,952 px/sync against the CPU path's
+ * 38,933.  That counter is the check to run on anything that changes what
+ * the RSP reads.
+ *
+ * What would actually help is not materialising a sorted list at all:
+ * bucket the records as the tilemap walk produces them, into a chained
+ * block per (slice,palette) key, so the sort pass and the gather both
+ * disappear and the walk's existing write pass becomes the only one.
+ * That is one pass over 10KB where there are now three.  -DRDPBG_LPROBE=2
+ * puts the floor of the remaining emit loop at 0.94 ms of the 2.36, so
+ * the reachable prize is around 1.2-1.5 ms of a 22 ms frame. */
 static u16 rdpbg_order[RDPBG_MAX_DRAWS];
 
 /* Internal helper tile used only to DMA a slice into TMEM -- see
