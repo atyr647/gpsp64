@@ -966,6 +966,17 @@ int main(void)
               debugf("PROF:  jit: %lu total ROM translation cache flushes since boot\n",
                      (unsigned long)prof_jit_flush); }
 #ifdef N64_AUDIO_VERIFY
+#ifdef N64_SNDPROF
+            { extern u32 prof_sndtimer_calls, prof_sndtimer_iters, prof_gbcrender_calls;
+              debugf("PROF:  snd: sound_timer %lu calls/frame -> %lu samples "
+                     "(%lu.%02lu per call); render_gbc_sound %lu calls/frame\n",
+                     (unsigned long)(prof_sndtimer_calls / 60),
+                     (unsigned long)(prof_sndtimer_iters / 60),
+                     (unsigned long)(prof_sndtimer_calls ? prof_sndtimer_iters / prof_sndtimer_calls : 0),
+                     (unsigned long)(prof_sndtimer_calls ? (prof_sndtimer_iters * 100 / prof_sndtimer_calls) % 100 : 0),
+                     (unsigned long)(prof_gbcrender_calls / 60));
+              prof_sndtimer_calls = prof_sndtimer_iters = prof_gbcrender_calls = 0; }
+#endif
             { extern u32 prof_audio_gap, prof_audio_gapmax;
               debugf("PROF:  audio: mixer is %lu samples ahead of playback "
                      "(peak %lu of %d ring)\n", (unsigned long)prof_audio_gap,

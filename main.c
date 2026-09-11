@@ -650,6 +650,24 @@ bool main_read_savestate(const u8 *src)
       bson_read_int32(p, "irq", &timer[i].irq) &&
       bson_read_int32(p, "status", &timer[i].status)))
       return false;
+
+    /* frequency_step is not state, it is a cached conversion between the
+     * timer's reload and the host's mixing rate -- (GBC_BASE_RATE /
+     * sound_frequency) / reload, computed when the game writes the timer
+     * registers.  Restoring the stored value bakes the mixing rate of
+     * whatever build wrote the savestate into every later run of it.
+     *
+     * That is not hypothetical: lowering GBA_SOUND_FREQUENCY from 64 KHz
+     * to 22,050 made render_gbc_sound 2.5x cheaper (it reads
+     * sound_frequency at runtime) and left sound_timer untouched, because
+     * every benchmark boots from a savestate captured under the old rate.
+     * Worse than a missed optimisation: the ring then advanced at the new
+     * rate while DirectSound wrote at the old one, so the two lapped each
+     * other.  Recompute it from the reload, which is real state. */
+    if (timer[i].reload)
+      timer[i].frequency_step =
+        float_to_fp8_24((GBC_BASE_RATE / (float)sound_frequency)
+                        / (float)timer[i].reload);
   }
 
   return true;

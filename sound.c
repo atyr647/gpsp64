@@ -27,6 +27,10 @@ const u32 sound_frequency = GBA_SOUND_FREQUENCY;
 
 u32 sound_on;
 static s16 sound_buffer[BUFFER_SIZE];
+#ifdef N64_SNDPROF
+u32 prof_sndtimer_calls = 0, prof_sndtimer_iters = 0, prof_gbcrender_calls = 0;
+#endif
+
 
 /* With audio output off, fold every access into the first 1KB.
  *
@@ -76,6 +80,14 @@ void sound_timer_queue32(u32 channel, u32 value)
 
 unsigned sound_timer(fixed8_24 frequency_step, u32 channel)
 {
+#ifdef N64_SNDPROF
+  /* How the mixer's cost is actually shaped: the per-output-sample loop
+   * (which an RSP mixer could take) or the per-call overhead of the FIFO
+   * state machine (which it could not -- the FIFO drains on emulated time
+   * and its refill is observable to the game)?  Counting both answers it;
+   * the profile share alone cannot. */
+  prof_sndtimer_calls++;
+#endif
   int ret = 0;
   u32 sample_status = DIRECT_SOUND_INACTIVE;
   direct_sound_struct *ds = &direct_sound_channel[channel];
@@ -155,6 +167,10 @@ unsigned sound_timer(fixed8_24 frequency_step, u32 channel)
         break;
   }
 
+#ifdef N64_SNDPROF
+  { u32 adv = (buffer_index - ds->buffer_index) & BUFFER_SIZE_MASK;
+    prof_sndtimer_iters += adv >> 1; }
+#endif
   ds->buffer_index = buffer_index;
   ds->fifo_fractional = fp8_24_fractional_part(fifo_fractional);
 
@@ -438,6 +454,9 @@ void render_gbc_sound()
     return;
 
   gbc_update_count++;
+#ifdef N64_SNDPROF
+  prof_gbcrender_calls++;
+#endif
   gbc_sound_partial_ticks += fp16_16_fractional_part(buffer_ticks);
   buffer_ticks = fp16_16_to_u32(buffer_ticks);
 
