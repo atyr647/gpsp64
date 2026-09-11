@@ -48,6 +48,18 @@
  *
  * tools/hotchain.py checks a linked ELF and reports any index overlap
  * that survives.
+ *
+ * Do not grow this group on the theory that more hot code in it is
+ * better.  It was tried: adding the next seven functions the cycle
+ * profile named -- sound_timer, the three block_lookup_address entries,
+ * check_and_raise_interrupts, write_io_register32, translate_icache_sync,
+ * 1,888 bytes in all -- took the group from 62% of the cache to 74% and
+ * made the emulation path *slower* at all three .text layouts swept
+ * (+5.6%, +0.7%, +1.3%).  The group's footprint is index space claimed
+ * against everything outside it, and what is already inside is the
+ * hottest code in the emulator, so the marginal cost of each addition is
+ * paid by update_gba and update_scanline.  62% is a measured operating
+ * point, not a budget with room in it.
  */
 
 #ifndef N64_HOTCHAIN_H

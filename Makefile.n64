@@ -129,12 +129,33 @@ CFLAGS += $(N64_RDP)
 # buffer rdpq_exec() hands to the RDP, rather than rspq's own per-rectangle
 # uncached path.
 #
-# OFF by default -- verified correct in isolation (byte-identical output
-# against a CPU reference over synthetic edge cases, see
-# n64_rsp_rdpbg_selftest() behind -DN64_RSP_RDPBG_TEST) but not yet
-# measured live, wired through the async one-batch-deep pipeline in
-# n64_rdpbg_flush().  See docs/DYNAREC.md.
-N64_RSP_RDPBG_LIVE ?=
+# ON by default.  It was off while "verified correct in isolation but not
+# measured live"; both halves of that are now settled.
+#
+# Correct: n64_rsp_rdpbg_selftest() (behind -DN64_RSP_RDPBG_TEST) still
+# reports PASS, 0 mismatches against the CPU reference, and live in the
+# overworld the screen-coverage canary is identical either way -- 160 rows,
+# 100% of screen, 21 TMEM slices, 27 palette groups, 4 sprites, 3 TLUT
+# swaps, 60/60 frames accepted.  The one figure that differs is the tile
+# count, 1216 -> 1257, and that is by design: the RSP emits a fixed 16
+# bytes per tile whether it keeps it or not (that is what lets the CPU
+# reserve a batch's footprint without waiting), so the 41 extra are
+# degenerate zero-width rectangles the RDP discards.
+#
+# Measured: a single A/B could not see it, because the flag adds ~1.5KB of
+# .text and that alone moves the frame by more than the effect -- the
+# emulation path swung -6.7% to +2.6% across layouts with the renderer
+# held constant.  Swept over three .text sizes with -DN64_TEXTPAD, the
+# blit is lower at every one:
+#
+#   pad        baseline blit   RSP live blit
+#      0         18.53M          16.84M     -9.1%
+#   2048         18.18M          17.18M     -5.5%
+#   6144         18.59M          17.13M     -7.9%
+#
+# The blit is ~29% of the frame, so that is worth about 2% overall.  Set
+# N64_RSP_RDPBG_LIVE= to build without it.
+N64_RSP_RDPBG_LIVE ?= -DN64_RSP_RDPBG_LIVE
 CFLAGS += $(N64_RSP_RDPBG_LIVE)
 
 # The RDP renderer takes the RSP blit with it: rspq is a command
