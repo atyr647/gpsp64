@@ -3328,6 +3328,25 @@ static void rdpbg_frame_end(void)
   s32 pr;
 
   if (!rdpbg_active) return;
+#ifdef N64_ABLATE_RDPBG
+  /* Ablation, not an option: skip everything this function does -- the
+   * tilemap walk, the sort, the command emission -- and draw nothing.
+   *
+   * It answers one question that the cycle profile cannot: what the frame
+   * would cost if display-list generation were not on the VR4300 at all.
+   * The profile says the renderer is ~33% of the frame, but some of that
+   * (the rdpq state calls, the command-buffer writeback) would stay on the
+   * CPU however the work were split, so the profile share is an upper
+   * bound and this is the floor.  The truth for any given design sits
+   * between them.
+   *
+   * Emulation is unaffected: this function is output-only.  Everything the
+   * game can observe -- n64_rdp_row[], the layer snapshot, scanline state
+   * -- is computed in update_scanline before this runs.  The screen shows
+   * the backdrop; the canary is expected to report no rows drawn. */
+  rdpbg_active = 0;
+  return;
+#endif
 
   for (y = 0; y < 160; y++) if (n64_rdp_row[y]) nrows++;
   if (!nrows) { rdpbg_active = 0; return; }
