@@ -1200,3 +1200,129 @@ pass:
 - **Repo hygiene, not performance**: 14 old bisection-experiment `.z64`
   files (`gpsp_add1-8.z64`, `gpsp_bisect_*.z64`, `gpsp_cyc20_*.z64`) are
   checked into the repo root. Noted, not touched.
+
+## ARM dead-flag elimination: built correctly, measured as a regression, reverted
+
+Picked up the first "parked for later" item: dynarec code-generation
+quality. Of the three things named as the real remaining lever (register
+allocation, redundant flag computation, per-opcode instruction
+sequences), register allocation turned out to be a non-issue on
+inspection -- `arm_to_mips_reg[]` is a fixed 1:1 mapping, ARM r0-r14 each
+permanently own a MIPS register, and there is no spill/reload traffic to
+optimise. Flag computation was the real target: Thumb already has a
+working dead-flag elimination pass (`thumb_dead_flag_eliminate()`,
+`cpu_threaded.c`), but ARM's equivalent has been a stub since this port's
+original x86 codebase --
+
+    // For now this just sets a variable that says flags should always be
+    // computed.
+    #define arm_dead_flag_eliminate()  flag_status = 0xF
+
+-- meaning every `S`-suffixed ARM data-processing instruction
+(`ADDS`/`SUBS`/`CMP`/`ANDS`/...) has always paid for computing all four
+condition flags, whether or not anything downstream ever reads them.
+
+### What was built
+
+A full classifier, `arm_flag_status()`, populating the same
+`block_data[].flag_data` triple (may-modify / must-modify / uses) the
+existing, working Thumb liveness pass already consumes -- so the backward
+liveness algorithm itself needed no changes, just real per-instruction
+input for ARM instead of a constant. Built via two research passes over
+`cpu_threaded.c`'s actual `translate_arm_instruction()` dispatch (not the
+ARM ISA reference in the abstract, since what matters is matching what
+the existing emitter *actually* generates) covering every one of its
+`(opcode>>20)&0xFF` cases, cross-checked line by line against:
+
+  - the logical/arithmetic split (`AND,EOR,TST,TEQ,ORR,MOV,BIC,MVN` vs
+    `SUB,RSB,ADD,ADC,SBC,RSC,CMP,CMN`), since only the logical group's C
+    flag comes from the barrel shifter (and thus can be "maybe" rather
+    than "always" set) while the arithmetic group's N/Z/C/V all come
+    unconditionally from the ALU adder;
+  - `ADC`/`SBC`/`RSC` additionally needing C as an input, not just an
+    output;
+  - the shift-carry determinism rules (register-specified shift amount:
+    always "maybe"; `LSL#0`: a true no-op, C untouched; any other
+    immediate shift, including the `LSR#32`/`ASR#32`/`RRX`
+    encoded-zero-means-32 special cases: deterministic);
+  - a real, pre-existing gap found along the way: `TST`/`TEQ` with an
+    immediate operand never actually get C from the rotation in this
+    codebase at all (`generate_op_tst_imm`/`teq_imm` route through the
+    plain `_ands`/`_eors` imm helpers, which have no carry-out code path)
+    -- not something this change introduced, and harmless to mark
+    conservatively regardless;
+  - every instruction class capable of writing PC (data processing with
+    `Rd==15`, `LDR`/halfword loads, `LDM` with PC in the register list,
+    `B`/`BL`/`BX`, `SWI`), which needs every flag conservatively marked
+    "needed" per the same rule the liveness algorithm's own comment
+    states: "for any instruction that changes PC ... it is unknown what
+    flags will be needed after it arrives at its destination";
+  - ARM's own biggest wrinkle Thumb never had to deal with: almost any
+    instruction can be conditionally executed based on the *current*
+    flags, so anything with `condition != AL` conservatively needs all
+    four flags valid on entry, independent of what the instruction itself
+    computes.
+
+Caught and fixed one real bug in my own derivation before it ever reached
+a build: an early draft's logical-vs-arithmetic split used a numeric
+range check (`op_alu<8 || op_alu>=0xC`) that silently misrouted `TST`/`TEQ`
+(ALU-op values 8 and 9) into the arithmetic group. Replaced with an
+explicit bitmask membership test (`(0xF303 >> op_alu) & 1`) verified
+against the full 16-value ALU-op enumeration by hand before writing any
+of it into the actual file.
+
+### Correctness: verified, not assumed
+
+This is the highest-stakes change made in this whole line of work --
+unlike a rendering bug, a wrong flag elimination silently corrupts GBA
+*game logic*, not just pixels, and might not surface for many frames.
+Built, then run on ares for 40 PROF windows (2400 frames) from the
+overworld savestate, comparing every available signal against this
+project's already-established, repeatedly-confirmed baseline values for
+this exact scene:
+
+  - RDP canary: **100% of screen, 1257 tiles, 21 TMEM slices, 27 palette
+    groups, in every single one of 32 steady windows** -- bit-for-bit
+    identical to the pre-change baseline, no drift.
+  - `5 HLE SWI dispatches/frame, 1 m4a code-change flush` -- identical to
+    baseline in every window.
+  - `4 total ROM translation cache flushes since boot` -- identical.
+  - RSP selftest: PASS, 0 mismatches (unrelated to this change, but
+    reconfirms nothing else broke).
+
+No crash, no hang, no divergence on any counter this project has
+instrumented. Correct, as far as this savestate and this tooling can
+show it.
+
+### Performance: a real regression, controlled A/B
+
+First look (uncontrolled, comparing against an earlier turn's numbers)
+suggested a small win. Rerun as a proper controlled A/B instead --
+`git stash` the change, rebuild, bench the *exact* same 40-window
+overworld scene, compare:
+
+| build | frame time | FPS |
+|---|---|---|
+| baseline (flags always computed) | 24.0 ms/f | 41.7 |
+| ARM dead-flag elimination | 25.0 ms/f | 40.0 |
+
+A real, reproducible **regression of ~1 ms/frame (~4%)**, not noise --
+same sample size, same scene, only the classifier differing. Likely
+cause: ARM compilers lean on conditional execution (if-conversion) far
+more heavily than Thumb ever could, and this classifier's conservative
+"conditionally executed -> needs all four flags" rule (necessary for
+correctness, not optional) means a large fraction of real ARM
+data-processing instructions end up requiring every flag anyway, gaining
+nothing from the classification while still paying for it: the
+classifier's own translate-time cost, and ~22 KB of new generated-code
+size in `cpu_threaded.o` shifting where other, unrelated hot code lands
+in the VR4300's direct-mapped 16 KB I-cache -- the same layout-sensitivity
+this project has hit and documented before (`docs/CACHE_PROFILING.md`,
+the `N64_STUBPAD` numbers earlier in this file).
+
+**Reverted.** The diagnosis (register allocation is a non-issue, flag
+computation is the real ARM gap, Thumb's machinery is a proven, reusable
+template) stands and is recorded here for whoever revisits this; the
+actual classifier code was not kept in the tree given it is a net loss on
+the one workload available to test it. A full working copy (the exact
+diff that produced the numbers above) is not part of this commit.
