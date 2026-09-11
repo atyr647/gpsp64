@@ -467,10 +467,36 @@ n64/aot_generated.o: CFLAGS += $(AOT_OPT)
 # memory_map_read table -- a further, smaller win (~0.3 ms/frame) once the
 # opt-level fix has been applied.
 #
-# Even with both, the hybrid (28.0 ms/frame) is not clearly faster than
-# the dynarec alone (27.6-27.7 ms/frame): the gap is inside this branch's
-# established ~2.2% layout-noise floor (see N64_STUBPAD in mips/mips_emit.h
-# and docs/DYNAREC.md).  -DN64_JIT_AOT stays off by default.
+# Even with both, the hybrid (28.0 ms/frame) was not clearly faster than
+# the dynarec alone (27.6-27.7 ms/frame), and that was read at the time as
+# "inside the ~2.2% layout-noise floor" -- i.e. undecided.
+#
+# RE-MEASURED, and it is decided: the hybrid is much slower.  One A/B
+# could not say so because the real layout swing is up to 10%, not 2.2%
+# (see n64/n64_hotchain.h), so a single pair of builds cannot resolve a
+# difference of this size in either direction.  Swept over three .text
+# sizes with -DN64_TEXTPAD, median COUNT ticks per window:
+#
+#   pad      dynarec            hybrid             total    emu
+#      0   63.54M / 46.49M    72.61M / 55.71M     +14.3%  +19.8%
+#   2048   63.89M / 45.95M    73.70M / 55.25M     +15.3%  +20.2%
+#   6144   64.21M / 46.83M    72.03M / 54.42M     +12.2%  +16.2%
+#
+# (total / emu.)  The emulation path is 16-20% slower at every layout.
+# That is not the same verdict as before because the dynarec is not the
+# same dynarec: it has since gained the ibcache, the stub ordering and the
+# hot-chain placement, so AOT's native C is now competing against
+# translated code that is genuinely fast, and it loses -- while still
+# paying the aot_hook round trip on every covered block entry.
+#
+# -DN64_JIT_AOT stays off, now for a measured reason rather than an
+# undecided one.  Note what that leaves behind: cpu.cc references
+# aot_page_tab unconditionally under N64, so the linker keeps all 690
+# generated functions -- 554 KB, 44% of .text -- in every default ROM,
+# and the interpreter that would dispatch them executes zero instructions
+# per window (prof_arm_insns/prof_thumb_insns are always-on and read 0).
+# It is dead weight in this configuration, though removing it would also
+# remove the interpreter's AOT fallback for scenes the dynarec declines.
 
 # Same knob for the interpreter alone.  cpu.cc is one enormous switch per
 # instruction set, and a host-side PC profile (GPSP_PCPROF, see
