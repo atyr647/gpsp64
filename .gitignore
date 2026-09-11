@@ -40,3 +40,4 @@ n64/.aot_pcs.tmp
 # ares.log got copied into every build and published as that run"s result.
 ares.log
 run.log
+n64/.aot_mode

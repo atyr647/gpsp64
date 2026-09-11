@@ -662,15 +662,62 @@ AOT_TOOLS   = tools/thumb2c.py tools/find_thumb_funcs.py tools/scan_targets.py
 # so the hand-written fast paths are not shadowed.
 AOT_EXCLUDE = --exclude 0x0806F160 --exclude 0x08005ED8
 
+# N64_AOT= builds the empty stub instead of scanning the ROM.
+#
+# The AOT corpus is only reachable from the interpreter and from
+# -DN64_JIT_AOT, and neither runs in the default build: the hybrid is off
+# (measured 12-15% slower, see above) and prof_arm_insns/prof_thumb_insns
+# are always-on counters that read 0 per window.  So its 690 functions are
+# 554 KB of .text that nothing executes.
+#
+# Dead weight would be tolerable.  Nondeterministic dead weight is not.
+# How much of the corpus survives --gc-sections depends on unrelated build
+# flags -- -DN64_AUDIO_OUT alone takes it from 690 functions to 307, a 400
+# KB swing in .text -- and .text size drives a frame-time lottery worth up
+# to 10% (see n64/n64_hotchain.h).  Any A/B between two builds that differ
+# by a flag was therefore comparing two layouts as much as two code paths.
+# Turning the corpus off removes the variable: with it off, .text differs
+# by 1,024 bytes between the silent and -DN64_AUDIO_OUT builds (829,972 vs
+# 830,996) instead of by 398,000.
+#
+# What it is NOT is a reliable speedup.  Swept over three .text sizes with
+# audio on, removing it measured -10.1%, +4.9%, -3.1% -- a ~3% median
+# improvement inside a spread larger than itself.  The -10.1% at the first
+# layout was a lucky roll, which is exactly the trap this switch exists to
+# get out of.  The pad-dependent lottery is untouched and is inherent; only
+# the flag-dependent one is fixed.
+#
+# Default off: the corpus is unreachable in every supported configuration
+# (the interpreter executes 0 instructions per window, and the hybrid that
+# would dispatch it is 12-15% slower -- see above), the addresses in
+# n64/aot_targets.txt are Pokemon Emerald specific, and it is 554 KB, 42%
+# of .text.  N64_AOT=1 brings it back for anyone reviving the hybrid.
+# The hand-written AOTs in n64/aot_hle.c and the native m4a mixer are
+# separate and unaffected.
+N64_AOT ?=
+
+# ...which needs the generated file to depend on the setting, not just on
+# the targets file and tools.  Without this, flipping N64_AOT changes
+# nothing: make sees aot_generated.c newer than its prerequisites and
+# never runs the recipe, so the switch silently does nothing at all (it
+# did, the first time).  A stamp file holding the current value, rewritten
+# only when it actually changes, makes the dependency real without forcing
+# a regeneration on every build.
+n64/.aot_mode: FORCE
+	@echo '$(N64_AOT)' | cmp -s - $@ 2>/dev/null || echo '$(N64_AOT)' > $@
+.PHONY: FORCE
+FORCE:
+
 # NOTE: the ROM is deliberately not a prerequisite (see above); the
 # targets file and tools drive regeneration.
-n64/aot_generated.c: $(AOT_TARGETS) $(AOT_TOOLS)
+n64/aot_generated.c: $(AOT_TARGETS) $(AOT_TOOLS) n64/.aot_mode
 	@ROM=""; \
 	for f in filesystem/gba/*.gba *.gba; do \
 	  [ -f "$$f" ] && { ROM="$$f"; break; }; \
 	done; \
+	if [ -z "$(N64_AOT)" ]; then ROM=""; fi; \
 	if [ -z "$$ROM" ]; then \
-	  if grep -q 'aot_gen_' $@ 2>/dev/null; then \
+	  if [ -n "$(N64_AOT)" ] && grep -q 'aot_gen_' $@ 2>/dev/null; then \
 	    echo "    [AOT] no ROM found; keeping existing $@ (not clobbering)"; \
 	    touch $@; \
 	  else \

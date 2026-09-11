@@ -5,7 +5,7 @@ Merging object attributes
 Discarded input sections
 
  .MIPS.abiflags
-                0x00000000       0x18 /tmp/ccfIGEOS.o
+                0x00000000       0x18 /tmp/cckx9qMX.o
 
 Memory Configuration
 
@@ -19,46 +19,40 @@ ram_text         0xa4001000         0x00001000
 Linker script and memory map
 
 
-.text           0xa4001000      0x690 load address 0x00001000
+.text           0xa4001000      0x438 load address 0x00001000
                 0xa4001000                        _start = .
  *(.text)
- .text          0xa4001000      0x690 /tmp/ccfIGEOS.o
-                0xa4001098                expand_entry
-                0xa4001194                palette_entry
-                0xa4001228                composite_entry
-                0xa40013c0                comppal_entry
-                0xa4001530                blit_entry
+ .text          0xa4001000      0x438 /tmp/cckx9qMX.o
  *(.text.*)
-                0xa4001690                        _text_end = .
+                0xa4001438                        _text_end = .
 
-.data           0xa4000000      0x130 load address 0x00000000
+.data           0xa4000000      0x228 load address 0x00000000
  *(.data)
- .data          0xa4000000      0x130 /tmp/ccfIGEOS.o
-                0xa4000000                CTRL
+ .data          0xa4000000      0x228 /tmp/cckx9qMX.o
  *(.data.*)
-                0xa4000130                        _data_end = .
-                0xa4000130                        . = ALIGN (0x8)
+                0xa4000228                        _data_end = .
+                0xa4000228                        . = ALIGN (0x8)
 
-.bss            0xa4000130        0x0 load address 0x00000130
+.bss            0xa4000230      0xc04 load address 0x00000228
  *(.bss)
- .bss           0xa4000130        0x0 /tmp/ccfIGEOS.o
+ .bss           0xa4000230      0xc04 /tmp/cckx9qMX.o
  *(.bss.*)
                 [!provide]                        PROVIDE (__load_start_bss = LOADADDR (.bss))
                 [!provide]                        PROVIDE (__load_stop_bss = (LOADADDR (.bss) + SIZEOF (.bss)))
 
-.bssovl1        0xa4000130        0x0 load address 0x00000130
+.bssovl1        0xa4000230        0x0 load address 0x00000228
  *(.bssovl1)
  *(.bssovl1.*)
                 [!provide]                        PROVIDE (__load_start_bssovl1 = LOADADDR (.bssovl1))
                 [!provide]                        PROVIDE (__load_stop_bssovl1 = (LOADADDR (.bssovl1) + SIZEOF (.bssovl1)))
 
-.bssovl2        0xa4000130        0x0 load address 0x00000130
+.bssovl2        0xa4000230        0x0 load address 0x00000228
  *(.bssovl2)
  *(.bssovl2.*)
                 [!provide]                        PROVIDE (__load_start_bssovl2 = LOADADDR (.bssovl2))
                 [!provide]                        PROVIDE (__load_stop_bssovl2 = (LOADADDR (.bssovl2) + SIZEOF (.bssovl2)))
 
-.bssovl3        0xa4000130        0x0 load address 0x00000130
+.bssovl3        0xa4000230        0x0 load address 0x00000228
  *(.bssovl3)
  *(.bssovl3.*)
                 [!provide]                        PROVIDE (__load_start_bssovl3 = LOADADDR (.bssovl3))
@@ -66,18 +60,18 @@ Linker script and memory map
 
 /DISCARD/
  *(.MIPS.abiflags)
-LOAD /tmp/ccfIGEOS.o
+LOAD /tmp/cckx9qMX.o
 LOAD /home/user/gpsp64/toolchain/opt/libdragon/bin/../lib/gcc/mips64-elf/16.2.0/libgcc.a
 LOAD /home/user/gpsp64/toolchain/opt/libdragon/bin/../lib/gcc/mips64-elf/16.2.0/libgcc.a
-OUTPUT(rsp_gbascan.o elf32-bigmips)
+OUTPUT(rsp_rdpbg.o elf32-bigmips)
 
 .reginfo        0x00000000       0x18
- .reginfo       0x00000000       0x18 /tmp/ccfIGEOS.o
+ .reginfo       0x00000000       0x18 /tmp/cckx9qMX.o
 
 .pdr            0x00000000        0x0
- .pdr           0x00000000        0x0 /tmp/ccfIGEOS.o
+ .pdr           0x00000000        0x0 /tmp/cckx9qMX.o
 
 .gnu.attributes
                 0x00000000       0x10
  .gnu.attributes
-                0x00000000       0x10 /tmp/ccfIGEOS.o
+                0x00000000       0x10 /tmp/cckx9qMX.o
