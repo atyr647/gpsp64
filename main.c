@@ -177,7 +177,7 @@ void init_main(void)
 #endif
 }
 
-u32 function_cc update_gba(int remaining_cycles)
+u32 function_cc N64_HOTCHAIN update_gba(int remaining_cycles)
 {
 #ifdef PROFILE_CYCLES
   u32 _upd_t0 = PROF_TICK();

@@ -574,6 +574,23 @@ OBJS = main.o \
 gpsp.z64: gpsp.elf $(if $(wildcard filesystem/*),gpsp.dfs)
 gpsp.elf: $(OBJS)
 
+# The hot dispatch chain (update_gba -> update_scanline, plus the
+# recompiler trampolines in mips_stub.S) is collected into one linker
+# group so it cannot alias itself in the 16KB direct-mapped I-cache; see
+# n64/n64_hotchain.h.  That guarantee is quiet when it breaks -- a
+# function inlined out of the group, or a chain grown past 16KB, still
+# links and still runs, just several percent slower -- so there is a
+# check for it:
+#
+#     make -f Makefile.n64 checkhot
+#
+# It is deliberately not wired into the link: this is a placement
+# property worth looking at when the chain changes, not a gate on every
+# build.
+.PHONY: checkhot
+checkhot: gpsp.elf
+	@python3 tools/hotchain.py gpsp.elf $(N64_INST)/bin/mips64-elf-
+
 # AOT HLE auto-generation.  Scans the ROM for Thumb function entries
 # in the configured hot regions (n64/aot_targets.txt), translates each
 # to native C via tools/thumb2c.py, and emits n64/aot_generated.c with:

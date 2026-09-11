@@ -20,7 +20,9 @@
 #ifndef VIDEO_H
 #define VIDEO_H
 
-void update_scanline(void);
+#include "n64/n64_hotchain.h"
+
+void N64_HOTCHAIN update_scanline(void);
 void video_reload_counters(void);
 
 extern s32 affine_reference_x[2];

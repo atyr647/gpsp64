@@ -3368,7 +3368,7 @@ static void rdpbg_frame_end(void)
 extern "C" void n64_rdpbg_frame_end(void) { rdpbg_frame_end(); }
 #endif  /* N64_RDP_BG */
 
-void update_scanline(void)
+void N64_HOTCHAIN update_scanline(void)
 {
   u32 pitch = get_screen_pitch();
   u16 dispcnt = read_ioreg(REG_DISPCNT);

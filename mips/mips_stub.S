@@ -49,6 +49,24 @@ symbol:
 symbol:
 
 
+#ifdef N64
+/* gpsp64: every routine in this file is part of the recompiler's dispatch
+ * path -- the cycle-counter trampoline, the indirect-branch cache lookups,
+ * the CPSR helpers -- and all of it runs between translated blocks.  It is
+ * collected, together with update_gba and update_scanline, into the single
+ * keep.text.* group that n64.ld gathers in one place, so the chain is laid
+ * out contiguously and cannot alias itself in the 16KB direct-mapped
+ * I-cache.  See n64/n64_hotchain.h for why contiguity and not alignment.
+ *
+ * The whole file's code goes in, not just the hot entry points, because
+ * mips_update_gba reaches lookup_pc with a 16-bit-displacement bltz:
+ * splitting the file across two output locations could put that target out
+ * of range.  The code is only ~3KB, so keeping it together costs nothing.
+ * The .bss/.data directives further down switch away explicitly and are
+ * unaffected. */
+.section keep.text.gpsp_hotchain,"ax",%progbits
+#endif
+
 .align 4
 
 # MIPS register layout:

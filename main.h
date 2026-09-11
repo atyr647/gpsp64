@@ -22,6 +22,8 @@
 
 #include <stdio.h>
 
+#include "n64/n64_hotchain.h"
+
 #define TIMER_INACTIVE                0
 #define TIMER_PRESCALE                1
 #define TIMER_CASCADE                 2
@@ -82,7 +84,7 @@ void rand_seed(u32 data);
 
 #define cycles_to_run(c) ((c) & 0x7FFF)
 #define completed_frame(c) ((c) & 0x80000000)
-u32 function_cc update_gba(int remaining_cycles);
+u32 function_cc N64_HOTCHAIN update_gba(int remaining_cycles);
 void reset_gba(void);
 
 void init_main(void);
