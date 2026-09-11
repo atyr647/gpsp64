@@ -2976,43 +2976,48 @@ void init_emitter(bool must_swap) {
   emit_saveaccess_stub(&translation_ptr);
 
   // Generate memory handlers
+  //
+  // gpsp64: the order of the entries below, and of the two emission loops
+  // that follow, is a placement decision, not a correctness one.  Each
+  // emitter records its own address into tmemld[]/tmemst[] as it goes and
+  // those tables are only read afterwards (when the JAL table is built), so
+  // any order produces a working emitter.  But the whole stub area is
+  // ~18.2KB against a 16KB direct-mapped I-cache, so its last ~2.2KB share
+  // cache indices with its own first ~2.2KB and evict them.  Whatever is
+  // emitted last is therefore fighting the patch handlers and open-load
+  // stubs at the head of the area for the same lines.
+  //
+  // An I-cache miss histogram bucketed at 1KB (see docs/CACHE_PROFILING.md)
+  // showed the wrapped tail holding st_*.ewram / st_*.iwram -- the hottest
+  // kilobyte in the whole area -- so the two hottest things in the region
+  // were colliding.  So: stores first (every one of them is a region the
+  // game writes constantly), then the loads the game issues constantly
+  // (EWRAM, IWRAM, ROM), and last the loads it almost never issues from
+  // recompiled code (I/O, palette, VRAM, OAM, SRAM -- the renderer reads
+  // those structures directly from C, not through these stubs).  The cold
+  // tail is what wraps.
+  //
+  // One hard constraint: regions 9-11 alias region 8's handler rather than
+  // emitting their own, so 8 must still be emitted before them.
   const t_stub_meminfo ldinfo [] = {
-    { emit_pmemld_stub,  0, 0x4000, false, false, (u32)bios_rom_raw, 0},
-    // 1 Open load / Ignore store
+    // --- hot: the regions recompiled code actually loads from ---
     { emit_pmemld_stub,  2, 0x8000, true,  false, (u32)ewram_raw, 0 },      // memsize wrong on purpose
     { emit_pmemld_stub,  3, 0x8000, true,  false, (u32)&iwram_raw[IWRAM_DATA_OFF], 0 },
+    { emit_pmemld_stub,  8, 0x8000, false, false,  0, 0 },
+    { emit_pmemld_stub,  9, 0x8000, false, false,  0, 0 },                   // aliases region 8
+    { emit_pmemld_stub, 10, 0x8000, false, false,  0, 0 },                   // aliases region 8
+    { emit_pmemld_stub, 11, 0x8000, false, false,  0, 0 },                   // aliases region 8
+    { emit_pmemld_stub, 12, 0x8000, false, false,  0, 0 },
+    { emit_pmemld_stub,  0, 0x4000, false, false, (u32)bios_rom_raw, 0},
+    // --- cold: this is the part that wraps onto the head of the area ---
     { emit_pmemld_stub,  4,  0x400, false, false, (u32)io_registers_raw, 0 },
     { emit_pmemld_stub,  5,  0x400, false, true,  (u32)palette_ram_raw, 0x100 },
     { emit_pmemld_stub,  6,    0x0, false, true,  (u32)vram_raw, 0 },          // same, vram is a special case
     { emit_pmemld_stub,  7,  0x400, false, true,  (u32)oam_ram_raw, 0x900 },
-    { emit_pmemld_stub,  8, 0x8000, false, false,  0, 0 },
-    { emit_pmemld_stub,  9, 0x8000, false, false,  0, 0 },
-    { emit_pmemld_stub, 10, 0x8000, false, false,  0, 0 },
-    { emit_pmemld_stub, 11, 0x8000, false, false,  0, 0 },
-    { emit_pmemld_stub, 12, 0x8000, false, false,  0, 0 },
-    // 13 is EEPROM mapped already (a bit special)
     { emit_pmemld_stub, 14,      0, false, false,  0, 0 },                    // Mapped via function call
-    // 15 Open load / Ignore store
+    // 1 and 15 are Open load / Ignore store
+    // 13 is EEPROM mapped already (a bit special)
   };
-
-  for (i = 0; i < sizeof(ldinfo)/sizeof(ldinfo[0]); i++) {
-    ldhldr_t handler = (ldhldr_t)ldinfo[i].emitter;
-    /*          region  info      signext sz al  isaligned */
-    handler(0, &ldinfo[i], false, 0, 0, false, must_swap, &translation_ptr);  // ld u8
-    handler(1, &ldinfo[i], true,  0, 0, false, must_swap, &translation_ptr);  // ld s8
-
-    handler(2, &ldinfo[i], false, 1, 0, false, must_swap, &translation_ptr);  // ld u16
-    handler(3, &ldinfo[i], false, 1, 1, false, must_swap, &translation_ptr);  // ld u16u1
-    handler(4, &ldinfo[i], true,  1, 0, false, must_swap, &translation_ptr);  // ld s16
-    handler(5, &ldinfo[i], true,  1, 1, false, must_swap, &translation_ptr);  // ld s16u1
-
-    handler(6, &ldinfo[i], false, 2, 0, false, must_swap, &translation_ptr);  // ld u32
-    handler(7, &ldinfo[i], false, 2, 1, false, must_swap, &translation_ptr);  // ld u32u1
-    handler(8, &ldinfo[i], false, 2, 2, false, must_swap, &translation_ptr);  // ld u32u2
-    handler(9, &ldinfo[i], false, 2, 3, false, must_swap, &translation_ptr);  // ld u32u3
-
-    handler(10,&ldinfo[i], false, 2, 0, true,  must_swap, &translation_ptr);  // aligned ld u32
-  }
 
   const t_stub_meminfo stinfo [] = {
     { emit_pmemst_stub, 2, 0x8000, true,  false, (u32)ewram_raw, 0 },
@@ -3031,6 +3036,25 @@ void init_emitter(bool must_swap) {
     handler(1, &stinfo[i], 1, false, &translation_ptr);  // st u16
     handler(2, &stinfo[i], 2, false, &translation_ptr);  // st u32
     handler(3, &stinfo[i], 2, true,  &translation_ptr);  // st aligned 32
+  }
+
+  for (i = 0; i < sizeof(ldinfo)/sizeof(ldinfo[0]); i++) {
+    ldhldr_t handler = (ldhldr_t)ldinfo[i].emitter;
+    /*          region  info      signext sz al  isaligned */
+    handler(0, &ldinfo[i], false, 0, 0, false, must_swap, &translation_ptr);  // ld u8
+    handler(1, &ldinfo[i], true,  0, 0, false, must_swap, &translation_ptr);  // ld s8
+
+    handler(2, &ldinfo[i], false, 1, 0, false, must_swap, &translation_ptr);  // ld u16
+    handler(3, &ldinfo[i], false, 1, 1, false, must_swap, &translation_ptr);  // ld u16u1
+    handler(4, &ldinfo[i], true,  1, 0, false, must_swap, &translation_ptr);  // ld s16
+    handler(5, &ldinfo[i], true,  1, 1, false, must_swap, &translation_ptr);  // ld s16u1
+
+    handler(6, &ldinfo[i], false, 2, 0, false, must_swap, &translation_ptr);  // ld u32
+    handler(7, &ldinfo[i], false, 2, 1, false, must_swap, &translation_ptr);  // ld u32u1
+    handler(8, &ldinfo[i], false, 2, 2, false, must_swap, &translation_ptr);  // ld u32u2
+    handler(9, &ldinfo[i], false, 2, 3, false, must_swap, &translation_ptr);  // ld u32u3
+
+    handler(10,&ldinfo[i], false, 2, 0, true,  must_swap, &translation_ptr);  // aligned ld u32
   }
 
   // Generate JAL tables
