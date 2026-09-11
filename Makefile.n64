@@ -158,6 +158,46 @@ CFLAGS += $(N64_RDP)
 N64_RSP_RDPBG_LIVE ?= -DN64_RSP_RDPBG_LIVE
 CFLAGS += $(N64_RSP_RDPBG_LIVE)
 
+# Bucket draw records by (slice,palette) as the tilemap walk produces them,
+# instead of appending to one list and counting-sorting it afterwards.
+#
+# The old pipeline made three passes over a ~10KB draw list against an 8KB
+# D-cache: the walk wrote it, the sort read it twice (count keys, place
+# indices), and the emit loop read it again through those indices in
+# scattered order, examining every record to find group boundaries.  Every
+# record's group is known when it is produced -- the key is
+# (vt >> 5) << 4 | palette and the walk has both in registers -- so
+# appending straight to that key's bucket removes the sort, the gather,
+# and the emit loop's per-record work all at once: a bucket is one group
+# by construction, so the RSP is handed whole blocks with no CPU pass over
+# their contents.
+#
+# Measured with audio on, over three .text layouts (-DN64_TEXTPAD):
+#
+#                 off        on
+#   sort+emit   3.32 ms    1.56 ms
+#   walk        2.86 ms    3.70 ms
+#   blit        6.23 ms    5.26 ms     -0.97 ms
+#
+# Consistent at every layout (blit 5.26/5.25/5.37 on, 6.23/6.50/6.04 off).
+# Whole-frame time is not resolvable above the layout lottery from three
+# points and is not claimed; blit is what this touches and it is measured
+# directly by the ROM's own COUNT timers.
+#
+# The walk pays 0.84 ms for the bookkeeping.  Two things were needed to
+# keep that from being worse: blocks carry two records of padding so they
+# do not sit exactly 1KB apart and alias in the 8KB D-cache (a dozen
+# buckets have open write cursors at once), and the cold cases -- opening
+# a bucket, chaining a new block -- are out of line, because inlining them
+# grew n64_rdpbg_add from 136 to 788 bytes for a path taken 1216 times a
+# frame.
+#
+# Correctness held throughout: px1/prims, which is run-length independent
+# unlike px/sync, is 61.897 with the flag on and off, and the canary
+# reports the same 160 rows, 100% of screen, 1257 tiles.
+RDPBG_BUCKET ?= -DRDPBG_BUCKET
+CFLAGS += $(RDPBG_BUCKET)
+
 # The RDP renderer takes the RSP blit with it: rspq is a command
 # processor running as RSP ucode, so rsp_gbascan and rdpq cannot both be
 # loaded.  The blit returns to the CPU, where it now only has to convert

@@ -348,7 +348,7 @@ static void rdpbg_rsp_drain_one(void)
  * queue the batch just finished gathering (rsp_gather[rsp_gather_slot],
  * "count" records) as the newest pending one, reserving its output slot
  * in rdpbg_cmds up front. */
-static void rdpbg_rsp_close_batch(u32 count)
+static void rdpbg_rsp_close_batch_from(const rdpbg_draw_t *recs, u32 count)
 {
   void *dst;
   int tail;
@@ -356,13 +356,18 @@ static void rdpbg_rsp_close_batch(u32 count)
     rdpbg_rsp_drain_one();
   dst = &rdpbg_cmds[rdpbg_cw];
   tail = (rsp_pending_head + rsp_pending_count) % RDPBG_RSP_DEPTH;
-  rsp_pending[tail].sp    = n64_rsp_rdpbg_queue(rsp_gather[rsp_gather_slot], count, dst);
+  rsp_pending[tail].sp    = n64_rsp_rdpbg_queue(recs, count, dst);
   rsp_pending[tail].off   = rdpbg_cw;
   rsp_pending[tail].words = count * 4;
   rdpbg_cw += count * 4;
   rsp_pending_count++;
-  rsp_gather_slot = (rsp_gather_slot + 1) % (RDPBG_RSP_DEPTH + 1);
   n64_rdpbg_tiles += count;
+}
+
+static void rdpbg_rsp_close_batch(u32 count)
+{
+  rdpbg_rsp_close_batch_from(rsp_gather[rsp_gather_slot], count);
+  rsp_gather_slot = (rsp_gather_slot + 1) % (RDPBG_RSP_DEPTH + 1);
 }
 #endif /* N64_RSP_RDPBG_LIVE */
 #else
@@ -375,39 +380,6 @@ static void rdpbg_rsp_close_batch(u32 count)
 #define RDPBG_LPROBE 0
 #endif
 
-static int rdpbg_tile_load_ready = 0;
-
-int n64_rdpbg_begin(void)
-{
-  rdpbg_ndraws = 0;
-  rdpbg_tile_load_ready = 0;
-#ifdef N64_RDP_EXEC
-  rdpbg_cw = rdpbg_csent = 0;
-#ifdef N64_RSP_RDPBG_LIVE
-  /* The RSP DMAs its output straight into rdpbg_cmds, bypassing the CPU
-   * D-cache entirely -- so any dirty line left over this buffer from a
-   * previous frame (or, with the flag off, a previous CPU-authored run)
-   * would eventually get evicted and clobber what the RSP just wrote.
-   * One bulk writeback+invalidate per frame, before anything touches the
-   * buffer this frame, rules that out. */
-  data_cache_hit_writeback_invalidate(rdpbg_cmds, sizeof(rdpbg_cmds));
-  rsp_pending_head = rsp_pending_count = 0;
-  rsp_gather_slot = 0;
-#endif
-#endif
-  return 1;
-}
-
-void n64_rdpbg_add(int x, int y, int y0, int y1, u32 vt, u32 pal, u32 flip)
-{
-  rdpbg_draw_t *d;
-  if (rdpbg_ndraws >= RDPBG_MAX_DRAWS) { n64_rdpbg_overflow++; return; }
-  d = &rdpbg_draws[rdpbg_ndraws++];
-  d->x = (s16)x; d->y = (s16)y;
-  d->yy = (u8)(y0 | (y1 << 4));
-  d->pf = (u8)(pal | (flip << 4));
-  d->vt = (u16)vt;
-}
 
 /* Counting sort by (slice, palette).  1024 buckets is 2 KB of counters,
  * cheaper to clear than any comparison sort is to run on 1600 items --
@@ -464,6 +436,167 @@ static u16 rdpbg_count[96 * 16];
  * the reachable prize is around 1.2-1.5 ms of a 22 ms frame. */
 static u16 rdpbg_order[RDPBG_MAX_DRAWS];
 
+#ifdef RDPBG_BUCKET
+/* Bucketing: sort the draws as they are produced, not afterwards.
+ *
+ * The pipeline makes three passes over a ~10KB draw list against an 8KB
+ * D-cache.  The tilemap walk writes it; the counting sort reads it twice
+ * (once to count keys, once to place indices); the emit loop reads it
+ * again through those indices, in scattered order, and examines every
+ * record to find the group boundaries.
+ *
+ * Every record's group is known the moment it is produced -- the key is
+ * (vt >> 5) << 4 | palette, both of which the walk already has in
+ * registers.  Appending straight to that key's bucket collapses all of
+ * it: the sort disappears, the gather disappears, and so does the emit
+ * loop's per-record work, because a bucket is by construction a single
+ * group and the RSP can be handed the whole block with no CPU pass over
+ * its contents at all.
+ *
+ * Buckets are chains of fixed blocks rather than per-key arrays: only a
+ * dozen keys are live in a layer but any one of them could hold all 651
+ * of its tiles, and sizing every key for the worst case is 1536 * 651
+ * records of nothing.  A block is exactly RDPBG_RSP_MAXBATCH records, so
+ * a block is a batch and chaining costs no extra RSP submissions.
+ *
+ * Blocks are allocated round-robin and never freed, which is deliberate.
+ * The RSP DMAs a block after the CPU has moved on, and flush() leaves its
+ * last batch in flight on purpose, so a block must not be rewritten until
+ * well after it was handed over.  Reusing the pool in order guarantees
+ * RDPBG_NBLK allocations between writes to the same block, against a
+ * pipeline at most RDPBG_RSP_DEPTH deep.  (Rewriting records under a
+ * pending batch is not theoretical: it is what the earlier
+ * sorted-records attempt did, and the RDP's pixel counter caught it at
+ * 38,952 px/sync against a reference 38,933.) */
+#define RDPBG_BLK_RECS  RDPBG_RSP_MAXBATCH
+#define RDPBG_NBLK      48
+
+/* Two records of padding per block, and they are not slack: a block is
+ * RDPBG_BLK_RECS * 8 = 1024 bytes, so without padding blocks sit exactly
+ * 1 KB apart and the 8 KB direct-mapped D-cache gives every eighth block
+ * the same index.  A dozen buckets are live at once during the walk, each
+ * with an open write cursor, so a plain array guarantees those cursors
+ * evict each other -- which is what made the walk 1.1 ms more expensive
+ * than the flush saved, the first time this was measured.  A 1040-byte
+ * stride is coprime enough with 8192 to spread them. */
+typedef struct { rdpbg_draw_t r[RDPBG_BLK_RECS]; rdpbg_draw_t pad[2]; } rdpbg_blk_t;
+static rdpbg_blk_t rdpbg_blkbuf[RDPBG_NBLK] __attribute__((aligned(16)));
+#define rdpbg_blk(b) (rdpbg_blkbuf[b].r)
+static u16 rdpbg_blk_n[RDPBG_NBLK];
+static s16 rdpbg_blk_next[RDPBG_NBLK];
+static u32 rdpbg_blk_cursor = 0;
+
+/* Live buckets for the flush being built.  rdpbg_count[] doubles as the
+ * key -> slot map (slot + 1, so zero still means "unused") -- it is
+ * already a 1536-entry u16 table that this file clears by touched entry,
+ * which is exactly what is needed and saves another 3KB. */
+static u16 rdpbg_bkey[RDPBG_MAX_KEYS];
+static s16 rdpbg_bhead[RDPBG_MAX_KEYS];
+static s16 rdpbg_btail[RDPBG_MAX_KEYS];
+static u32 rdpbg_bnk = 0;
+/* Sprites keep the old path: their order is OAM order and bucketing would
+ * destroy it.  There are four of them a frame, so it costs nothing. */
+static int rdpbg_bucketing = 0;
+
+void n64_rdpbg_bucket_mode(int on) { rdpbg_bucketing = on; }
+
+static int rdpbg_blk_alloc(void)
+{
+  u32 b = rdpbg_blk_cursor;
+  rdpbg_blk_cursor = (rdpbg_blk_cursor + 1) % RDPBG_NBLK;
+  rdpbg_blk_n[b] = 0;
+  rdpbg_blk_next[b] = -1;
+  return (int)b;
+}
+#endif
+
+static int rdpbg_tile_load_ready = 0;
+
+int n64_rdpbg_begin(void)
+{
+  rdpbg_ndraws = 0;
+  rdpbg_tile_load_ready = 0;
+#ifdef N64_RDP_EXEC
+  rdpbg_cw = rdpbg_csent = 0;
+#ifdef N64_RSP_RDPBG_LIVE
+  /* The RSP DMAs its output straight into rdpbg_cmds, bypassing the CPU
+   * D-cache entirely -- so any dirty line left over this buffer from a
+   * previous frame (or, with the flag off, a previous CPU-authored run)
+   * would eventually get evicted and clobber what the RSP just wrote.
+   * One bulk writeback+invalidate per frame, before anything touches the
+   * buffer this frame, rules that out. */
+  data_cache_hit_writeback_invalidate(rdpbg_cmds, sizeof(rdpbg_cmds));
+  rsp_pending_head = rsp_pending_count = 0;
+  rsp_gather_slot = 0;
+#endif
+#endif
+  return 1;
+}
+
+#ifdef RDPBG_BUCKET
+/* Out of line: opening a bucket, or chaining a new block onto a full one.
+ * Returns the block to append to, or -1 if there are no slots left. */
+__attribute__((noinline))
+static int rdpbg_bucket_slow(u32 key, u32 sl)
+{
+  int b;
+  if (!sl) {
+    if (rdpbg_bnk >= RDPBG_MAX_KEYS) return -1;
+    b = rdpbg_blk_alloc();
+    sl = ++rdpbg_bnk;
+    rdpbg_count[key] = (u16)sl;
+    rdpbg_bkey[sl - 1] = (u16)key;
+    rdpbg_bhead[sl - 1] = (s16)b;
+  } else {
+    b = rdpbg_blk_alloc();
+    rdpbg_blk_next[rdpbg_btail[sl - 1]] = (s16)b;
+  }
+  rdpbg_btail[sl - 1] = (s16)b;
+  return b;
+}
+#endif
+
+void n64_rdpbg_add(int x, int y, int y0, int y1, u32 vt, u32 pal, u32 flip)
+{
+  rdpbg_draw_t *d;
+#ifdef RDPBG_BUCKET
+  if (rdpbg_bucketing) {
+    /* Hot path only: the bucket exists and its tail block has room.  Both
+     * of the other cases -- first record for a key, block full -- are out
+     * of line, because this function runs once per kept tile (1216 a
+     * frame) and inlining them here grew it from 136 to 788 bytes.  That
+     * is 25 cache lines for a path that needs five, and it cost more in
+     * I-cache misses on the walk than the bucketing saved on the flush. */
+    u32 key = ((vt >> 5) << 4) | (pal & 15);
+    u32 sl = rdpbg_count[key];
+    int b;
+    if (__builtin_expect(sl != 0, 1)) {
+      b = rdpbg_btail[sl - 1];
+      if (__builtin_expect(rdpbg_blk_n[b] < RDPBG_BLK_RECS, 1))
+        goto rdpbg_have_block;
+    }
+    b = rdpbg_bucket_slow(key, sl);
+    if (b < 0) { n64_rdpbg_overflow++; return; }
+  rdpbg_have_block:
+    d = &rdpbg_blk(b)[rdpbg_blk_n[b]++];
+    d->x = (s16)x; d->y = (s16)y;
+    d->yy = (u8)(y0 | (y1 << 4));
+    d->pf = (u8)(pal | (flip << 4));
+    d->vt = (u16)vt;
+    rdpbg_ndraws++;
+    return;
+  }
+#endif
+  if (rdpbg_ndraws >= RDPBG_MAX_DRAWS) { n64_rdpbg_overflow++; return; }
+  d = &rdpbg_draws[rdpbg_ndraws++];
+  d->x = (s16)x; d->y = (s16)y;
+  d->yy = (u8)(y0 | (y1 << 4));
+  d->pf = (u8)(pal | (flip << 4));
+  d->vt = (u16)vt;
+}
+
+
+
 /* Internal helper tile used only to DMA a slice into TMEM -- see
  * rdpbg_load_slice() below.  TILE1 (tex_loader's own choice, (TILE0+1)&7,
  * for the exact same purpose) is free for this: rdpq's TLUT path uses
@@ -519,6 +652,70 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
   if (!rdpbg_disp) return;
 
   u32 _t0 = RDPBG_TICK();
+#ifdef RDPBG_BUCKET
+  if (rdpbg_bucketing && sortable) {
+    /* The buckets are already the sort.  All that is left is to put the
+     * groups in key order -- a dozen entries, insertion sorted -- and hand
+     * each one's blocks over.  There is no pass over the records here at
+     * all: a block is one group by construction, so the tile state is set
+     * once per group rather than tested once per tile. */
+    u32 i2, j2, nk2 = rdpbg_bnk;
+    u16 ord[RDPBG_MAX_KEYS];
+    for (i2 = 0; i2 < nk2; i2++) ord[i2] = (u16)i2;
+    for (i2 = 1; i2 < nk2; i2++) {
+      u16 v = ord[i2];
+      for (j2 = i2; j2 && rdpbg_bkey[ord[j2 - 1]] > rdpbg_bkey[v]; j2--)
+        ord[j2] = ord[j2 - 1];
+      ord[j2] = v;
+    }
+    n64_rdpbg_t_sort += RDPBG_TICK() - _t0;
+    _t0 = RDPBG_TICK();
+
+    if (!rdpbg_attached) { rdpq_attach(rdpbg_disp, NULL); rdpbg_attached = 1; }
+    rdpq_set_mode_standard();
+    rdpq_mode_tlut(TLUT_RGBA16);
+    rdpq_mode_alphacompare(1);
+    if (!rdpbg_tile_load_ready) {
+      rdpq_set_tile(RDPBG_TILE_LOAD, FMT_I8, 0, 8, NULL);
+      rdpbg_tile_load_ready = 1;
+    }
+    if (rdpbg_tlut_loaded != obj_palette) {
+      data_cache_hit_writeback(rdpbg_tlut[obj_palette], 512);
+      rdpq_tex_upload_tlut(rdpbg_tlut[obj_palette], 0, 256);
+      rdpbg_tlut_loaded = obj_palette;
+      n64_rdpbg_tluts++;
+    }
+
+    for (i2 = 0; i2 < nk2; i2++) {
+      u32 sl = ord[i2];
+      u32 key = rdpbg_bkey[sl], slice = key >> 4;
+      int b;
+      if (slice != cur_slice) {
+        { u32 _u = RDPBG_TICK();
+          rdpbg_load_slice(slice);
+          n64_rdpbg_t_upl += RDPBG_TICK() - _u; }
+        cur_slice = slice; cur_key = 0xFFFF;
+        n64_rdpbg_slices++;
+      }
+      if (key != cur_key) {
+        rdpq_tileparms_t p = {0};
+        p.palette = (u8)(key & 15);
+        rdpq_set_tile(TILE0, FMT_CI4, 0, 8, &p);
+        rdpq_set_tile_size(TILE0, 0, 0, 8, 256);
+        cur_key = key;
+        n64_rdpbg_groups++;
+      }
+      for (b = rdpbg_bhead[sl]; b >= 0; b = rdpbg_blk_next[b])
+        if (rdpbg_blk_n[b])
+          rdpbg_rsp_close_batch_from(rdpbg_blk(b), rdpbg_blk_n[b]);
+      rdpbg_count[key] = 0;      /* leave the key map clean for next flush */
+    }
+    rdpbg_bnk = 0;
+    n64_rdpbg_t_emit += RDPBG_TICK() - _t0;
+    rdpbg_ndraws = 0;
+    return;
+  }
+#endif
   /* Sorting is only safe within a background layer.  A layer's own tiles
    * never overlap each other, so reordering them by TMEM slice is free --
    * but two sprites can overlap, and the GBA resolves that by OAM index,

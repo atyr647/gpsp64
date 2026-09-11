@@ -2990,6 +2990,11 @@ static void raster_check(u32 vcount)
  */
 extern "C" {
   int  n64_rdpbg_begin(void);
+#ifdef RDPBG_BUCKET
+extern "C" void n64_rdpbg_bucket_mode(int on);
+#else
+#define n64_rdpbg_bucket_mode(on) ((void)0)
+#endif
   void n64_rdpbg_add(int x, int y, int y0, int y1, u32 vt, u32 pal, u32 flip);
   void n64_rdpbg_backdrop(int y0, int y1);
   void n64_rdpbg_build_tlut(const u16 *pal_converted);
@@ -3142,6 +3147,7 @@ static void rdpbg_scan_objs(u16 dispcnt, u8 *elig)
 static void rdpbg_emit_objs(u32 prio)
 {
   s32 i;
+  n64_rdpbg_bucket_mode(0);   /* OAM order is the answer; must not be sorted */
   for (i = (s32)rdpbg_nspr - 1; i >= 0; i--) {
     const rdpbg_spr_t *s = &rdpbg_spr[i];
     u32 tx, ty;
@@ -3266,6 +3272,7 @@ static void rdpbg_frame_begin(void)
  */
 static void rdpbg_emit_bg(u32 i)
 {
+  n64_rdpbg_bucket_mode(1);   /* a layer's tiles never overlap: free to sort */
   u32 bgc  = rdpbg_snap[i][0];
   u32 hofs = rdpbg_snap[i][1];
   u32 vofs = rdpbg_snap[i][2];
