@@ -532,3 +532,68 @@ is not "don't bother" but "measure it with the right instrument":
 the thing such a change actually moves, where frame time is a noisy proxy
 for it. Any future codegen-size change should be judged on whether
 buckets `2e`-`36` fall, and only then on whether the frame follows.
+
+## One function's cache index is worth 12.5% of the frame
+
+`IMISSFINE` resolves I-cache misses to 1 KB, and the two largest single
+sites in the entire system landed on the same index:
+
+    0x8000e400  update_gba+576                    252,954 misses
+    0x80122400  render_window_n_pass<obj_pass,1>  191,006 misses
+
+Both are `0x2400` mod 16 KB. The I-cache is 16 KB direct-mapped, so they
+share lines -- and they interleave constantly, the event scheduler
+running between CPU slices and the window renderer once per scanline.
+Between them, 12.6% of every I-cache miss taken.
+
+`-DN64_WINPASS_ALIGN=<n>` (video.cc, no-op unless set) forces a different
+alignment on the renderer so the pair can be pulled apart:
+
+| alignment | lands at index | frame | fps |
+| --- | --- | --- | --- |
+| none | `0x2400` (on `update_gba`) | 24.0 ms | 41.7 |
+| 2048 | `0x3000` | **23.0 ms** | **43.5** |
+| 4096 | `0x0000` (on the memory stubs) | 26.0 ms | 38.5 |
+| 16384 | `0x0000` | 26.0 ms | 38.5 |
+
+**Moving one function changes the frame by 12.5%.** And the effect is
+mechanical, not luck: `4096` and `16384` place the function at two
+different addresses 16 KB apart -- `0x80124000` and `0x80128000` -- which
+therefore share a cache index, and they produce byte-identical results.
+Same index, same performance; different address, no difference. Ordinary
+layout noise cannot reproduce that pattern, and the `2048` result was
+reproduced exactly across two separate runs.
+
+The ranking also names the most cache-critical code in the build. Landing
+on index `0x0000` is the worst of the three, and `0x0000` is where the
+dynarec's shared memory stubs sit (`rom_translation_cache` + the stub
+watermark). Those stubs run on *every* emulated load and store, and they
+are **18,596 bytes against a 16 KB cache** -- so they not only conflict
+with whatever else shares their indices, they wrap the index space and
+conflict with themselves. Anything that collides with them pays for it.
+
+### What this does and does not license
+
+It does not license shipping `aligned(2048)`. That number is not a fix,
+it is a build-specific accident: 2048-alignment happens to land this
+function on `0x3000` *in this link*, and any future code change ahead of
+it in link order moves it again. Landing it as a default would bank a
+real 4.2% on a coin that gets re-flipped on the next commit.
+
+What it licenses is the conclusion that **placement is the largest
+untapped lever measured in this port** -- larger than the 8.4% of
+generated code sitting in unfilled delay slots (~1.7%), larger than any
+remaining renderer work -- and that the durable form of it is deliberate
+placement rather than alignment roulette:
+
+- the build already uses `-ffunction-sections -fdata-sections`, so the
+  input sections exist to order explicitly;
+- the hot `.text` set is small enough to matter and to fit: the buckets
+  carrying real miss traffic total roughly 13 KB, against a 16 KB cache;
+- the memory stubs, at 18.2 KB, are the one component that cannot fit
+  under any ordering, and shrinking them below 16 KB is a separate,
+  self-contained win that would stop them conflicting with themselves.
+
+The measurement to judge any such change by is `IMISSFINE`, not fps: it
+names the colliding pair directly, where frame time only says something
+moved.
