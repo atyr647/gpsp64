@@ -371,6 +371,10 @@ static void rdpbg_rsp_close_batch(u32 count)
 #define RDPBG_SUBMIT() do {} while (0)
 #endif
 
+#ifndef RDPBG_LPROBE
+#define RDPBG_LPROBE 0
+#endif
+
 static int rdpbg_tile_load_ready = 0;
 
 int n64_rdpbg_begin(void)
@@ -560,7 +564,27 @@ void n64_rdpbg_flush(int obj_palette, int sortable)
      * the thing to trust for correctness. */
     u32 gcount = 0;
     for (i = 0; i < n; i++) {
+      /* -DRDPBG_LPROBE isolates what is left on the CPU once the RSP has
+       * the per-tile arithmetic.  Both settings draw the wrong screen on
+       * purpose; the canary is expected to lie.
+       *   1  drop the rdpbg_order[] indirection and read the draw list
+       *      sequentially.  Note what this actually measures: not the
+       *      gather's memory access, but the grouping.  Unsorted, the
+       *      (slice,palette) key changes on nearly every tile, so it
+       *      forces a TMEM load, a tile descriptor and a batch close per
+       *      tile -- emit goes 2.21 -> 5.98 ms.  It prices the sort, not
+       *      the gather.
+       *   2  also stop reading the record at all, which prices the
+       *      remaining loop: the key compare, the boundary tests and the
+       *      8-byte staging copy. */
+#if   RDPBG_LPROBE == 1
+      const rdpbg_draw_t *d = &rdpbg_draws[i];
+#elif RDPBG_LPROBE == 2
+      static const rdpbg_draw_t dummy = { 0, 0, 0, 0, 0 };
+      const rdpbg_draw_t *d = &dummy;
+#else
       const rdpbg_draw_t *d = &rdpbg_draws[rdpbg_order[i]];
+#endif
       u32 key = RDPBG_KEY(d);
       u32 slice = key >> 4;
 

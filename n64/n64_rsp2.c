@@ -57,6 +57,19 @@ static uint32_t rdpbg_count_sink[4] __attribute__((aligned(16)));
 rspq_syncpoint_t n64_rsp_rdpbg_queue(const void *src, uint32_t count, void *dst)
 {
   rspq_syncpoint_t sp;
+  /* The caller staged these records with ordinary cached stores, and the
+   * RSP is about to DMA them out of RDRAM.  Nothing connects those two:
+   * RSP DMA does not snoop the VR4300's write-back D-cache, so a dirty
+   * line still holding a record means the RSP reads whatever RDRAM had
+   * before -- the contents from the last time that staging slot was used.
+   *
+   * The selftest below always did this to its input; the live path did
+   * not, and happened to survive because the staging ring is sized past
+   * the 8KB D-cache, so slots tended to be evicted before their turn came
+   * round again.  That is timing, not a guarantee: it depends on batch
+   * size, on pipeline depth, and on whatever else is competing for the
+   * same cache indices.  Make it a guarantee. */
+  data_cache_hit_writeback((void *)src, count * 8);
   rspq_write(rdpbg_ovl_id, 0,
              PhysicalAddr(src), count,
              PhysicalAddr(dst), PhysicalAddr((void*)rdpbg_count_sink));
