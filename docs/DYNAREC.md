@@ -1165,41 +1165,78 @@ Net result of this pass: no code change, but a real dead end closed
 cheaply (reading existing comments and one already-run measurement,
 instead of writing risky assembly-level dynarec changes to find out).
 
-## Parked for later (not investigated further this pass)
+## Parked items, revisited: three closed, one still open
 
-Recorded per request, not pursued -- each would need its own dedicated
-pass:
+The four non-dynarec-codegen items below were all investigated (research
+only, no code written for three of them) in the pass after the ARM
+dead-flag work. Register allocation and flag computation (the first two
+thirds of "dynarec code-generation quality") are covered by the ARM
+dead-flag section below; "the instruction sequence emitted per ARM
+opcode" -- whether the MIPS sequences the emitter generates for common
+patterns could be shorter -- remains the one genuinely unexplored, still-
+biggest lever, and is now a harder sell than it looked: the ARM flag work
+shows a real, correct, well-targeted reduction in generated code can
+still net negative once I-cache layout shifts are accounted for, so any
+future attempt here needs the same controlled-A/B discipline, not just a
+smaller-instruction-count argument.
 
-- **Dynarec code-generation quality.** The single largest remaining
-  lever by this document's own analysis (register allocation, redundant
-  flag computation, the instruction sequence per ARM opcode) -- but a
-  real engineering project, not an afternoon change, and bugs here
-  corrupt game logic rather than just pixels. Highest ceiling, highest
-  risk, most effort.
-- **Hand-encoding `SET_TILE`/`LOAD_TILE`/`SET_TILE_SIZE` directly into
-  `rdpbg_cmds`**, bypassing `rspq_write`'s per-call dispatch the same way
-  `RDPBG_RECT` already bypasses it for `TEXTURE_RECTANGLE`. Real but
-  smaller now that `rdpq_tex_upload`'s generic-wrapper fat is already
-  cut (see above) -- likely on the order of noise-floor-sized savings
-  for ~48-53 calls/frame. `SET_TEXTURE_IMAGE` itself would still have to
-  go through rdpq's normal call (it is an rdpq "fixup" command needing
-  RSP-side interpretation, not safe to hand-encode without understanding
-  that mechanism fully).
-- **`$gp` liberation** (`-G0`, or freeing `$gp` in the register
-  allocator instead of the current defer-interrupts-across-the-block
-  workaround). "Modest direct payoff" per the earlier measurement notes
-  above -- small, bounded scope, lowest priority of the dynarec-adjacent
-  ideas.
+- **Hand-encoding `SET_TILE`/`LOAD_TILE`/`SET_TILE_SIZE`** directly into
+  `rdpbg_cmds`, bypassing rdpq's dispatch the same way `RDPBG_RECT`
+  already bypasses it for `TEXTURE_RECTANGLE`. **Investigated, not
+  worth it.** Read the actual libdragon implementations
+  (`rdpq.c`): `rdpq_set_tile`/`rdpq_load_tile`/`rdpq_set_tile_size` all
+  route through `__rdpq_write8_syncchange`-family functions marked
+  `__attribute__((noinline))`, so each of the ~48-53 calls/frame this
+  renderer makes does pay a real, uninlined function-call plus an
+  autosync-bookkeeping cost on top of the thin ring-buffer write --
+  but at that call *volume*, the whole addressable cost is on the order
+  of tens of cycles times ~50, not the thousands-of-calls scale that made
+  hand-encoding `rdpq_tex_upload` worth it. Rough estimate: well under
+  0.1 ms/frame, likely inside this project's own established ~2.2%
+  layout-noise floor -- not enough to justify taking over TMEM
+  tile-descriptor state ourselves (the correctness-risk class this
+  project has been most careful about all along) for a saving that might
+  not even be distinguishable from noise in a controlled A/B.
+- **`$gp` liberation.** **Investigated, not the "modest, quick" lever it
+  looked like.** Read the actual mechanism (`mips/mips_emit.h`,
+  `mips/mips_stub.S`): the dynarec keeps ARM r13 in `$gp` because the
+  register allocator is a fixed, fully-saturated 1:1 map (all 15 usable
+  MIPS registers already spoken for, confirmed during the ARM dead-flag
+  work above) with no spare register to give r13 instead. Since `$gp` is
+  also what libdragon's own gp-relative code (including its interrupt
+  handler) uses, this port disables CPU interrupts for the *entire*
+  `execute_arm_translate_internal` call -- which, per its own comment,
+  "returns once per emulated frame" -- and re-enables them once back in
+  C, rather than per translated block as the docs previously implied.
+  That call pair itself is negligible (a COP0 STATUS toggle, twice a
+  frame). The two real fixes both cost more than they look worth: (a)
+  rebuild libdragon itself with `-G0` to stop it using `$gp` for small-data
+  at all -- a whole-SDK build-configuration change with unclear ripple
+  effects on every other libdragon subsystem, well outside "quick lever"
+  territory; or (b) evict some *other* already-assigned MIPS register to
+  memory to free `$gp` for r13 alone -- which doesn't remove register
+  pressure, just relocates it, with no obvious reason the result would be
+  faster. And the thing the workaround costs -- a whole frame's interrupts
+  deferred -- has shown no symptoms in any of this session's testing
+  (audio, input, and display have all worked throughout), so there isn't
+  a hidden functional payoff to chase either. Not pursued further.
 - **Reusing the last rendered frame when nothing changed** (static
-  dialogue/menu screens) instead of re-running the BG renderer. Distinct
-  from frameskip -- the GBA CPU still runs and a frame still displays
-  every tick, only the *re-render* would be skipped. Needs a judgement
-  call against this project's standing "displayed fps is what matters"
-  framing before it's worth prototyping, and an RPG overworld scrolls
-  often enough that the applicable fraction of frames may be small.
+  dialogue/menu screens) instead of re-running the BG renderer.
+  **Investigated, unpromising for this specific game.** The premise needs
+  a "did anything change" check to be both cheap and to actually fire
+  often; Pokemon Emerald's overworld and most menus keep near-constant
+  idle animation running underneath (grass sway, water shimmer, blinking
+  cursors), so a real "nothing changed this frame" condition would be
+  rare even on screens that look static to a player, undermining the
+  premise before getting to the standing "displayed fps is what matters"
+  question at all. A correct change-detector would also need to track
+  writes across both PPU registers and the relevant VRAM/OAM ranges, real
+  added complexity for a case that rarely pays off. Not pursued further.
 - **Repo hygiene, not performance**: 14 old bisection-experiment `.z64`
   files (`gpsp_add1-8.z64`, `gpsp_bisect_*.z64`, `gpsp_cyc20_*.z64`) are
-  checked into the repo root. Noted, not touched.
+  checked into the repo root, unreferenced by anything else in the tree.
+  Safe to remove; not done without asking first, since it's a repo-history
+  change rather than a code change.
 
 ## ARM dead-flag elimination: built correctly, measured as a regression, reverted
 
