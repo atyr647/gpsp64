@@ -2788,6 +2788,17 @@ inline bool in_window_y(u32 vcount, u32 top, u32 bottom) {
 // subsegments (if necessary) rendering each one in their right mode.
 // outfn is called for "out-of-window" rendering.
 template<window_render_function outfn, unsigned winnum>
+#ifdef N64_WINPASS_ALIGN
+/* Diagnostic, not a fix: this instantiation lands at a virtual address
+ * whose low 14 bits collide exactly with update_gba's hot region, and the
+ * VR4300's I-cache is 16 KB direct-mapped, so the two evict each other
+ * every time a scanline render interleaves with the event scheduler --
+ * together 12.6% of every I-cache miss in the system.  Forcing a
+ * different alignment moves this one out of that index and answers
+ * whether those misses are conflict (they should mostly vanish) or
+ * capacity (they should simply reappear somewhere else). */
+__attribute__((aligned(N64_WINPASS_ALIGN)))
+#endif
 static void render_window_n_pass(u16 *scanline, u32 start, u32 end)
 {
   u32 vcount = read_ioreg(REG_VCOUNT);
