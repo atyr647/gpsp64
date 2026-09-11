@@ -2752,6 +2752,39 @@ inline static ramtag_type* get_ram_tag(u16 tagval) {
   #define N64_JIT_SCAN_STUBS() do {} while (0)
 #endif
 
+/* Dump freshly emitted MIPS for the first N64_JIT_DUMP blocks, so the
+   generated code can actually be read (disassemble offline with
+   `mips64-elf-objdump -D -b binary -m mips:4300 -EB`).  Research
+   instrumentation only: it emits nothing and changes no codegen when the
+   flag is off.  Booting from a savestate means the first blocks
+   translated are the scene's real code rather than BIOS/intro, so a
+   simple "first N" cap is representative without needing hit counts --
+   which the JIT does not keep anyway. */
+#if defined(N64) && defined(N64_JIT_DUMP)
+  #include <stdio.h>
+  static void n64_jit_dump_block(const char *ty, u32 pc, u8 *from, u8 *to)
+  {
+    static u32 dumped = 0;
+    u32 *p = (u32 *)from, *e = (u32 *)to;
+    u32 n = (u32)(e - p), i;
+    if (dumped >= (N64_JIT_DUMP)) return;
+    dumped++;
+    fprintf(stderr, "JITDUMP BEGIN %s %08lx %lu\n", ty,
+            (unsigned long)pc, (unsigned long)n);
+    for (i = 0; i < n; i += 8) {
+      u32 k, lim = (n - i) < 8 ? (n - i) : 8;
+      fprintf(stderr, "JITDUMP");
+      for (k = 0; k < lim; k++)
+        fprintf(stderr, " %08lx", (unsigned long)p[i + k]);
+      fprintf(stderr, "\n");
+    }
+    fprintf(stderr, "JITDUMP END\n");
+  }
+  #define N64_JIT_DUMP_BLOCK(ty, pc, from, to) n64_jit_dump_block(ty, pc, from, to)
+#else
+  #define N64_JIT_DUMP_BLOCK(ty, pc, from, to) do {} while (0)
+#endif
+
 /* The N64_JIT_TRACE probes sit at the translate_block calls, NOT at the top
    of block_lookup_translate: that function runs on every lookup including
    cache hits, so a probe there logs how often a block is *called*, which is
@@ -2845,7 +2878,8 @@ u8 function_cc *block_lookup_translate_##type(u32 pc)                         \
         prof_jit_xlat++;                                                      \
         { u8 *dbgfrom = rom_translation_ptr;                                  \
         result = translate_block_##type(pc, false);                           \
-        N64_JIT_SCAN_SP(#type, pc, dbgfrom, rom_translation_ptr); }           \
+        N64_JIT_SCAN_SP(#type, pc, dbgfrom, rom_translation_ptr);             \
+        N64_JIT_DUMP_BLOCK(#type, pc, dbgfrom, rom_translation_ptr); }        \
                                                                               \
         if (result) {                                                         \
           return blkptr;                                                      \
