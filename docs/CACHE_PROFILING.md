@@ -597,3 +597,111 @@ placement rather than alignment roulette:
 The measurement to judge any such change by is `IMISSFINE`, not fps: it
 names the colliding pair directly, where frame time only says something
 moved.
+
+## Cashing the placement lever: contiguity, not alignment
+
+The section above closed by saying placement was the largest untapped
+lever in the port, and that the durable form of it was deliberate layout
+rather than alignment roulette. Both turned out to be true, and the
+mechanism is simpler than it looked.
+
+### The collision was a whole call chain, not a pair
+
+`IMISSFINE` re-read with symbol attribution said the problem was worse
+than "two functions on index `0x2400`". Four buckets carried **42% of
+every instruction miss in the system**, and they are three functions that
+call each other:
+
+    mips_update_gba   0x800e6400   216 B   index 0x2400..0x24d7   546,644
+    update_gba        0x8000e1c0  3264 B   index 0x21c0..0x2e7f  1,278,544
+    update_scanline   0x801220e0  4000 B   index 0x20e0..0x307f    690,375
+
+`update_gba`'s *entire* index range is inside `update_scanline`'s, and
+`mips_update_gba` -- the trampoline recompiled code jumps to every time
+the cycle counter runs out -- is inside both. The chain runs
+`mips_update_gba -> update_gba -> update_scanline` at least once per
+emulated scanline. Every step was evicting the one before it: a
+guaranteed refill, 48 cycles a line, on the hottest path there is.
+
+(`render_window_n_pass` from the previous section is inlined into
+`update_scanline`, which is why it looked like a separate offender.)
+
+### Why alignment cannot fix it and contiguity can
+
+An alignment attribute rounds an address *up*. It does not choose a cache
+index, which is why `4096` and `16384` landed 16 KB apart on the same
+index and gave identical results. Nothing about the accidental layout was
+stable either: this tree measured 24.0 ms/f when the I-cache work started
+and 26.0 ms/f by the end of it, from about 1.5 KB of `.text` drift and no
+intentional change at all.
+
+Contiguous code cannot alias itself, because consecutive bytes get
+consecutive indices. That is the whole fix, and stock `n64.ld` already
+provides the hook:
+
+    KEEP(*(keep.text.*))
+
+is a single gathering point inside `.text`. Anything given a
+`keep.text.*` section name lands there, next to everything else that has
+one, in one contiguous run -- regardless of link order, with no linker
+script of our own and no alignment luck. `n64/n64_hotchain.h` defines the
+attribute; `update_gba`, `update_scanline` and the whole of `mips_stub.S`
+carry it. The group is 10,176 bytes, 62% of a 16 KB cache, so no member
+can collide with another wherever the group as a whole lands.
+
+Three details are load-bearing:
+
+- **`noinline`** is part of the contract. A function inlined into a
+  caller is not in the section any more, and the group silently loses a
+  member.
+- **`mips_stub.S` goes in whole**, not entry point by entry point, because
+  `mips_update_gba` reaches `lookup_pc` with a 16-bit-displacement `bltz`;
+  splitting the file across two output locations could put that target out
+  of range. Its code is ~2.9 KB, so keeping it together is free.
+- **The group must stay under 16 KB.** Past that it aliases itself again
+  and the fix silently becomes the bug. `tools/hotchain.py` checks a
+  linked ELF for exactly this -- span, membership, and pairwise index
+  overlap -- and `make -f Makefile.n64 checkhot` runs it.
+
+### Measured, at three different layouts
+
+A single before/after cannot distinguish a real win from a lucky landing,
+so `-DN64_TEXTPAD=<bytes>` (`n64/n64_main.c`) grows `.text` on purpose and
+`-DN64_HOTCHAIN_OFF` reverts to the linker's own placement. Six runs,
+matched pairwise on `.text` size, overworld savestate, 32 steady windows:
+
+| `.text` | off | on | frame time |
+| --- | --- | --- | --- |
+| 1,425,652 | 26.0 ms | **23.0 ms** | -9.7% |
+| 1,426,676 | 26.0 ms | 24.0 ms | -6.3% |
+| 1,431,796 | 26.0 ms | 25.0 ms | -2.7% |
+
+(The percentages are on raw `COUNT` ticks, which have far more resolution
+than the 1 ms frame figure.) At the tree's actual `.text` size that is
+**26.0 -> 23.0 ms, 38.5 -> 43.5 fps, +13.0%**, and instruction misses fall
+from 5,786,320 to 4,309,695 per window (**-25.5%**). The four-bucket spike
+is gone: the miss distribution is flat afterwards with no bucket over 7%.
+
+Emulated output is identical -- the render canary reports the same
+1223 -> 1217 tiles per frame in every run above.
+
+### What the sweep also exposed: the data side is unmanaged
+
+The win shrinks from 9.7% to 2.7% as the pad grows, and the reason is not
+the code. `n64.ld` puts `.data` and `.bss` after `.text`, so padding
+`.text` moves every global too, and the D-cache is 8 KB direct-mapped.
+Across those same three builds:
+
+    D-cache misses/window   2,411,879 -> 2,509,121 -> 3,310,693   (+37%)
+
+Nothing about the code changed. That is the same lottery this document
+opened with, playing out on the data side, where nothing has been done
+about it yet -- and at the 6 KB pad it is large enough to be the binding
+constraint. **The equivalent of `keep.text.*` for hot globals is the next
+placement lever**, and `IMISSFINE`'s sibling `gpsp_dmiss_fine[]` already
+resolves D-misses to 1 KB to aim it.
+
+The general lesson holds for both: on a direct-mapped cache the durable
+control is *what is adjacent to what*, and it is available for free in
+the existing linker script. Absolute addresses and alignment are not
+controls at all.

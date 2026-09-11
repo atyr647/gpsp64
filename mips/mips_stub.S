@@ -49,7 +49,7 @@ symbol:
 symbol:
 
 
-#ifdef N64
+#if defined(N64) && !defined(N64_HOTCHAIN_OFF)
 /* gpsp64: every routine in this file is part of the recompiler's dispatch
  * path -- the cycle-counter trampoline, the indirect-branch cache lookups,
  * the CPSR helpers -- and all of it runs between translated blocks.  It is

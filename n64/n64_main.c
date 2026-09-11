@@ -54,6 +54,38 @@
  * enable/disable_interrupts are nesting-counted, so this pairs with the
  * disable_interrupts() around the translated-code window rather than
  * fighting it. */
+/* gpsp64: -DN64_TEXTPAD=<bytes> grows .text by that much, on purpose.
+ *
+ * Cache-placement claims are not testable at a single build.  Function
+ * addresses fall out of link order, so any measured win might just be a
+ * lucky landing, and the only way to tell the two apart is to move
+ * everything and measure again.  This emits a dead function of the
+ * requested size early in .text, which shifts everything after it.
+ *
+ * It is a blunt instrument and worth knowing why: n64.ld puts .data and
+ * .bss after .text, so padding .text also moves every global, and the
+ * D-cache is 8KB direct-mapped.  A pad sweep therefore perturbs data
+ * placement as much as code placement -- which is exactly how the 6KB pad
+ * below turned up a 41% swing in D-cache misses that has nothing to do
+ * with the code layout being measured.  Read a sweep as "is the win
+ * present at every layout", not as "this many ms".
+ *
+ * Used to check the hot-chain group; see n64/n64_hotchain.h.  Pair it with
+ * -DN64_HOTCHAIN_OFF to get matched-.text A/Bs:
+ *
+ *   .text      hotchain off   hotchain on
+ *   1425652      26.0 ms        23.0 ms
+ *   1426676      26.0 ms        24.0 ms
+ *   1431796      26.0 ms        25.0 ms
+ */
+#ifdef N64_TEXTPAD
+#define N64_TEXTPAD_STR2(x) #x
+#define N64_TEXTPAD_STR(x) N64_TEXTPAD_STR2(x)
+__attribute__((noinline, used)) void n64_textpad_fn(void)
+{ __asm__ volatile (".space " N64_TEXTPAD_STR(N64_TEXTPAD)); }
+void (*n64_textpad_ref)(void) = n64_textpad_fn;
+#endif
+
 u32 function_cc n64_jit_update_gba(int remaining_cycles)
 {
   u32 rv;

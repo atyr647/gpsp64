@@ -53,7 +53,13 @@
 #ifndef N64_HOTCHAIN_H
 #define N64_HOTCHAIN_H
 
-#ifdef N64
+/* -DN64_HOTCHAIN_OFF reverts to whatever placement the linker picks on its
+ * own.  Kept because the only way to show this is worth anything is to
+ * build it both ways at a matched .text size -- padding .text to move the
+ * group also moves every global, so a pad sweep measures the D-cache
+ * lottery as much as the I-cache one, and an A/B at one fixed size does
+ * not. */
+#if defined(N64) && !defined(N64_HOTCHAIN_OFF)
   #define N64_HOTCHAIN __attribute__((section("keep.text.gpsp_hotchain"), noinline))
 #else
   #define N64_HOTCHAIN
