@@ -966,6 +966,11 @@ int main(void)
               debugf("PROF:  jit: %lu total ROM translation cache flushes since boot\n",
                      (unsigned long)prof_jit_flush); }
 #ifdef N64_AUDIO_VERIFY
+            { extern u32 prof_audio_gap, prof_audio_gapmax;
+              debugf("PROF:  audio: mixer is %lu samples ahead of playback "
+                     "(peak %lu of %d ring)\n", (unsigned long)prof_audio_gap,
+                     (unsigned long)prof_audio_gapmax, BUFFER_SIZE);
+              prof_audio_gapmax = 0; }
             { extern u32 prof_audio_samples, prof_audio_calls, prof_audio_zero;
               debugf("PROF:  audio: %lu samples/frame avg, %lu/%lu calls returned zero\n",
                      (unsigned long)(prof_audio_calls ? prof_audio_samples / prof_audio_calls : 0),

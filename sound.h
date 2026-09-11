@@ -23,7 +23,40 @@
 #define BUFFER_SIZE        (1 << 16)
 #define BUFFER_SIZE_MASK   (BUFFER_SIZE - 1)
 
+/* The rate the GBA sound engine mixes at.
+ *
+ * Upstream picks 64 KHz because it divides the GBA's 16.777216 MHz clock
+ * exactly (one sample every 256 cycles), and on a host that resamples on
+ * the way out that is a fine choice.  This port does not resample:
+ * sound_read_samples() is a straight copy, and n64/n64_audio.c drains a
+ * fixed SAMPLES_PER_FRAME (369) stereo frames per emulated frame to feed
+ * a 22,050 Hz output.
+ *
+ * Mixing at 64 KHz therefore produced 1,097 stereo frames per emulated
+ * frame against 369 consumed -- a 2.97x oversupply.  Two consequences,
+ * and the second one is why this is not simply a tuning knob:
+ *
+ *   - the ring lapped itself roughly every 30 seconds of play, and what
+ *     came out in between advanced at a third of real time;
+ *   - render_gbc_sound() and sound_timer() both loop once per mixed
+ *     sample, so two thirds of that work was for samples nothing would
+ *     ever read.  A cycle-weighted profile put the pair at 16.3% of the
+ *     frame -- and they cost that whether or not N64_AUDIO_OUT is set,
+ *     because that switch gates only the consumer.
+ *
+ * So mix at the rate the hardware actually plays.  22,050 Hz gives
+ * 280,896 * 22050 / 16,777,216 = 369.15 stereo frames per emulated frame
+ * against 369 consumed, which is the match the buffer wants.
+ *
+ * -DGBA_SOUND_FREQUENCY=65536 restores the old rate for comparison.
+ */
+#ifndef GBA_SOUND_FREQUENCY
+#ifdef N64
+#define GBA_SOUND_FREQUENCY   22050
+#else
 #define GBA_SOUND_FREQUENCY   (64 * 1024)
+#endif
+#endif
 
 #ifdef OVERCLOCK_60FPS
   #define GBC_BASE_RATE ((float)(60 * 228 * (272+960)))
@@ -108,6 +141,8 @@ unsigned sound_write_savestate(u8 *dst);
 bool sound_read_savestate(const u8 *src);
 
 u32 sound_read_samples(s16 *out, u32 frames);
+u32 sound_pending_frames(void);
+void sound_drop_backlog(u32 keep);
 
 void reset_sound(void);
 

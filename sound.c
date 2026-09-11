@@ -816,12 +816,54 @@ unsigned sound_write_savestate(u8 *dst)
   return (unsigned int)(dst - startp);
 }
 
+#ifdef N64_AUDIO_VERIFY
+/* How far the mixer is running ahead of playback.  "samples/frame" alone
+ * cannot see an imbalance: the consumer asks for a fixed 369 frames and
+ * gets them whether the ring holds a healthy 800 samples or has lapped
+ * itself four times over.  This is the number that tells them apart. */
+u32 prof_audio_gap = 0, prof_audio_gapmax = 0;
+#endif
+
+/* Stereo frames the mixer has produced that playback has not taken yet.
+ * The output side uses this to keep the two rates locked: producing
+ * 369.15 frames per emulated frame against 369 consumed is a slow drift
+ * that would still lap the ring, just in an hour instead of three
+ * seconds. */
+u32 sound_pending_frames(void)
+{
+   u32 avail = (gbc_sound_buffer_index - sound_buffer_base) & BUFFER_SIZE_MASK;
+   return avail >> 1;
+}
+
+/* Throw away all but `keep` stereo frames of backlog.  Used once when the
+ * backlog is far past anything the tracking below can walk off -- after
+ * boot, or after a savestate load, where the ring can come up most of a
+ * second ahead.  One discontinuity, against a permanent second of lag. */
+void sound_drop_backlog(u32 keep)
+{
+   u32 avail = (gbc_sound_buffer_index - sound_buffer_base) & BUFFER_SIZE_MASK;
+   u32 keep_samples = keep << 1;
+   if (avail > keep_samples)
+   {
+      u32 drop = avail - keep_samples;
+      u32 i;
+      for (i = 0; i < drop; i++)
+         SNDBUF((sound_buffer_base + i) & BUFFER_SIZE_MASK) = 0;
+      sound_buffer_base = (sound_buffer_base + drop) & BUFFER_SIZE_MASK;
+   }
+}
+
 u32 sound_read_samples(s16 *out, u32 frames)
 {
    u32 i;
    u32 samples_to_read   = frames << 1;
    /* Get total number of samples in the buffer */
    u32 samples_available = (gbc_sound_buffer_index - sound_buffer_base) & BUFFER_SIZE_MASK;
+#ifdef N64_AUDIO_VERIFY
+   { extern u32 prof_audio_gap, prof_audio_gapmax;
+     prof_audio_gap = samples_available;
+     if (samples_available > prof_audio_gapmax) prof_audio_gapmax = samples_available; }
+#endif
    /* The last 512 samples are 'in use', and cannot
     * be read out yet */
    samples_available     = (samples_available > 512) ? (samples_available - 512) : 0;
