@@ -3429,6 +3429,29 @@ static void rdpbg_frame_end(void)
 extern "C" void n64_rdpbg_frame_end(void) { rdpbg_frame_end(); }
 #endif  /* N64_RDP_BG */
 
+/* -DN64_SCANLINE_SPLIT puts the body behind a call.
+ *
+ * update_scanline() is ~4KB and runs 160 times a frame.  On a row the RDP
+ * owns it does nothing but set a flag, yet every call pays the prologue of
+ * a 4KB function plus whatever of it the I-cache lost since the previous
+ * scanline -- and there is a scanline's worth of emulation in between to
+ * evict it.  Splitting leaves 184 bytes on the hot path.
+ *
+ * It also shrinks the keep.text.gpsp_hotchain group from 62% of the
+ * I-cache to 39%, which is the more interesting half: the group's span is
+ * index space claimed against everything outside it, and growing it past
+ * 62% was measurably bad at every layout (see n64/n64_hotchain.h).  This
+ * is the symmetric experiment, and it is safe to run because the part that
+ * must stay grouped does: update_gba and update_scanline's hot path were
+ * the original collision, and the 184 bytes that remain are still in the
+ * group.  Only the cold body leaves. */
+#ifdef N64_SCANLINE_SPLIT
+static void __attribute__((noinline))
+update_scanline_cpu(u16 dispcnt, u32 vcount, u32 video_mode)
+{
+  u32 pitch = get_screen_pitch();
+  u16 *screen_offset = get_screen_pixels() + (vcount * pitch);
+#else
 void N64_HOTCHAIN update_scanline(void)
 {
   u32 pitch = get_screen_pitch();
@@ -3442,6 +3465,7 @@ void N64_HOTCHAIN update_scanline(void)
 #endif
   if(skip_next_frame)
     return;
+#endif
 
   // If OAM has been modified since the last scanline has been updated then
   // reorder and reprofile the OBJ lists.
@@ -3564,5 +3588,33 @@ void N64_HOTCHAIN update_scanline(void)
   prof_ppu_affine_ticks += PROF_PPU_TICK() - _t3;
 #endif
 }
+
+#ifdef N64_SCANLINE_SPLIT
+void N64_HOTCHAIN update_scanline(void)
+{
+  u16 dispcnt = read_ioreg(REG_DISPCNT);
+  u32 vcount = read_ioreg(REG_VCOUNT);
+
+#if defined(N64) && defined(PROFILE_RASTER)
+  raster_check(vcount);
+#endif
+  if (skip_next_frame)
+    return;
+
+#if defined(N64_RDP_BG) && !defined(N64_RDPGATE)
+  /* The row the RDP owns, which is almost all of them: claim it and go.
+   * Everything the body would do is either unused on such a row or, for
+   * the affine references, not applicable in mode 0 -- which is what the
+   * dispcnt test covers.  vcount 0 always takes the long way, because
+   * rdpbg_frame_begin() runs there. */
+  if (vcount != 0 && !(dispcnt & 0x87) && rdpbg_active
+      && rdpbg_elig[vcount] && rdpbg_regs_match()) {
+    n64_rdp_row[vcount] = 1;
+    return;
+  }
+#endif
+  update_scanline_cpu(dispcnt, vcount, dispcnt & 0x07);
+}
+#endif
 
 

@@ -198,6 +198,32 @@ CFLAGS += $(N64_RSP_RDPBG_LIVE)
 RDPBG_BUCKET ?= -DRDPBG_BUCKET
 CFLAGS += $(RDPBG_BUCKET)
 
+# Put update_scanline()'s body behind a call, leaving 184 bytes on the hot
+# path instead of 4KB.  On a row the RDP owns the function does nothing but
+# set a flag, yet all 160 calls a frame paid the prologue of a 4KB function
+# plus whatever of it the I-cache had lost since the previous scanline --
+# and there is a scanline's worth of emulation in between to evict it.
+#
+# Measured over SIX .text layouts (three could not resolve it), audio on,
+# median COUNT ticks per window:
+#
+#   ppu     4.72M -> 4.26M   -9.8%, better at 5 of the 6 layouts
+#   total  61.08M -> 60.84M  -0.4% median, -0.0% mean
+#
+# ppu is the component timer for this path and it moves consistently; the
+# whole-frame figure does not resolve, which at 0.16 ms of a 21 ms frame is
+# expected.  Shipped on the same standard as RDPBG_BUCKET above.
+#
+# The same sweep killed a hypothesis worth recording.  This split also
+# takes the keep.text.gpsp_hotchain group from 62% of the I-cache to 39%,
+# and since growing it past 62% was measurably bad at every layout (see
+# n64/n64_hotchain.h), shrinking it should have been symmetrically good.
+# It is not: the totals are flat.  62% is not a knife-edge optimum, and the
+# group's span only costs something when it grows into space that hot code
+# outside it wants.  Do not expect wins from shrinking it further.
+N64_SCANLINE_SPLIT ?= -DN64_SCANLINE_SPLIT
+CFLAGS += $(N64_SCANLINE_SPLIT)
+
 # The RDP renderer takes the RSP blit with it: rspq is a command
 # processor running as RSP ucode, so rsp_gbascan and rdpq cannot both be
 # loaded.  The blit returns to the CPU, where it now only has to convert

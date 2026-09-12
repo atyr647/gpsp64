@@ -60,6 +60,15 @@
  * hottest code in the emulator, so the marginal cost of each addition is
  * paid by update_gba and update_scanline.  62% is a measured operating
  * point, not a budget with room in it.
+ *
+ * Nor is it a knife-edge one.  The symmetric experiment -- shrink the
+ * group instead, by splitting update_scanline so only its 184-byte hot
+ * path stays in (-DN64_SCANLINE_SPLIT) -- takes it from 62% to 39% and
+ * changes whole-frame time not at all: over six .text layouts the median
+ * moved 61.08M to 60.84M COUNT ticks and the mean not at all.  So the
+ * span costs something when it grows into space hot code outside it
+ * wants, and nothing when it gives space back.  There are no systemic
+ * wins waiting in making this smaller.
  */
 
 #ifndef N64_HOTCHAIN_H
