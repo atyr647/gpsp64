@@ -860,6 +860,10 @@ int main(void)
             { debugf("PROF:  rdpbg: %lu blank tiles skipped per frame\n",
                      (unsigned long)(prof_rdpbg_blank / g));
               prof_rdpbg_blank = 0; }
+            { extern u32 prof_rdpbg_inert;
+              debugf("PROF:  rdpbg: %lu frames accepted with an inert colour effect\n",
+                     (unsigned long)prof_rdpbg_inert);
+              prof_rdpbg_inert = 0; }
             { extern u32 prof_rdpbg_why[8];
               debugf("PROF:  rdpbg: refused frames: mode%lu window%lu fx%lu"
                      " nolayer%lu 8bpp%lu mosaic%lu objonly%lu | accepted %lu\n",

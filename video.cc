@@ -3061,9 +3061,80 @@ static u32 rdpbg_snap[4][3];       /* per layer: cnt, hofs, vofs */
 static u32 rdpbg_snap_n = 0;
 static u32 rdpbg_snap_layer[4];
 
+/* A colour effect that provably does nothing is not a reason to hand the
+ * frame back to the CPU renderer.
+ *
+ * The conditions are not invented here: they are exactly the ones
+ * render_scanline_conditional_tile() uses to decide that an effect is
+ * inert and fall through to "regular" rendering.  Reusing them means the
+ * RDP path is enabled in precisely the cases where the renderer it
+ * replaces would have produced an unblended scanline anyway, so agreeing
+ * with it is not an argument about GBA semantics, it is the same test.
+ *
+ * This matters for portability rather than for this game.  Emerald's
+ * overworld already passes the gate on every frame; what refuses frames
+ * in other games is a blend configuration left in the registers between
+ * fades, which is the common idle state -- BLDY sits at zero, or the
+ * target masks are empty, and the effect does nothing until the game
+ * starts a transition. */
+static int rdpbg_effect_inert(u16 bldcnt)
+{
+  switch ((bldcnt >> 6) & 3) {
+  case 0:                                   /* no effect selected */
+    return 1;
+  case 1:                                   /* alpha blend */
+    return !(bldcnt & 0x003F)               /* nothing is a 1st target */
+        || !(bldcnt & 0x3F00)               /* nothing is a 2nd target */
+        || (read_ioreg(REG_BLDALPHA) & 0x1F1F) == 0x001F;  /* 100%/0% */
+  default:                                  /* brighten / darken */
+    return !(bldcnt & 0x003F)               /* nothing is a 1st target */
+        || !(read_ioreg(REG_BLDY) & 0x1F);  /* zero factor */
+  }
+}
+
+/* The blend registers as they stood when the frame was accepted.  They are
+ * not covered by the layer snapshot and a game is free to start a fade
+ * part-way down the screen, so an effect that was inert at line 0 has to
+ * be re-checked per row exactly like the scroll registers. */
+static u16 rdpbg_bld_snap[3];
+/* The window registers, for the same reason: which rows were masked was
+ * decided at line 0, so a game that moves a window part-way down the
+ * screen has to hand the rest of the frame back. */
+static u16 rdpbg_win_snap[6];
+
+static void rdpbg_bld_take(void)
+{
+  rdpbg_bld_snap[0] = read_ioreg(REG_BLDCNT);
+  rdpbg_bld_snap[1] = read_ioreg(REG_BLDALPHA);
+  rdpbg_bld_snap[2] = read_ioreg(REG_BLDY);
+  rdpbg_win_snap[0] = read_ioreg(REG_WIN0H);
+  rdpbg_win_snap[1] = read_ioreg(REG_WIN0V);
+  rdpbg_win_snap[2] = read_ioreg(REG_WIN1H);
+  rdpbg_win_snap[3] = read_ioreg(REG_WIN1V);
+  rdpbg_win_snap[4] = read_ioreg(REG_WININ);
+  rdpbg_win_snap[5] = read_ioreg(REG_WINOUT);
+}
+
+static int rdpbg_bld_match(void)
+{
+  if (read_ioreg(REG_BLDCNT)   == rdpbg_bld_snap[0] &&
+      read_ioreg(REG_BLDALPHA) == rdpbg_bld_snap[1] &&
+      read_ioreg(REG_BLDY)     == rdpbg_bld_snap[2])
+    return 1;
+  /* Changed: still fine if it is still doing nothing. */
+  return rdpbg_effect_inert(read_ioreg(REG_BLDCNT));
+}
+
 static int rdpbg_regs_match(void)
 {
   u32 i;
+  if (!rdpbg_bld_match()) return 0;
+  if (read_ioreg(REG_WIN0H)  != rdpbg_win_snap[0] ||
+      read_ioreg(REG_WIN0V)  != rdpbg_win_snap[1] ||
+      read_ioreg(REG_WIN1H)  != rdpbg_win_snap[2] ||
+      read_ioreg(REG_WIN1V)  != rdpbg_win_snap[3] ||
+      read_ioreg(REG_WININ)  != rdpbg_win_snap[4] ||
+      read_ioreg(REG_WINOUT) != rdpbg_win_snap[5]) return 0;
   for (i = 0; i < rdpbg_snap_n; i++) {
     u32 l = rdpbg_snap_layer[i];
     if (read_ioreg(REG_BGxCNT(l))  != rdpbg_snap[i][0]) return 0;
@@ -3078,6 +3149,10 @@ static int rdpbg_regs_match(void)
 /* Why a frame is refused, so a zero coverage number says which
  * assumption was wrong rather than just that something was. */
 u32 prof_rdpbg_why[8];
+/* Frames the gate now accepts that the old one refused: a colour effect is
+ * configured but inert.  Zero on Emerald's overworld, which never sets one
+ * up; the number to watch when running anything else. */
+u32 prof_rdpbg_inert = 0;
 u32 prof_rdpbg_win[6];
 
 /* The layer-enable flags the CPU renderer will actually use for every
@@ -3088,17 +3163,58 @@ u32 prof_rdpbg_win[6];
  * render_window_n_pass and in_window_y exactly rather than reasoning
  * about GBA window semantics independently -- the point is to agree with
  * the renderer being replaced, not with the hardware manual. */
+static int rdpbg_win0_covers_all(u16 dispcnt)
+{
+  u32 v, h, top, bot, l, r;
+  if (!(dispcnt & 0x2000)) return 0;
+  v = read_ioreg(REG_WIN0V); h = read_ioreg(REG_WIN0H);
+  top = v >> 8; bot = v & 0xFF; l = h >> 8; r = h & 0xFF;
+  return top <= 227 && bot > 227 && l < r && l == 0 && r >= 240;
+}
+
 static u32 rdpbg_window_flags(u16 dispcnt)
 {
   u32 wc = dispcnt >> 13;
   if (!wc) return 0x3F;                        /* no window at all       */
-  if (wc & 1) {
-    u32 v = read_ioreg(REG_WIN0V), h = read_ioreg(REG_WIN0H);
-    u32 top = v >> 8, bot = v & 0xFF, l = h >> 8, r = h & 0xFF;
-    if (top <= 227 && bot > 227 && l < r && l == 0 && r >= 240)
-      return read_ioreg(REG_WININ) & 0x3F;     /* WIN0 covers the screen */
+  if (wc & 4) return 0xFFFFFFFFu;              /* OBJ window is per-pixel */
+  if (rdpbg_win0_covers_all(dispcnt))
+    return read_ioreg(REG_WININ) & 0x3F;       /* WIN0 covers the screen */
+  /* A real window, and the frame used to be refused here -- all 160 rows
+   * handed to the CPU renderer because part of the screen is windowed.
+   *
+   * A row that falls outside every window's vertical range sees exactly
+   * one layer set, WINOUT, and renders identically to an unwindowed row;
+   * only rows the window actually crosses have to be split horizontally,
+   * and those are the ones the CPU still takes.  So report WINOUT here
+   * and let rdpbg_mask_window_rows() take the rows that are genuinely
+   * windowed out of the RDP's hands.
+   *
+   * This is the difference between 0% coverage and most of the screen for
+   * the very common case of a dialogue box or a status bar: a window over
+   * the bottom quarter now costs a quarter of the frame rather than all
+   * of it. */
+  return read_ioreg(REG_WINOUT) & 0x3F;
+}
+
+/* Clear eligibility for rows any enabled window crosses.  The vertical
+ * test is in_window_y() and the zero-width test is win_lraw == win_rraw,
+ * both taken from render_window_n_pass rather than re-derived, so a row
+ * is kept only when that renderer would have drawn it with a single
+ * uniform "outside" pass. */
+static void rdpbg_mask_window_rows(u16 dispcnt, u8 *elig)
+{
+  u32 n, y;
+  if (!(dispcnt & 0x6000)) return;             /* neither WIN0 nor WIN1  */
+  if (rdpbg_win0_covers_all(dispcnt)) return;  /* handled as unwindowed  */
+  for (n = 0; n < 2; n++) {
+    u32 v, h, top, bot, l, r;
+    if (!((dispcnt >> (13 + n)) & 1)) continue;
+    v = read_ioreg(REG_WINxV(n)); h = read_ioreg(REG_WINxH(n));
+    top = v >> 8; bot = v & 0xFF; l = h >> 8; r = h & 0xFF;
+    if (l == r) continue;                      /* zero width: never in   */
+    for (y = 0; y < 160; y++)
+      if (in_window_y(y, top, bot)) elig[y] = 0;
   }
-  return 0xFFFFFFFFu;                          /* genuinely windowed     */
 }
 
 #define RDPBG_MAXSPR 128
@@ -3256,8 +3372,10 @@ static void rdpbg_frame_begin(void)
    * uniform across the screen. */
   eff = rdpbg_window_flags(dispcnt);
   if (eff == 0xFFFFFFFFu)    { prof_rdpbg_why[1]++; return; } /* real window */
-  if ((eff & 0x20) && ((read_ioreg(REG_BLDCNT) >> 6) & 3) != 0)
+  if ((eff & 0x20) && !rdpbg_effect_inert(read_ioreg(REG_BLDCNT)))
                              { prof_rdpbg_why[2]++; return; } /* colour fx  */
+  if ((eff & 0x20) && ((read_ioreg(REG_BLDCNT) >> 6) & 3) != 0)
+    prof_rdpbg_inert++;      /* configured, but doing nothing this frame */
   if (!layer_count || !(eff & 0x1F))
                              { prof_rdpbg_why[3]++; return; }
 
@@ -3278,6 +3396,7 @@ static void rdpbg_frame_begin(void)
     rdpbg_snap_n++;
   }
   if (!rdpbg_snap_n) { prof_rdpbg_why[6]++; return; }
+  rdpbg_bld_take();
 
   /* A row is the RDP's unless something on it cannot be drawn here.
    * Sprites used to disqualify a row outright, which capped coverage at
@@ -3285,6 +3404,7 @@ static void rdpbg_frame_begin(void)
    * mosaic, semi-transparent, OBJ-window, or dropped by gpSP's per-row
    * sprite budget. */
   memset(rdpbg_elig, 1, sizeof(rdpbg_elig));
+  rdpbg_mask_window_rows(dispcnt, rdpbg_elig);
   if (eff & 0x10)
     rdpbg_scan_objs(dispcnt, rdpbg_elig);
   else
