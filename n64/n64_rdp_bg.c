@@ -468,8 +468,27 @@ static u16 rdpbg_order[RDPBG_MAX_DRAWS];
  * pending batch is not theoretical: it is what the earlier
  * sorted-records attempt did, and the RDP's pixel counter caught it at
  * 38,952 px/sync against a reference 38,933.) */
-#define RDPBG_BLK_RECS  RDPBG_RSP_MAXBATCH
-#define RDPBG_NBLK      48
+/* Block size and pool size are a D-cache budget, not a capacity one.
+ *
+ * The pool is cycled once per frame, so every byte of it is dirtied and
+ * written back each frame.  The list it replaced was rewritten from index
+ * zero every flush, so it only ever touched ~10 KB however many flushes
+ * there were.  A 48-block pool of 128-record blocks is 50 KB, and the
+ * extra 40 KB of writebacks -- 2,500 lines at 40 cycles -- costs about a
+ * millisecond a frame, which lands on the emulator rather than on the
+ * renderer and very nearly cancelled the win.
+ *
+ * Halving the pool to 24 blocks halves that to 25 KB.  Shrinking the
+ * blocks instead was tried and is worse: 64-record blocks cut the
+ * footprint to 12.7 KB but raised blit from 13.5M to 14.3M ticks, because
+ * a block is a batch and smaller blocks mean more rspq submissions.  Keep
+ * the batch size, halve the pool.
+ *
+ * The pool only has to exceed RDPBG_RSP_DEPTH so that round-robin reuse
+ * cannot overwrite a block the RSP has not read yet; 24 against 8 is
+ * ample, and 24 * 128 records is 3,072 against a layer's 651. */
+#define RDPBG_BLK_RECS  128
+#define RDPBG_NBLK      24
 
 /* Two records of padding per block, and they are not slack: a block is
  * RDPBG_BLK_RECS * 8 = 1024 bytes, so without padding blocks sit exactly

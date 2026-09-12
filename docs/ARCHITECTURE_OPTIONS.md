@@ -87,6 +87,18 @@ Two ways around it:
 Realistic landing: 4.0-4.5 ms of the 6.0 recovered. Largest piece of work
 in the port to date.
 
+**Update.** Option 1 is done, and it moved the goalposts. Bucketing during
+the walk, plus tightening the walk's inner loop to advance a tilemap
+pointer instead of recomputing an address per tile, took the renderer's
+CPU cost from 6.23 ms to 4.84 ms -- a 22% cut, consistent across three
+`.text` layouts. The breakdown also shifted: the sort is gone (0.82 ->
+0.03 ms) and the emit loop no longer touches records (2.45 -> 1.51 ms), so
+what is left is almost entirely the walk itself at ~3.3 ms.
+
+That is exactly the piece option 2 moves, and it is now 68% of the
+renderer rather than 46% of it. But the prize shrank with the cost: the
+ceiling for moving display-list generation is now ~4.8 ms, not 6.0.
+
 ### B. Audio mixing to the RSP -- 2.5-3.5 ms
 
 `sound_timer` (7.9%) and `render_gbc_sound` (3.5%) are 11.4% of the silent

@@ -3004,6 +3004,17 @@ extern "C" void n64_rdpbg_bucket_mode(int on);
 u8 n64_rdp_row[160];               /* 1 = RDP drew it, CPU must not blit */
 u32 prof_rdpbg_rows = 0, prof_rdpbg_frames = 0, prof_rdpbg_break = 0;
 u32 prof_rdpbg_blank = 0;
+/* Counting skipped tiles is diagnostics, and it sat on the hottest path in
+ * the renderer: a load-modify-store on a global, 1,269 times a frame, in
+ * the middle of a loop whose register allocation matters.  This project
+ * has measured that shape costing far more than the three instructions
+ * suggest (see PROFILE_AOT in Makefile.n64).  -DRDPBG_BLANKPROF brings it
+ * back when the number is wanted. */
+#ifdef RDPBG_BLANKPROF
+#define RDPBG_COUNT_BLANK() (prof_rdpbg_blank++)
+#else
+#define RDPBG_COUNT_BLANK() ((void)0)
+#endif
 
 static u8  rdpbg_elig[160];
 static u32 rdpbg_active = 0;
@@ -3170,7 +3181,7 @@ static void rdpbg_emit_objs(u32 prio)
           u32 stx = (s->flip & 1) ? (u32)(s->wt - 1 - tx) : tx;
           u32 off = (s->base + sty * s->pitch + stx * 32) & 0x7FFF;
           u32 vt  = 2048 + (off >> 5);
-          if (!N64_TILE_NZ(vt)) { prof_rdpbg_blank++; continue; }
+          if (!N64_TILE_NZ(vt)) { RDPBG_COUNT_BLANK(); continue; }
           n64_rdpbg_add((int)(s->x + (s32)(tx * 8)), (int)sy, (int)r0, (int)r1,
                         vt, s->pal, s->flip);
         }
@@ -3303,18 +3314,42 @@ static void rdpbg_emit_bg(u32 i)
         if (g < 0 || g >= 160 || !n64_rdp_row[g]) break;
         r1++;
       }
-      for (tx = 0; tx < 31; tx++) {
-        u32 vx = (hofs + (tx << 3)) & (mw - 1);
-        u16 tile = gba_deref16(maprow + ((vx >= 256) ? 1024 : 0)
-                                      + ((vx & 255) >> 3));
-        u32 vt = (cb * 512 + (tile & 0x3FF)) & 0x7FF;
-        /* An all-zero tile is entirely transparent, so its rectangle
-         * would be discarded pixel by pixel by the alpha test after
-         * costing five uncached words to enqueue.  The upper layers are
-         * mostly these. */
-        if (!N64_TILE_NZ(vt)) { prof_rdpbg_blank++; continue; }
-        n64_rdpbg_add((int)(tx * 8) - xsub, (int)sy, (int)r0, (int)r1,
-                      vt, tile >> 12, (tile >> 10) & 3);
+      /* Walk the row as runs of consecutive tilemap entries.
+       *
+       * Horizontally adjacent tiles are adjacent entries: tx advances 8
+       * pixels, which is one entry.  Recomputing the address from vx per
+       * tile -- mask to the map width, test the 256-pixel boundary to pick
+       * a 2KB screen block, shift out the entry index -- was about six
+       * instructions to rediscover "the next one along", 2,485 times a
+       * frame.  The only places it is not the next one along are the end
+       * of a 32-entry block and the wrap at the map width, and both are
+       * known in advance, so hoist them into the loop bounds and let the
+       * inner loop be a pointer increment. */
+      { u32 espan = (mw == 512) ? 64 : 32;   /* entries across the map */
+        u32 ent = ((hofs & (mw - 1)) >> 3);  /* entry under tx == 0 */
+        tx = 0;
+        while (tx < 31) {
+          u32 run = 32 - (ent & 31);         /* to the end of this block */
+          const u16 *p;
+          if (run > 31 - tx) run = 31 - tx;
+          p = maprow + (ent >> 5) * 1024 + (ent & 31);
+          ent += run;
+          if (ent >= espan) ent -= espan;
+          while (run--) {
+            u16 tile = gba_deref16(p++);
+            u32 vt = (cb * 512 + (tile & 0x3FF)) & 0x7FF;
+            /* An all-zero tile is entirely transparent, so its rectangle
+             * would be discarded pixel by pixel by the alpha test after
+             * costing five uncached words to enqueue.  The upper layers
+             * are mostly these. */
+            if (N64_TILE_NZ(vt))
+              n64_rdpbg_add((int)(tx * 8) - xsub, (int)sy, (int)r0, (int)r1,
+                            vt, tile >> 12, (tile >> 10) & 3);
+            else
+              RDPBG_COUNT_BLANK();
+            tx++;
+          }
+        }
       }
       r0 = r1;
     }
