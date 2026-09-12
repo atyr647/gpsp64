@@ -988,6 +988,39 @@ int main(void)
                      (unsigned long)prof_audio_zero, (unsigned long)prof_audio_calls);
               prof_audio_samples = 0; prof_audio_calls = 0; prof_audio_zero = 0; }
 #endif
+#ifdef N64_RSP_WALK_PROF
+            { extern u32 prof_walk_prep, prof_walk_wait, prof_walk_back;
+              debugf("PROF:  rspwalk: prep %lu.%02lu ms, wait %lu.%02lu ms, "
+                     "readback %lu.%02lu ms per frame\n",
+                     (unsigned long)(prof_walk_prep * 2 / g2 / 93750),
+                     (unsigned long)((prof_walk_prep * 2 / g2 % 93750) * 100 / 93750),
+                     (unsigned long)(prof_walk_wait * 2 / g2 / 93750),
+                     (unsigned long)((prof_walk_wait * 2 / g2 % 93750) * 100 / 93750),
+                     (unsigned long)(prof_walk_back * 2 / g2 / 93750),
+                     (unsigned long)((prof_walk_back * 2 / g2 % 93750) * 100 / 93750));
+              prof_walk_prep = prof_walk_wait = prof_walk_back = 0; }
+#endif
+#ifdef N64_RSP_WALK_VERIFY
+            { extern u32 prof_rspwalk_layers, prof_rspwalk_bad, prof_rspwalk_recs;
+              extern s32 prof_rspwalk_first[11];
+              debugf("PROF:  rspwalk: %lu layers, %lu records, %lu layers mismatched\n",
+                     (unsigned long)prof_rspwalk_layers,
+                     (unsigned long)prof_rspwalk_recs,
+                     (unsigned long)prof_rspwalk_bad);
+              if (prof_rspwalk_first[0] == -2)
+                debugf("PROF:  rspwalk: FIRST count rsp=%ld cpu=%ld\n",
+                       (long)prof_rspwalk_first[1], (long)prof_rspwalk_first[2]);
+              else if (prof_rspwalk_first[0] >= 0)
+                debugf("PROF:  rspwalk: FIRST rec %ld rsp(%ld,%ld,%lx,%lx,%ld) "
+                       "cpu(%ld,%ld,%lx,%lx,%ld)\n",
+                       (long)prof_rspwalk_first[0],
+                       (long)prof_rspwalk_first[1], (long)prof_rspwalk_first[2],
+                       (long)prof_rspwalk_first[3], (long)prof_rspwalk_first[4],
+                       (long)prof_rspwalk_first[5], (long)prof_rspwalk_first[6],
+                       (long)prof_rspwalk_first[7], (long)prof_rspwalk_first[8],
+                       (long)prof_rspwalk_first[9], (long)prof_rspwalk_first[10]);
+              prof_rspwalk_layers = prof_rspwalk_bad = prof_rspwalk_recs = 0; }
+#endif
             { extern u32 n64_rdpbg_t_r;
                 debugf("PROF:  rdpbg-range: %lu.%02lu ms/frame\n",
                        (unsigned long)(n64_rdpbg_t_r * 2 / g2 / 93750),

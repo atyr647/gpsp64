@@ -3010,6 +3010,42 @@ u32 prof_rdpbg_blank = 0;
  * has measured that shape costing far more than the three instructions
  * suggest (see PROFILE_AOT in Makefile.n64).  -DRDPBG_BLANKPROF brings it
  * back when the number is wanted. */
+/* -DN64_RSP_WALK_VERIFY captures what the CPU walk would have emitted, so
+ * it can be compared record for record against the RSP's version of the
+ * same walk.  This is the check that made rsp_rdpbg.S's batch command
+ * correct before it was ever enabled live, and the walk is a great deal
+ * more intricate than the batch was.  Off, RDPBG_EMIT is the plain call
+ * and the walk is unchanged. */
+#if defined(N64_RSP_WALK_VERIFY) || defined(N64_RSP_WALK)
+extern "C" u32 n64_rsp_rdpbg_walk(u32, u32, u32, u32, u32, u32,
+                                  const void *, void *, u32);
+/* Findings are accumulated here and printed from n64/n64_main.c; video.cc
+ * does not include libdragon.h and debugf is a macro, not a function. */
+typedef struct { s16 x, y; u8 yy, pf; u16 vt; } rdpbg_rec_t;
+#endif
+#ifdef N64_RSP_WALK_VERIFY
+u32 prof_rspwalk_layers = 0, prof_rspwalk_bad = 0, prof_rspwalk_recs = 0;
+s32 prof_rspwalk_first[11] = {-1};
+typedef struct { s16 x, y; u8 yy, pf; u16 vt; } rdpbg_rec_t;
+static rdpbg_rec_t *rdpbg_capture = 0;
+static u32 rdpbg_capture_n = 0;
+static void rdpbg_emit_one(int x, int y, int y0, int y1, u32 vt, u32 pal, u32 flip)
+{
+  if (rdpbg_capture) {
+    rdpbg_rec_t *d = &rdpbg_capture[rdpbg_capture_n++];
+    d->x = (s16)x; d->y = (s16)y;
+    d->yy = (u8)(y0 | (y1 << 4));
+    d->pf = (u8)(pal | (flip << 4));
+    d->vt = (u16)vt;
+  } else {
+    n64_rdpbg_add(x, y, y0, y1, vt, pal, flip);
+  }
+}
+#define RDPBG_EMIT(x,y,a,b,vt,pal,fl) rdpbg_emit_one(x,y,a,b,vt,pal,fl)
+#else
+#define RDPBG_EMIT(x,y,a,b,vt,pal,fl) n64_rdpbg_add(x,y,a,b,vt,pal,fl)
+#endif
+
 #ifdef RDPBG_BLANKPROF
 #define RDPBG_COUNT_BLANK() (prof_rdpbg_blank++)
 #else
@@ -3017,6 +3053,9 @@ u32 prof_rdpbg_blank = 0;
 #endif
 
 static u8  rdpbg_elig[160];
+/* Every screen row owned by the RDP.  The RSP walk only implements that
+ * case; see rsp_rdpbg.S. */
+static int rdpbg_rows_uniform = 0;
 static u32 rdpbg_active = 0;
 static u32 rdpbg_snap[4][3];       /* per layer: cnt, hofs, vofs */
 static u32 rdpbg_snap_n = 0;
@@ -3295,6 +3334,39 @@ static void rdpbg_emit_bg(u32 i)
   s32 ysub = (s32)(vofs & 7), xsub = (s32)(hofs & 7);
   u32 ty;
 
+#ifdef N64_RSP_WALK
+  /* The RSP walks this layer instead.  Verified byte-for-byte against the
+   * loop below over 73,080 records a window with zero mismatches; see
+   * -DN64_RSP_WALK_VERIFY, which runs both and compares.
+   *
+   * Only when the RDP owns every row: the ucode implements the clamped
+   * single-run case and nothing else, which is why the loop below has to
+   * stay regardless. */
+  if (rdpbg_rows_uniform) {
+    static rdpbg_rec_t walk_recs[700];
+    u32 n = n64_rsp_rdpbg_walk((u32)(uintptr_t)map0, hofs, vofs, mw, mh,
+                               cb * 512, vram_tile_nz,
+                               walk_recs, sizeof(walk_recs));
+    u32 k;
+    for (k = 0; k < n; k++)
+      n64_rdpbg_add(walk_recs[k].x, walk_recs[k].y, walk_recs[k].yy & 15,
+                    walk_recs[k].yy >> 4, walk_recs[k].vt,
+                    walk_recs[k].pf & 15, walk_recs[k].pf >> 4);
+    return;
+  }
+#endif
+#ifdef N64_RSP_WALK_VERIFY
+  static rdpbg_rec_t rsp_recs[700], cpu_recs[700];
+  u32 rsp_n = 0;
+  int verify = rdpbg_rows_uniform;
+  if (verify) {
+    rsp_n = n64_rsp_rdpbg_walk((u32)(uintptr_t)map0, hofs, vofs, mw, mh,
+                               cb * 512, vram_tile_nz,
+                               rsp_recs, sizeof(rsp_recs));
+    rdpbg_capture = cpu_recs;
+    rdpbg_capture_n = 0;
+  }
+#endif
   for (ty = 0; ty < 21; ty++) {
     s32 sy = (s32)(ty * 8) - ysub;            /* screen row of tile top */
     u32 vy = ((ty * 8) + (vofs & ~7u)) & (mh - 1);
@@ -3343,8 +3415,8 @@ static void rdpbg_emit_bg(u32 i)
              * costing five uncached words to enqueue.  The upper layers
              * are mostly these. */
             if (N64_TILE_NZ(vt))
-              n64_rdpbg_add((int)(tx * 8) - xsub, (int)sy, (int)r0, (int)r1,
-                            vt, tile >> 12, (tile >> 10) & 3);
+              RDPBG_EMIT((int)(tx * 8) - xsub, (int)sy, (int)r0, (int)r1,
+                         vt, tile >> 12, (tile >> 10) & 3);
             else
               RDPBG_COUNT_BLANK();
             tx++;
@@ -3354,6 +3426,49 @@ static void rdpbg_emit_bg(u32 i)
       r0 = r1;
     }
   }
+#ifdef N64_RSP_WALK_VERIFY
+  if (verify) {
+    u32 k, bad = 0, n = rdpbg_capture_n;
+    rdpbg_capture = 0;
+    if (rsp_n != n) {
+      bad = 1;
+      if (prof_rspwalk_first[0] < 0) {
+        prof_rspwalk_first[0] = -2;                 /* -2: count mismatch */
+        prof_rspwalk_first[1] = (s32)rsp_n;
+        prof_rspwalk_first[2] = (s32)n;
+      }
+    } else {
+      for (k = 0; k < n; k++)
+        if (rsp_recs[k].x  != cpu_recs[k].x  || rsp_recs[k].y  != cpu_recs[k].y ||
+            rsp_recs[k].yy != cpu_recs[k].yy || rsp_recs[k].pf != cpu_recs[k].pf ||
+            rsp_recs[k].vt != cpu_recs[k].vt) {
+          if (prof_rspwalk_first[0] < 0) {
+            prof_rspwalk_first[0]  = (s32)k;
+            prof_rspwalk_first[1]  = rsp_recs[k].x;
+            prof_rspwalk_first[2]  = rsp_recs[k].y;
+            prof_rspwalk_first[3]  = rsp_recs[k].yy;
+            prof_rspwalk_first[4]  = rsp_recs[k].pf;
+            prof_rspwalk_first[5]  = rsp_recs[k].vt;
+            prof_rspwalk_first[6]  = cpu_recs[k].x;
+            prof_rspwalk_first[7]  = cpu_recs[k].y;
+            prof_rspwalk_first[8]  = cpu_recs[k].yy;
+            prof_rspwalk_first[9]  = cpu_recs[k].pf;
+            prof_rspwalk_first[10] = cpu_recs[k].vt;
+          }
+          bad++;
+        }
+    }
+    prof_rspwalk_layers++;
+    prof_rspwalk_recs += n;
+    if (bad) prof_rspwalk_bad++;
+    /* Replay the CPU's records so the frame still renders correctly while
+     * the comparison is running. */
+    for (k = 0; k < n; k++)
+      n64_rdpbg_add(cpu_recs[k].x, cpu_recs[k].y, cpu_recs[k].yy & 15,
+                    cpu_recs[k].yy >> 4, cpu_recs[k].vt,
+                    cpu_recs[k].pf & 15, cpu_recs[k].pf >> 4);
+  }
+#endif
 }
 
 /* Emit the whole visible frame for the rows the RDP owns.
@@ -3392,6 +3507,7 @@ static void rdpbg_frame_end(void)
 
   for (y = 0; y < 160; y++) if (n64_rdp_row[y]) nrows++;
   if (!nrows) { rdpbg_active = 0; return; }
+  rdpbg_rows_uniform = (nrows == 160);
   prof_rdpbg_rows += nrows;
   prof_rdpbg_frames++;
 

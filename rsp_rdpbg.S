@@ -302,125 +302,128 @@ RDPBG_no_bulk_out:
 #   20  cb512    char base already multiplied by 512
 #   24  nz       physical address of vram_tile_nz
 ############################################################################
+# Register map, chosen around two constraints that are easy to miss and
+# fatal to get wrong:
+#
+#   gp is globally reserved by rspq (rspq_dmem_buf_ptr) and must never be
+#   touched; ra is the return address every "jal DMAIn" overwrites, so it
+#   cannot hold state; and fp and s8 are the same register.  All three
+#   were violated by the first version of this, which hung the RSP on the
+#   first frame.
+#
+#   DMAIn/DMAOut consume s0, s4, t0, t1 and destroy t2 and $at.  Anything
+#   that has to survive a transfer therefore lives in s1-s3, s5-s7, k0,
+#   k1, t3-t9, v0, v1, a0-a3 or fp.
+#
+#   s1 map0        s2 hofs      s3 vofs       s5 out cursor (RDRAM)
+#   s6 count dest  s7 mw        k0 cb512      k1 mh
+#   t8 espan       t9 ent0      v0 xsub       v1 ysub
+#   fp staging cursor (DMEM)    a0 staged     t3 total written
+#   a1 ty          a2 sy        a3 yy
+#   t4 tx          t5 entry index             t6, t7 scratch
     .func RDPBGCmd_Walk
 RDPBGCmd_Walk:
-    move    s5, a1                   # s5 = RDRAM record destination (advances)
-    move    s6, a2                   # s6 = RDRAM count destination
+    move    s5, a1                   # RDRAM record destination, advances
+    move    s6, a2                   # RDRAM destination for the count
 
-    # Parameters, then the blank-tile bitmap.  Both are read many times and
-    # neither changes during the walk, so they come in once.
     move    s0, a0
     li      s4, %lo(PARM)
     jal     DMAIn
      li     t0, 28 - 1
 
-    lw      k0, %lo(PARM) + 24       # k0 = nz bitmap address in RDRAM
-    move    s0, k0
+    lw      t4, %lo(PARM) + 24       # nz bitmap in RDRAM
+    move    s0, t4
     li      s4, %lo(NZBUF)
     jal     DMAIn
      li     t0, 384 - 1
 
-    lw      s1, %lo(PARM) + 0        # s1 = map0
-    lw      s2, %lo(PARM) + 4        # s2 = hofs
-    lw      s3, %lo(PARM) + 8        # s3 = vofs
-    lw      s7, %lo(PARM) + 12       # s7 = mw
-    lw      k1, %lo(PARM) + 16       # k1 = mh
-    lw      gp, %lo(PARM) + 20       # gp = cb512
+    lw      s1, %lo(PARM) + 0
+    lw      s2, %lo(PARM) + 4
+    lw      s3, %lo(PARM) + 8
+    lw      s7, %lo(PARM) + 12       # mw
+    lw      k1, %lo(PARM) + 16       # mh
+    lw      k0, %lo(PARM) + 20       # cb512
 
-    # espan: entries across the map, 32 or 64.  ent0: the entry under
-    # tx == 0, which is the scroll's tile column within the map.
-    li      t8, 32                   # t8 = espan
-    li      t9, 256
-    bne     s7, t9, RDPBG_w_wide
+    # espan: tilemap entries across the map, 32 or 64.
+    li      t8, 32
+    li      t6, 512
+    bne     s7, t6, RDPBG_w_espan_done
      nop
-    b       RDPBG_w_espan_done
-     nop
-RDPBG_w_wide:
     li      t8, 64
 RDPBG_w_espan_done:
-    addi    t0, s7, -1
-    and     t1, s2, t0               # hofs & (mw-1)
-    srl     fp, t1, 3                # fp = ent0
+    addi    t6, s7, -1
+    and     t7, s2, t6
+    srl     t9, t7, 3                # ent0: the scroll's tile column
 
-    andi    v1, s3, 7                # v1 = ysub
-    andi    a0, s2, 7                # a0 = xsub
+    andi    v1, s3, 7                # ysub
+    andi    v0, s2, 7                # xsub
 
-    li      s8, %lo(RECBUF)          # s8 = staging write cursor
-    li      k0, 0                    # k0 = records staged
-    li      ra, 0                    # ra = records written in total
+    li      fp, %lo(RECBUF)
+    li      a0, 0                    # records staged in DMEM
+    li      t3, 0                    # records written in total
+    li      a1, 0                    # ty
 
-    li      a1, 0                    # a1 = ty
 RDPBG_w_row:
-    li      t0, 21
-    beq     a1, t0, RDPBG_w_done
+    li      t6, 21
+    beq     a1, t6, RDPBG_w_done
      nop
 
-    # sy = ty*8 - ysub, and the run of rows this tile contributes:
-    # r0 = max(0, -sy), r1 = min(8, 160 - sy).  Skipped entirely when the
-    # tile row lies off the screen.
+    # sy, and the run of rows this tile row contributes once clamped to the
+    # screen: r0 = max(0, -sy), r1 = min(8, 160 - sy).
     sll     a2, a1, 3
-    subu    a2, a2, v1               # a2 = sy
-    li      a3, 0
+    subu    a2, a2, v1               # sy
+    li      t6, 0
     bgez    a2, RDPBG_w_r0_done
      nop
-    subu    a3, $0, a2               # sy < 0: start at -sy
+    subu    t6, $0, a2
 RDPBG_w_r0_done:
-    li      t1, 160
-    subu    t1, t1, a2               # 160 - sy
-    li      t2, 8
-    slt     t3, t1, t2
-    beqz    t3, RDPBG_w_r1_done
+    li      t7, 160
+    subu    t7, t7, a2
+    li      a3, 8
+    slt     t0, t7, a3
+    beqz    t0, RDPBG_w_r1_done
      nop
-    move    t2, t1
+    move    a3, t7
 RDPBG_w_r1_done:
-    slt     t3, a3, t2               # r0 < r1 ?
-    beqz    t3, RDPBG_w_next_row
+    slt     t0, t6, a3               # r0 < r1 ?
+    beqz    t0, RDPBG_w_next_row
      nop
-    sll     t4, t2, 4
-    or      t4, t4, a3               # t4 = yy = r0 | (r1 << 4)
-    andi    t4, t4, 0xFF
+    sll     t0, a3, 4
+    or      a3, t0, t6
+    andi    a3, a3, 0xFF             # yy = r0 | (r1 << 4)
 
-    # The tilemap row.  vy selects it; a map taller than 256 pixels keeps
-    # its lower half in the next 2KB screen block, and a map wider than 256
-    # keeps each row's right half 2KB further on again, which is why a wide
-    # map needs two transfers to make the row contiguous in DMEM.
-    sll     t5, a1, 3
-    li      t6, ~7
-    and     t6, s3, t6
-    addu    t5, t5, t6
-    addi    t6, k1, -1
-    and     t5, t5, t6               # t5 = vy
-    li      t6, 256
-    slt     t7, t5, t6
-    li      t6, 0
-    bnez    t7, RDPBG_w_rowblk_done
-     nop
-    li      t6, 2048                 # vy >= 256: next screen block
-    li      t7, 512
-    beq     s7, t7, RDPBG_w_rowblk_done
-     nop
-    li      t6, 2048
-RDPBG_w_rowblk_done:
-    li      t7, 512
-    bne     s7, t7, RDPBG_w_rowblk_have
-     nop
-    li      t7, 256
-    slt     t7, t5, t7
-    bnez    t7, RDPBG_w_rowblk_have
-     nop
-    li      t6, 4096                 # wide map, lower half: two blocks on
-RDPBG_w_rowblk_have:
-    andi    t7, t5, 255
-    srl     t7, t7, 3
-    sll     t7, t7, 6                # (vy & 255) >> 3, times 64 bytes
+    # The tilemap row.  A map taller than 256 pixels keeps its lower half
+    # in the next 2KB screen block; a map wider than 256 keeps each row's
+    # right half 2KB beyond that again, which is why a wide map needs two
+    # transfers to make the row contiguous in DMEM.
+    sll     t6, a1, 3
+    li      t7, ~7
+    and     t7, s3, t7
     addu    t6, t6, t7
-    addu    s0, s1, t6               # s0 = RDRAM address of the row
+    addi    t7, k1, -1
+    and     t6, t6, t7               # vy
+    li      t7, 256
+    slt     t0, t6, t7
+    li      t7, 0
+    bnez    t0, RDPBG_w_rowblk_done
+     nop
+    li      t7, 2048                 # lower half: one screen block on
+    li      t0, 512
+    bne     s7, t0, RDPBG_w_rowblk_done
+     nop
+    li      t7, 4096                 # ...two, when the map is also wide
+RDPBG_w_rowblk_done:
+    andi    t0, t6, 255
+    srl     t0, t0, 3
+    sll     t0, t0, 6                # ((vy & 255) >> 3) * 64 bytes
+    addu    t7, t7, t0
+    addu    s0, s1, t7
     li      s4, %lo(MAPBUF)
     jal     DMAIn
      li     t0, 64 - 1
 
-    li      t7, 64
-    bne     t8, t7, RDPBG_w_map_done
+    li      t6, 64
+    bne     t8, t6, RDPBG_w_map_done
      nop
     addi    s0, s0, 2048             # wide map: the row's right half
     li      s4, %lo(MAPBUF) + 64
@@ -428,88 +431,86 @@ RDPBG_w_rowblk_have:
      li     t0, 64 - 1
 RDPBG_w_map_done:
 
-    move    t7, fp                   # t7 = entry index, walks with tx
-    li      t0, 0                    # t0 = tx
+    move    t5, t9                   # entry index, walks with tx
+    li      t4, 0                    # tx
 RDPBG_w_tile:
-    li      t1, 31
-    beq     t0, t1, RDPBG_w_next_row
+    li      t6, 31
+    beq     t4, t6, RDPBG_w_next_row
      nop
 
-    sll     t1, t7, 1
-    addi    t1, t1, %lo(MAPBUF)
-    lhu     t2, 0(t1)                # tilemap entry, GBA byte order
-    srl     t3, t2, 8
-    andi    t2, t2, 0xFF
-    sll     t2, t2, 8
-    or      t2, t2, t3               # t2 = entry, byte-swapped
+    sll     t6, t5, 1
+    addi    t6, t6, %lo(MAPBUF)
+    lhu     t7, 0(t6)
+    srl     t6, t7, 8
+    andi    t7, t7, 0xFF
+    sll     t7, t7, 8
+    or      t7, t7, t6               # entry, byte-swapped to GBA order
 
-    andi    t3, t2, 0x3FF
-    addu    t3, t3, gp
-    andi    t3, t3, 0x7FF            # t3 = vt
+    andi    t6, t7, 0x3FF
+    addu    t6, t6, k0
+    andi    t6, t6, 0x7FF            # vt
 
-    srl     t5, t3, 3
-    addi    t5, t5, %lo(NZBUF)
-    lbu     t5, 0(t5)
-    andi    t6, t3, 7
-    srlv    t5, t5, t6
-    andi    t5, t5, 1
-    beqz    t5, RDPBG_w_skip         # blank tile: draws nothing at all
+    srl     t0, t6, 3
+    addi    t0, t0, %lo(NZBUF)
+    lbu     t0, 0(t0)
+    andi    t1, t6, 7
+    srlv    t0, t0, t1
+    andi    t0, t0, 1
+    beqz    t0, RDPBG_w_skip         # a blank tile draws nothing at all
      nop
 
-    # x = tx*8 - xsub, y = sy, pf = palette | (flip << 4)
-    sll     t6, t0, 3
-    subu    t6, t6, a0
-    sh      t6, 0(s8)
-    sh      a2, 2(s8)
-    sb      t4, 4(s8)
-    srl     t6, t2, 12               # palette
-    srl     t1, t2, 10
+    sll     t0, t4, 3
+    subu    t0, t0, v0               # x = tx*8 - xsub
+    sh      t0, 0(fp)
+    sh      a2, 2(fp)                # y = sy
+    sb      a3, 4(fp)                # yy
+    srl     t0, t7, 12               # palette
+    srl     t1, t7, 10
     andi    t1, t1, 3                # flip
     sll     t1, t1, 4
-    or      t6, t6, t1
-    sb      t6, 5(s8)
-    sh      t3, 6(s8)
-    addi    s8, s8, 8
-    addi    k0, k0, 1
+    or      t0, t0, t1
+    sb      t0, 5(fp)
+    sh      t6, 6(fp)                # vt
+    addi    fp, fp, 8
+    addi    a0, a0, 1
 
-    # Staging is finite; hand it over when it fills and start again.
-    li      t1, RECMAX
-    bne     k0, t1, RDPBG_w_skip
+    li      t0, RECMAX
+    bne     a0, t0, RDPBG_w_skip
      nop
-    move    s0, s5
+    move    s0, s5                   # staging full: hand it over
     li      s4, %lo(RECBUF)
     jal     DMAOut
      li     t0, (RECMAX * 8) - 1
     addi    s5, s5, RECMAX * 8
-    addu    ra, ra, k0
-    li      k0, 0
-    li      s8, %lo(RECBUF)
+    addu    t3, t3, a0
+    li      a0, 0
+    li      fp, %lo(RECBUF)
 
 RDPBG_w_skip:
-    addi    t7, t7, 1
-    bne     t7, t8, RDPBG_w_tile_next
+    addi    t5, t5, 1
+    bne     t5, t8, RDPBG_w_tile_next
      nop
-    li      t7, 0                    # wrapped round the map
+    li      t5, 0                    # wrapped round the map
 RDPBG_w_tile_next:
     b       RDPBG_w_tile
-     addi   t0, t0, 1
+     addi   t4, t4, 1
 
 RDPBG_w_next_row:
     b       RDPBG_w_row
      addi   a1, a1, 1
 
 RDPBG_w_done:
-    beqz    k0, RDPBG_w_no_tail
+    beqz    a0, RDPBG_w_no_tail
      nop
     move    s0, s5
     li      s4, %lo(RECBUF)
-    sll     t0, k0, 3
+    sll     t0, a0, 3
     jal     DMAOut
      addi   t0, t0, -1
-    addu    ra, ra, k0
+    addu    t3, t3, a0
 RDPBG_w_no_tail:
 
-    sw      ra, %lo(META)
+    sw      t3, %lo(META)
     move    s0, s6
     li      s4, %lo(META)
     jal     DMAOut

@@ -84,8 +84,42 @@ Two ways around it:
    handing over only the BG control registers and scroll values. Combined
    with (1) the CPU's share of the renderer approaches zero.
 
-Realistic landing: 4.0-4.5 ms of the 6.0 recovered. Largest piece of work
-in the port to date.
+**BUILT, MEASURED, AND IT DOES NOT WORK.** This was the largest projected
+win in this document and the projection was wrong. The walk is now
+implemented as RSP ucode (`rsp_rdpbg.S`, `RDPBGCmd_Walk`), verified
+byte-for-byte against the CPU walk -- 73,080 records a window, zero
+mismatches, via `-DN64_RSP_WALK_VERIFY` -- and wired live behind
+`-DN64_RSP_WALK`. Live, over four `.text` layouts, it is **47% worse on
+blit at every one of them** (13.68M -> 20.03M ticks median).
+
+`-DN64_RSP_WALK_PROF` says where it goes, per frame:
+
+    prep (writebacks, queue)   0.12 ms
+    wait for the RSP           2.60 ms
+    readback and invalidate    0.06 ms
+
+Preparing the transfer and reading the results back are nearly free. The
+cost is entirely waiting, and that is fatal to the idea rather than a
+tuning problem:
+
+- **The RSP is not faster at this.** 2.60 ms for four layers is 0.65 ms
+  each, against the CPU's 0.8 ms. The walk is not compute-bound, it is a
+  stream of small strided reads of the tilemap -- which the VR4300 does
+  out of a cache that is already warm, and which the RSP can only do by
+  DMA, 21 row transfers per layer, each a full RDRAM round trip. Moving
+  work to a 62.5 MHz processor with no cache only helps when the work is
+  arithmetic, and this is not.
+- **Waiting on a syncpoint serialises against the whole rspq queue**, not
+  just against our own command, so the wait also drains whatever rdpq work
+  was outstanding.
+- Pipelining could hide the wait only if the CPU had 2.6 ms of unrelated
+  work to do meanwhile. It does not: what remains of the renderer on the
+  CPU is the bucketing (1.0 ms) and the flush (1.5 ms), so a perfectly
+  pipelined version breaks about even at best, for a large rewrite.
+
+The ucode and the verification harness stay in the tree behind their
+flags. They are correct, and the next person to consider this deserves to
+find the measurement rather than repeat it.
 
 **Update.** Option 1 is done, and it moved the goalposts. Bucketing during
 the walk, plus tightening the walk's inner loop to advance a tilemap
@@ -159,10 +193,16 @@ Starting from 24.0 ms with audio:
     + B at 3.0 ms                           16.8 ms   59.6 fps
     + C if it delivers 1.5 ms               15.3 ms   65.4 fps
 
-A and B together put 60 fps with sound right at the boundary -- reachable,
-but not with margin, and the estimate for A carries the most uncertainty
-because how much CPU residue an RSP renderer leaves is a design outcome
-rather than something the ablation can predict.
+A and B together were projected to put 60 fps with sound right at the
+boundary. **A has since been built and measured, and it loses** -- see
+above. That removes the larger half of the projection, and with it any
+path to 60 fps that this document can currently defend.
+
+The ablation was not wrong about the prize: `-DN64_ABLATE_RDPBG` still
+says display-list generation costs ~4.8 ms of CPU. It was wrong about the
+assumption underneath, which was that the RSP could do that work more
+cheaply. For a walk over strided memory it cannot, and no amount of
+microcode quality changes that.
 
 The honest summary: **tuning the current design is finished; changing
 which processor does the work is not.** The N64's answer to this problem

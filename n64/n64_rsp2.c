@@ -86,6 +86,71 @@ rspq_syncpoint_t n64_rsp_rdpbg_queue(const void *src, uint32_t count, void *dst)
   return sp;
 }
 
+/* The tilemap walk (rsp_rdpbg.S, RDPBGCmd_Walk).
+ *
+ * Everything the RSP is about to DMA has to be in RDRAM rather than in a
+ * dirty cache line: the tilemap and the blank-tile bitmap are written by
+ * the emulated game through the D-cache, and RSP DMA does not snoop it.
+ * The destination is invalidated too, both before -- so a dirty line over
+ * it cannot be evicted on top of what the RSP writes -- and after, so the
+ * CPU reads what arrived rather than what it remembers.
+ *
+ * Returns the number of records the RSP produced.
+ */
+static u32 walk_parm[8] __attribute__((aligned(16)));
+static uint32_t walk_count[4] __attribute__((aligned(16)));
+#ifdef N64_RSP_WALK_PROF
+/* Where the offload's cost actually sits: preparing and queueing, waiting
+ * for the RSP, or invalidating and reading back.  Only the middle one can
+ * be hidden by pipelining, so this decides whether that is worth doing. */
+u32 prof_walk_prep = 0, prof_walk_wait = 0, prof_walk_back = 0;
+#endif
+
+u32 n64_rsp_rdpbg_walk(u32 map0, u32 hofs, u32 vofs, u32 mw, u32 mh,
+                       u32 cb512, const void *nz, void *out, u32 outbytes)
+{
+  rspq_syncpoint_t sp;
+  u32 mapbytes = ((mw == 512) ? 2u : 1u) * ((mh == 512) ? 2u : 1u) * 2048u;
+
+  walk_parm[0] = PhysicalAddr((void *)(uintptr_t)map0);
+  walk_parm[1] = hofs;
+  walk_parm[2] = vofs;
+  walk_parm[3] = mw;
+  walk_parm[4] = mh;
+  walk_parm[5] = cb512;
+  walk_parm[6] = PhysicalAddr((void *)nz);
+
+#ifdef N64_RSP_WALK_PROF
+  { extern u32 prof_walk_prep, prof_walk_wait, prof_walk_back;
+    u32 _a = (u32)TICKS_READ(), _b, _c;
+#endif
+  data_cache_hit_writeback(walk_parm, sizeof(walk_parm));
+  data_cache_hit_writeback((void *)nz, 384);
+  data_cache_hit_writeback((void *)(uintptr_t)map0, mapbytes);
+  data_cache_hit_writeback_invalidate(out, outbytes);
+  data_cache_hit_writeback_invalidate(walk_count, sizeof(walk_count));
+
+  rspq_write(rdpbg_ovl_id, 1,
+             PhysicalAddr(walk_parm), PhysicalAddr(out),
+             PhysicalAddr((void *)walk_count), 0);
+  sp = rspq_syncpoint_new();
+  rspq_flush();
+#ifdef N64_RSP_WALK_PROF
+  _b = (u32)TICKS_READ(); prof_walk_prep += _b - _a;
+#endif
+  rspq_syncpoint_wait(sp);
+#ifdef N64_RSP_WALK_PROF
+  _c = (u32)TICKS_READ(); prof_walk_wait += _c - _b;
+#endif
+
+  data_cache_hit_invalidate(walk_count, sizeof(walk_count));
+  data_cache_hit_invalidate(out, outbytes);
+#ifdef N64_RSP_WALK_PROF
+  prof_walk_back += (u32)TICKS_READ() - _c; }
+#endif
+  return walk_count[0];
+}
+
 /* Mirrors rdpbg_draw_t in n64/n64_rdp_bg.c exactly -- the ucode's DMA-in
  * assumes this layout (s16 x, s16 y, u8 yy, u8 pf, u16 vt, 8 bytes). */
 typedef struct {
