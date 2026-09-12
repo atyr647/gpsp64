@@ -5,7 +5,7 @@ Merging object attributes
 Discarded input sections
 
  .MIPS.abiflags
-                0x00000000       0x18 /tmp/ccWPQFXI.o
+                0x00000000       0x18 /tmp/cceNSXU8.o
 
 Memory Configuration
 
@@ -19,23 +19,23 @@ ram_text         0xa4001000         0x00001000
 Linker script and memory map
 
 
-.text           0xa4001000      0x438 load address 0x00001000
+.text           0xa4001000      0x6d0 load address 0x00001000
                 0xa4001000                        _start = .
  *(.text)
- .text          0xa4001000      0x438 /tmp/ccWPQFXI.o
+ .text          0xa4001000      0x6d0 /tmp/cceNSXU8.o
  *(.text.*)
-                0xa4001438                        _text_end = .
+                0xa40016d0                        _text_end = .
 
 .data           0xa4000000      0x228 load address 0x00000000
  *(.data)
- .data          0xa4000000      0x228 /tmp/ccWPQFXI.o
+ .data          0xa4000000      0x228 /tmp/cceNSXU8.o
  *(.data.*)
                 0xa4000228                        _data_end = .
                 0xa4000228                        . = ALIGN (0x8)
 
 .bss            0xa4000230      0xc04 load address 0x00000228
  *(.bss)
- .bss           0xa4000230      0xc04 /tmp/ccWPQFXI.o
+ .bss           0xa4000230      0xc04 /tmp/cceNSXU8.o
  *(.bss.*)
                 [!provide]                        PROVIDE (__load_start_bss = LOADADDR (.bss))
                 [!provide]                        PROVIDE (__load_stop_bss = (LOADADDR (.bss) + SIZEOF (.bss)))
@@ -60,18 +60,18 @@ Linker script and memory map
 
 /DISCARD/
  *(.MIPS.abiflags)
-LOAD /tmp/ccWPQFXI.o
+LOAD /tmp/cceNSXU8.o
 LOAD /home/user/gpsp64/toolchain/opt/libdragon/bin/../lib/gcc/mips64-elf/16.2.0/libgcc.a
 LOAD /home/user/gpsp64/toolchain/opt/libdragon/bin/../lib/gcc/mips64-elf/16.2.0/libgcc.a
 OUTPUT(rsp_rdpbg.o elf32-bigmips)
 
 .reginfo        0x00000000       0x18
- .reginfo       0x00000000       0x18 /tmp/ccWPQFXI.o
+ .reginfo       0x00000000       0x18 /tmp/cceNSXU8.o
 
 .pdr            0x00000000        0x0
- .pdr           0x00000000        0x0 /tmp/ccWPQFXI.o
+ .pdr           0x00000000        0x0 /tmp/cceNSXU8.o
 
 .gnu.attributes
                 0x00000000       0x10
  .gnu.attributes
-                0x00000000       0x10 /tmp/ccWPQFXI.o
+                0x00000000       0x10 /tmp/cceNSXU8.o

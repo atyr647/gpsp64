@@ -655,6 +655,30 @@ void n64_rdpbg_add(int x, int y, int y0, int y1, u32 vt, u32 pal, u32 flip)
  * does right after this runs. */
 static inline void rdpbg_load_slice(u32 slice)
 {
+  /* Push this slice to RDRAM before the RDP reads it.
+   *
+   * The RDP DMAs tile data straight out of vram_swapped and does not snoop
+   * the VR4300's write-back D-cache, while the emulated game writes
+   * vram_swapped through it like any other store (N64_VRAM_SHADOW in
+   * gba_memory.h).  A tile written this frame and still sitting dirty
+   * would be loaded from whatever RDRAM held before it.
+   *
+   * It is the same hazard as the RSP's input records, and worse to leave
+   * alone, because nothing here can see it: wrong tile *contents* draw the
+   * same rectangles over the same pixels, so the canary, the primitive
+   * count and the pixel count are identical either way.  It mostly
+   * survives on eviction timing -- 96KB of shadow against an 8KB cache,
+   * with a frame of emulation between a write and the load -- but that is
+   * luck, and the record case proves the luck runs out.
+   *
+   * Written back a slice at a time rather than over the whole shadow
+   * because that is what the RDP actually reads: 21KB a frame in 1KB
+   * loads, against 96KB swept blindly.  Doing the whole shadow once a
+   * frame was measured at +7% of frame time; tracking dirty kilobytes on
+   * the write path was no better (+8%).  This is 64 cache operations per
+   * load, on exactly the bytes about to be fetched. */
+  data_cache_hit_writeback(&vram_swapped[slice * 1024], 1024);
+
   rdpq_set_texture_image_raw(0, PhysicalAddr(&vram_swapped[slice * 1024]),
                               FMT_I8, 4, 256);
   rdpq_load_tile(RDPBG_TILE_LOAD, 0, 0, 4, 256);
