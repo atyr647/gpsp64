@@ -142,6 +142,13 @@ Do not re-try these; each was measured, not argued.
 | Carrying records through the sort | a wash: emit -0.63 ms, sort +0.70 ms. The cost is the pass over 10 KB, not which pass. `n64/n64_rdp_bg.c` |
 | ARM dead-flag elimination | correct and bit-identical, measured as a regression: moved cost from generated code into `.text`. `docs/DYNAREC.md` |
 | Frame reuse / frameskip | rejected on product grounds -- displayed fps is the figure that matters |
+| Rewriting `rdpbg_regs_match()` as six masked 32-bit compares | neutral: 60.87M -> 60.41M, inside noise. The per-scanline register poll is not where `update_scanline` spends its time, which is worth knowing before optimising it again |
+| Splitting `update_scanline` into a small hot path and a 3.8KB out-of-line body | ambiguous and not shipped: `ppu` median 4.63M -> 4.23M but two of three whole-frame points got worse. It also shrinks the hot-chain group from 62% to 39% of the I-cache, so it confounds two effects at once |
+
+The last two are the shape of what is left at this level: real changes whose
+effect is smaller than a three-layout median can resolve. Anything further
+in this direction needs either a bigger sample (eight layouts, not three)
+or a component timer aimed directly at the thing being changed.
 
 ## Where this lands
 
