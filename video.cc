@@ -3056,6 +3056,45 @@ static u8  rdpbg_elig[160];
 /* Every screen row owned by the RDP.  The RSP walk only implements that
  * case; see rsp_rdpbg.S. */
 static int rdpbg_rows_uniform = 0;
+
+/* -DN64_RDPBG_PIXEL_VERIFY: does the RDP draw the pixels gpSP's own
+ * renderer would have drawn, for every row it claims?
+ *
+ * Nothing else in this port checks that.  The screen-coverage canary
+ * counts rows and tiles; px1/prims (ares' RDP work counters) count
+ * primitives and pixels touched.  Both are blind to a wrong *palette
+ * entry* or a wrong *texture byte* -- which is exactly the shape of bug
+ * that survived unnoticed in this codebase once already (the
+ * vram_swapped writeback hazard, see n64/n64_rdp_bg.c).  This closes that
+ * gap, at the cost this is not meant to be cheap: it re-renders every
+ * RDP-owned row on the CPU, on top of the RDP actually drawing it.
+ *
+ * Ground truth comes from calling render_scanline_window() a second time,
+ * into a scratch buffer, at the exact point in update_scanline() the row
+ * would otherwise have been rendered.  That matters: register state
+ * (scroll, window, blend) is per-row and only correct *then* -- capturing
+ * "the row gpSP would have drawn" after the frame is over, from
+ * end-of-frame register values, would silently grade against the wrong
+ * answer for any frame where those registers moved.  render_scanline_window
+ * itself has no side effects beyond writing the buffer it is given (no
+ * global PPU state is touched by it or by anything it calls -- affine
+ * reference stepping and the OAM re-sort happen in update_scanline(),
+ * around this call, not inside it), so calling it twice for the same row
+ * is safe.
+ *
+ * The comparison happens once per frame, in n64_video.c right after
+ * n64_rdpbg_end() -- which calls rdpq_detach_wait(), so by the time it
+ * returns the RDP has genuinely finished writing every pixel it is going
+ * to write this frame. */
+#ifdef N64_RDPBG_PIXEL_VERIFY
+u16 rdpbg_verify_buf[GBA_SCREEN_HEIGHT * GBA_SCREEN_WIDTH];
+static inline void rdpbg_pixel_verify_capture(u32 vcount)
+{
+  render_scanline_window(&rdpbg_verify_buf[vcount * GBA_SCREEN_WIDTH]);
+}
+#else
+#define rdpbg_pixel_verify_capture(vcount) ((void)0)
+#endif
 static u32 rdpbg_active = 0;
 static u32 rdpbg_snap[4][3];       /* per layer: cnt, hofs, vofs */
 static u32 rdpbg_snap_n = 0;
@@ -3771,6 +3810,7 @@ void N64_HOTCHAIN update_scanline(void)
      * frame goes back to the CPU. */
     if (rdpbg_active && rdpbg_elig[vcount] && rdpbg_regs_match()) {
       n64_rdp_row[vcount] = 1;
+      rdpbg_pixel_verify_capture(vcount);
     } else {
       if (rdpbg_active && rdpbg_elig[vcount]) {
         prof_rdpbg_break++;
@@ -3846,6 +3886,7 @@ void N64_HOTCHAIN update_scanline(void)
   if (vcount != 0 && !(dispcnt & 0x87) && rdpbg_active
       && rdpbg_elig[vcount] && rdpbg_regs_match()) {
     n64_rdp_row[vcount] = 1;
+    rdpbg_pixel_verify_capture(vcount);
     return;
   }
 #endif

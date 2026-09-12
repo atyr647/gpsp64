@@ -67,6 +67,58 @@ static inline u32 xbgr_pair_to_rgba_pair(u32 p) {
        | 0x00010001u;                /* A bit = 1       */
 }
 
+#ifdef N64_RDPBG_PIXEL_VERIFY
+/* Ground truth is captured in video.cc, at the exact time each RDP-owned
+ * row would otherwise have been rendered; see rdpbg_pixel_verify_capture()
+ * there for why that timing matters. This is the other half: read back
+ * what the RDP actually put in the framebuffer and compare, pixel by
+ * pixel, in the one format both sides can be put in -- RGBA5551, since
+ * that is what disp->buffer holds and what the RDP's TLUT was built to
+ * produce.
+ *
+ * disp->buffer is the uncached framebuffer (KSEG1, see the comment on
+ * n64_video_render_frame's blit below), so reading it needs no cache
+ * maintenance; it holds exactly what the RDP wrote, unfiltered by any
+ * CPU-side cache. */
+extern u16 rdpbg_verify_buf[GBA_SCREEN_HEIGHT * GBA_SCREEN_WIDTH];
+u32 prof_pxverify_rows = 0, prof_pxverify_rows_bad = 0, prof_pxverify_px_bad = 0;
+s32 prof_pxverify_first[4] = {-1, 0, 0, 0};   /* row, col, expected, actual */
+
+static void n64_rdpbg_pixel_verify(surface_t *disp, const u8 *rdp_row)
+{
+  u32 y;
+  for (y = 0; y < GBA_SCREEN_HEIGHT; y++) {
+    const u16 *want = &rdpbg_verify_buf[y * GBA_SCREEN_WIDTH];
+    const u16 *got = (const u16 *)((const u8 *)disp->buffer
+                     + (GBA_OFFSET_Y + y) * disp->stride + GBA_OFFSET_X * 2);
+    u32 x, bad_here = 0;
+    if (!rdp_row[y]) continue;
+    prof_pxverify_rows++;
+    for (x = 0; x + 1 < GBA_SCREEN_WIDTH; x += 2) {
+      u32 wantp = xbgr_pair_to_rgba_pair(((const u32 *)(const void *)want)[x >> 1]);
+      u32 gotp  = ((const u32 *)(const void *)got)[x >> 1];
+      if (wantp == gotp) continue;
+      /* A pair mismatched; find which half (or both) and record only the
+       * first, across the whole frame, to keep this cheap to read. */
+      { u32 i; for (i = 0; i < 2; i++) {
+          u16 w = xbgr_pair_to_rgba_pair(want[x + i]) & 0xFFFF;
+          u16 g = got[x + i];
+          if (w == g) continue;
+          bad_here++;
+          if (prof_pxverify_first[0] < 0) {
+            prof_pxverify_first[0] = (s32)y;
+            prof_pxverify_first[1] = (s32)(x + i);
+            prof_pxverify_first[2] = w;
+            prof_pxverify_first[3] = g;
+          }
+        }
+      }
+    }
+    if (bad_here) { prof_pxverify_rows_bad++; prof_pxverify_px_bad += bad_here; }
+  }
+}
+#endif
+
 #ifdef N64_RDP_BG
 /* The RDP renderer needs the framebuffer from the *start* of the frame,
  * because it draws into it as the scanlines go by rather than at blit
@@ -101,6 +153,9 @@ void n64_video_render_frame(void)
   surface_t *disp;
   n64_rdpbg_frame_end();          /* build and queue this frame's RDP work */
   disp = n64_rdpbg_end();         /* detach and wait, then hand the buffer back */
+#ifdef N64_RDPBG_PIXEL_VERIFY
+  if (disp) n64_rdpbg_pixel_verify(disp, n64_rdp_row);
+#endif
   if (!disp) disp = acquired;
   if (!disp) disp = display_get();
   acquired = NULL;

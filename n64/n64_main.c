@@ -1004,6 +1004,19 @@ int main(void)
                      (unsigned long)((prof_walk_back * 2 / g2 % 93750) * 100 / 93750));
               prof_walk_prep = prof_walk_wait = prof_walk_back = 0; }
 #endif
+#ifdef N64_RDPBG_PIXEL_VERIFY
+            { extern u32 prof_pxverify_rows, prof_pxverify_rows_bad, prof_pxverify_px_bad;
+              extern s32 prof_pxverify_first[4];
+              debugf("PROF:  pxverify: %lu rows checked, %lu rows bad, %lu pixels bad\n",
+                     (unsigned long)prof_pxverify_rows,
+                     (unsigned long)prof_pxverify_rows_bad,
+                     (unsigned long)prof_pxverify_px_bad);
+              if (prof_pxverify_first[0] >= 0)
+                debugf("PROF:  pxverify: FIRST row=%ld col=%ld want=%04lx got=%04lx\n",
+                       (long)prof_pxverify_first[0], (long)prof_pxverify_first[1],
+                       (long)prof_pxverify_first[2], (long)prof_pxverify_first[3]);
+              prof_pxverify_rows = prof_pxverify_rows_bad = prof_pxverify_px_bad = 0; }
+#endif
 #ifdef N64_RSP_WALK_VERIFY
             { extern u32 prof_rspwalk_layers, prof_rspwalk_bad, prof_rspwalk_recs;
               extern s32 prof_rspwalk_first[11];
