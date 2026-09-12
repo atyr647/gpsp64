@@ -3461,9 +3461,26 @@ void N64_HOTCHAIN update_scanline(void)
 #if defined(N64) && defined(PROFILE_PPU)
   u32 _t1 = PROF_PPU_TICK();
 #endif
+  /* order_layers() is per-scanline work whose only consumer in a default
+   * build is render_scanline_window() -- and on a row the RDP owns, that
+   * is exactly what does not run.  It was being computed for all 160 rows
+   * and used for none of them.
+   *
+   * Two callers still need it eagerly: rdpbg_frame_begin() reads
+   * layer_order/layer_count to take the frame's layer snapshot, and
+   * rdpgate_probe() (a diagnostic, off by default) reads them every row.
+   * Everything else can wait until the row is known to need the CPU
+   * rasteriser, which is where the call now lives. */
+#if defined(N64_RDP_BG) && !defined(N64_RDPGATE)
+  if (vcount == 0) {
+    order_layers((dispcnt >> 8) & active_layers[video_mode], vcount);
+    rdpbg_frame_begin();
+  }
+#else
   order_layers((dispcnt >> 8) & active_layers[video_mode], vcount);
 #ifdef N64_RDP_BG
   if (vcount == 0) rdpbg_frame_begin();
+#endif
 #endif
 #ifdef N64_RDPGATE
   rdpgate_probe(vcount);
@@ -3499,6 +3516,12 @@ void N64_HOTCHAIN update_scanline(void)
         prof_rdpbg_break++;
         memset(rdpbg_elig, 0, sizeof(rdpbg_elig));  /* stop skipping */
       }
+#if defined(N64_RDP_BG) && !defined(N64_RDPGATE)
+      /* Deferred from the top of the function: this row needs the CPU
+       * rasteriser after all, so it needs the layer order. */
+      if (vcount != 0)
+        order_layers((dispcnt >> 8) & active_layers[video_mode], vcount);
+#endif
       render_scanline_window(screen_offset);
     }
 #else
