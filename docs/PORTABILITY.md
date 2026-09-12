@@ -112,7 +112,7 @@ contents draw the same rectangles over the same pixels.
 + `video.cc`), and it found something on its first run, on Emerald's own
 overworld, with no window and no gate relaxation involved.
 
-## Open finding: the RDP path draws the wrong colours, right now, for Emerald
+## Resolved: the RDP path was drawing the wrong colours, isolated to N64_RSP_RDPBG_LIVE
 
 `-DN64_RDPBG_PIXEL_VERIFY` re-renders every RDP-owned row on the CPU into a
 scratch buffer, at the exact point in `update_scanline()` the row would
@@ -123,10 +123,10 @@ the RDP finishes the frame (`n64_rdpbg_end()`, which calls
 converting the CPU's native BGR555 through the same `xbgr_pair_to_rgba_pair`
 the blit uses.
 
-Run against Emerald's overworld savestate: **every row disagrees.**
-9,600 of 9,600 rows checked over one PROF window, ~2.16M of 2,304,000
-pixels wrong. This is not a harness bug -- each of the following was
-checked and ruled out before concluding that:
+Run against Emerald's overworld savestate with the (then-default) build:
+**every row disagreed.** 9,600 of 9,600 rows checked over one PROF window,
+~2.16M of 2,304,000 pixels wrong. This was not a harness bug -- each of the
+following was checked and ruled out before concluding it was real:
 
 - **The ground truth is real.** Calling `render_scanline_window()` twice
   for the same row produces byte-identical output (diff=0), so it is
@@ -148,29 +148,63 @@ checked and ruled out before concluding that:
 - **The TLUT's source data and bit layout are consistent** with
   `xbgr_pair_to_rgba_pair`'s documented format, and both read from the
   same `palette_ram_converted` array the CPU renderer itself uses.
+- **Tile/palette selection itself is correct.** A second diagnostic,
+  `-DN64_PXTRACE`, captures one live, non-degenerate tile from the RDP's
+  own tilemap walk -- absolute VRAM tile index, sub-palette, the raw
+  bytes both as the RDP's nibble-swapped TMEM source sees them and as the
+  CPU renderer's own `tile_ptr` sees them, and the ground-truth pixels
+  already captured for that exact screen position. A clean example (tile
+  index 584, sub-palette 6, all 8 pixels index 9) reproduced gpSP's exact
+  colour, `0x5b5a`, byte for byte. So the walk's tile number, palette
+  number, and the `GBA_NIBSWAP` direction are all correct in isolation --
+  which sharpened the mystery rather than closing it, since selection was
+  fine but the composited result still disagreed almost everywhere.
 
-What was *not* isolated: whether the RDP-side tile/palette **selection**
-(`n64_rdp_bg.c`'s tilemap walk) picks a different tile or sub-palette than
-gpSP's real renderer for the same screen position, or whether selection
-agrees and the mismatch is in **TMEM/TLUT sampling** once the RDP has that
-selection. Distinguishing those needs one further instrumentation pass:
-capture the `(vt, pal)` the RDP's walk assigns to a specific screen
-position and compare it against what the CPU renderer's own tile lookup
-computes for the same position -- a different, more invasive hook than
-this harness needed, and the next concrete step for whoever continues
-this.
+**What broke it: `N64_RSP_RDPBG_LIVE`, the async RSP tile-arithmetic
+offload turned on by default earlier this session.** Rebuilding with it
+off (which also disables `RDPBG_BUCKET`, since bucketing hands its output
+straight to that RSP path) dropped the failure from ~94% of pixels to
+~3.7% -- a clean, ~25x drop from one flag, not a guess. `RDPBG_BUCKET`
+alone changes nothing (its CPU-side bucketing logic was never the
+suspect; it cannot even build without RSP-live). Both flags are now off
+by default again in `Makefile.n64`, with the finding and the isolation
+recorded next to them so they are not re-enabled without re-running this
+harness first.
 
-Whether this predates this session or was introduced by earlier RDP-path
-work is not established either; the harness that could have caught it
-did not exist until now. Given the size of the effect (essentially every
-pixel, not a handful at tile edges), a plausible register or scale/shift
-error in RDP command generation is more likely than a one-off rounding
-bug, but that is a hypothesis, not a finding.
+What is *not* yet known: which part of the live pipeline is wrong.
+`n64_rsp_rdpbg_selftest()` (`-DN64_RSP_RDPBG_TEST`) still passes against
+synthetic edge cases, and the per-tile clip/flip/encode arithmetic itself
+was never really in question -- something about the *live, asynchronous*
+pipeline is wrong in a way neither the selftest nor the canary can see:
+batch depth, ordering against `rdpq_set_tile`/TMEM-load state, or a
+cache-coherency gap of the same shape as the one already found and fixed
+once in `n64_rsp_rdpbg_queue()` (the missing writeback of the RSP's input
+records). That fix mitigated one instance of this class of bug; this
+result says it did not mitigate all of it.
 
-This does not roll back anything already shipped: the two gate relaxations
-in this document are unaffected by it (both were shown inert on this
-scene, not responsible for it), and the RDP path's pixel *counts* and
-*positions* are still independently verified correct by `px1/prims` and
-the row/tile canary. What is now in question is specifically pixel
-*colour*, on every configuration, including the one this port has always
-considered its best case.
+Performance cost of reverting to the CPU path: about 2% overall (the RSP
+path was worth ~9% of blit, ~29% of the frame). Not shipping wrong colours
+is worth more than that.
+
+### Still open: a smaller, separate ~3.7% pixel mismatch
+
+With `N64_RSP_RDPBG_LIVE` and `RDPBG_BUCKET` both off -- the oldest,
+simplest, fully synchronous CPU-driven RDP path, unrelated to any of this
+session's RSP work -- `-DN64_RDPBG_PIXEL_VERIFY` still finds a mismatch:
+**4,380 of 9,600 rows bad, ~86-87K of 2,304,000 pixels (~3.7%), stable
+across 16 PROF windows.** First failure reproducibly at row 58, column 25:
+expected `0xe6fd`, got `0x8a55`.
+
+This is real, smaller, and not yet investigated -- it was set aside the
+moment the dominant, ~94%-of-pixels regression above was found and fixed,
+since that took clear priority. Whether it predates this session's RDP
+work entirely is not established; the harness that could see it did not
+exist before this document. The next step is the same kind of targeted
+comparison that resolved the larger bug: capture the RDP's tile/palette
+selection at row 58 (or wherever the walk lands for that position) and
+compare it against gpSP's own tile lookup for the same spot, using
+`-DN64_PXTRACE` as a starting point.
+
+This does not roll back the two gate relaxations earlier in this
+document -- both were shown inert on the scene these bugs were found in,
+not responsible for either of them.

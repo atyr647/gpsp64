@@ -1017,6 +1017,31 @@ int main(void)
                        (long)prof_pxverify_first[2], (long)prof_pxverify_first[3]);
               prof_pxverify_rows = prof_pxverify_rows_bad = prof_pxverify_px_bad = 0; }
 #endif
+#ifdef N64_PXTRACE
+            { extern u32 prof_pxtrace[38];
+              u32 k;
+              debugf("PXTRACE: px=%lu sy=%lu vt=%lu pal=%lu flip=%lu tile=%04lx\n",
+                     (unsigned long)prof_pxtrace[0], (unsigned long)prof_pxtrace[1],
+                     (unsigned long)prof_pxtrace[2], (unsigned long)prof_pxtrace[3],
+                     (unsigned long)prof_pxtrace[4], (unsigned long)prof_pxtrace[5]);
+              debugf("PXTRACE: swapped %02lx %02lx %02lx %02lx  native %02lx %02lx %02lx %02lx\n",
+                     (unsigned long)prof_pxtrace[6], (unsigned long)prof_pxtrace[7],
+                     (unsigned long)prof_pxtrace[8], (unsigned long)prof_pxtrace[9],
+                     (unsigned long)prof_pxtrace[10], (unsigned long)prof_pxtrace[11],
+                     (unsigned long)prof_pxtrace[12], (unsigned long)prof_pxtrace[13]);
+              debugf("PXTRACE: want[0-3] %04lx %04lx %04lx %04lx  want[4-7] %04lx %04lx %04lx %04lx\n",
+                     (unsigned long)prof_pxtrace[14], (unsigned long)prof_pxtrace[15],
+                     (unsigned long)prof_pxtrace[16], (unsigned long)prof_pxtrace[17],
+                     (unsigned long)prof_pxtrace[18], (unsigned long)prof_pxtrace[19],
+                     (unsigned long)prof_pxtrace[20], (unsigned long)prof_pxtrace[21]);
+              for (k = 0; k < 16; k += 8)
+                debugf("PXTRACE: subpal[%2lu..%2lu] %04lx %04lx %04lx %04lx %04lx %04lx %04lx %04lx\n",
+                       (unsigned long)k, (unsigned long)(k+7),
+                       (unsigned long)prof_pxtrace[22+k+0], (unsigned long)prof_pxtrace[22+k+1],
+                       (unsigned long)prof_pxtrace[22+k+2], (unsigned long)prof_pxtrace[22+k+3],
+                       (unsigned long)prof_pxtrace[22+k+4], (unsigned long)prof_pxtrace[22+k+5],
+                       (unsigned long)prof_pxtrace[22+k+6], (unsigned long)prof_pxtrace[22+k+7]); }
+#endif
 #ifdef N64_RSP_WALK_VERIFY
             { extern u32 prof_rspwalk_layers, prof_rspwalk_bad, prof_rspwalk_recs;
               extern s32 prof_rspwalk_first[11];

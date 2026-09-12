@@ -3095,6 +3095,9 @@ static inline void rdpbg_pixel_verify_capture(u32 vcount)
 #else
 #define rdpbg_pixel_verify_capture(vcount) ((void)0)
 #endif
+#ifdef N64_PXTRACE
+u32 prof_pxtrace[38];
+#endif
 static u32 rdpbg_active = 0;
 static u32 rdpbg_snap[4][3];       /* per layer: cnt, hofs, vofs */
 static u32 rdpbg_snap_n = 0;
@@ -3573,10 +3576,77 @@ static void rdpbg_emit_bg(u32 i)
              * would be discarded pixel by pixel by the alpha test after
              * costing five uncached words to enqueue.  The upper layers
              * are mostly these. */
-            if (N64_TILE_NZ(vt))
+            if (N64_TILE_NZ(vt)) {
+#ifdef N64_PXTRACE
+              /* Diagnostic: capture one representative non-blank tile's
+               * full context, to compare RDP tile/palette *selection*
+               * against gpSP's own tile-fetch pipeline, and against the
+               * TMEM bytes the RDP will actually sample.  Used to help
+               * isolate the N64_RSP_RDPBG_LIVE colour regression -- see
+               * docs/PORTABILITY.md -- by confirming selection itself was
+               * not the bug.  Overwritten every qualifying tile of every
+               * frame, so what a print sees is whatever the last one
+               * running was when the frame ended; good enough to spot-
+               * check one tile at a time, not a full-frame trace.
+               *
+               *  0    px, sy       screen position of this tile's origin
+               *  2    vt           absolute VRAM tile index (RDP's own)
+               *  3    pal          4-bit sub-palette (as the RDP will use it)
+               *  4    flip
+               *  5    tile         raw 16-bit tilemap entry
+               *  6-9  swapped[0-3] vram_swapped bytes at vt*32 (what the
+               *                    RDP's TMEM load reads)
+               * 10-13 native[0-3]  vram_raw bytes at vt*32 (what
+               *                    render_tile_Nbpp's tile_ptr reads)
+               * 14-21 want[0-7]    ground truth for this tile's 8 pixels,
+               *                    raw BGR555, already captured this same
+               *                    frame by rdpbg_pixel_verify_capture()
+               *                    (update_scanline runs every row before
+               *                    this walk ever starts)
+               * 22-37 subpal[0-15] palette_ram_converted[pal*16 .. +15],
+               *                    to search offline for which index
+               *                    reproduces each "want" colour */
+              { /* Deliberately not "first tile only": layers draw
+                 * back-to-front, and the FIRST layer walked is the
+                 * BACK-most one -- almost always occluded by later,
+                 * higher-priority layers, so its raw pixels have no
+                 * reason to match the fully-composited ground truth.
+                 * Keep overwriting so this holds the LAST tile of the
+                 * LAST (topmost, priority-0) layer drawn instead, which
+                 * is at least not trivially occluded from below. */
+                int px = (int)(tx * 8) - xsub;
+                if (r0 == 0 && px >= 8 && px <= 200
+                    && (vram_swapped[vt * 32 + 0] | vram_swapped[vt * 32 + 1]
+                      | vram_swapped[vt * 32 + 2] | vram_swapped[vt * 32 + 3])) {
+                  extern u32 prof_pxtrace[38];
+                  u32 pal = tile >> 12;
+                  u32 k;
+                  prof_pxtrace[0] = (u32)px;
+                  prof_pxtrace[1] = (u32)sy;
+                  prof_pxtrace[2] = vt;
+                  prof_pxtrace[3] = pal;
+                  prof_pxtrace[4] = (tile >> 10) & 3;
+                  prof_pxtrace[5] = tile;
+                  for (k = 0; k < 4; k++) {
+                    prof_pxtrace[6 + k]  = vram_swapped[vt * 32 + k];
+                    prof_pxtrace[10 + k] = vram_raw[vt * 32 + k];
+                  }
+#ifdef N64_RDPBG_PIXEL_VERIFY
+                  for (k = 0; k < 8; k++)
+                    prof_pxtrace[14 + k] = (px + (int)k >= 0 && px + (int)k < 240)
+                      ? rdpbg_verify_buf[(u32)sy * GBA_SCREEN_WIDTH + (u32)px + k]
+                      : 0xFFFF;
+#else
+                  for (k = 0; k < 8; k++) prof_pxtrace[14 + k] = 0xDEAD;
+#endif
+                  for (k = 0; k < 16; k++)
+                    prof_pxtrace[22 + k] = palette_ram_converted[pal * 16 + k];
+                }
+              }
+#endif
               RDPBG_EMIT((int)(tx * 8) - xsub, (int)sy, (int)r0, (int)r1,
                          vt, tile >> 12, (tile >> 10) & 3);
-            else
+            } else
               RDPBG_COUNT_BLANK();
             tx++;
           }

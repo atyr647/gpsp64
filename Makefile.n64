@@ -129,33 +129,38 @@ CFLAGS += $(N64_RDP)
 # buffer rdpq_exec() hands to the RDP, rather than rspq's own per-rectangle
 # uncached path.
 #
-# ON by default.  It was off while "verified correct in isolation but not
-# measured live"; both halves of that are now settled.
+# OFF BY DEFAULT AGAIN -- REGRESSION FOUND.  This was turned on with the
+# note below (correct in isolation, ~9% faster blit).  Both halves of that
+# were true and neither was enough: -DN64_RDPBG_PIXEL_VERIFY (n64_video.c),
+# built specifically to check what the canary and px1/prims cannot -- the
+# actual drawn *colour* -- found that with this flag on, essentially every
+# pixel the RDP draws in Emerald's overworld is wrong (9,600 of 9,600 rows
+# checked, ~94% of pixels, one PROF window). Turning ONLY this flag off
+# (which also disables RDPBG_BUCKET below, since it hands whole buckets to
+# this same RSP path) drops that to ~3.7% of pixels -- so this is the
+# dominant cause, isolated by a clean A/B, not a guess. See
+# docs/PORTABILITY.md for the isolation and the residual ~3.7% still open.
 #
-# Correct: n64_rsp_rdpbg_selftest() (behind -DN64_RSP_RDPBG_TEST) still
-# reports PASS, 0 mismatches against the CPU reference, and live in the
-# overworld the screen-coverage canary is identical either way -- 160 rows,
-# 100% of screen, 21 TMEM slices, 27 palette groups, 4 sprites, 3 TLUT
-# swaps, 60/60 frames accepted.  The one figure that differs is the tile
-# count, 1216 -> 1257, and that is by design: the RSP emits a fixed 16
-# bytes per tile whether it keeps it or not (that is what lets the CPU
-# reserve a batch's footprint without waiting), so the 41 extra are
-# degenerate zero-width rectangles the RDP discards.
+# What is NOT overturned: n64_rsp_rdpbg_selftest() (-DN64_RSP_RDPBG_TEST)
+# still reports PASS against synthetic edge cases, and the per-tile
+# clip/flip/encode *arithmetic* was never in question -- something in the
+# live async pipeline (batch depth, ordering against TMEM/tile-descriptor
+# state, or a cache-coherency gap like the one already fixed once in
+# n64_rsp_rdpbg_queue()) is wrong in a way neither the selftest nor the
+# canary can see. Do not re-enable this without re-running
+# -DN64_RDPBG_PIXEL_VERIFY and getting a clean result first.
 #
-# Measured: a single A/B could not see it, because the flag adds ~1.5KB of
-# .text and that alone moves the frame by more than the effect -- the
-# emulation path swung -6.7% to +2.6% across layouts with the renderer
-# held constant.  Swept over three .text sizes with -DN64_TEXTPAD, the
-# blit is lower at every one:
+# The performance case for it, for whenever it is actually fixed, over
+# three .text layouts with -DN64_TEXTPAD (blit ticks/window):
 #
 #   pad        baseline blit   RSP live blit
 #      0         18.53M          16.84M     -9.1%
 #   2048         18.18M          17.18M     -5.5%
 #   6144         18.59M          17.13M     -7.9%
 #
-# The blit is ~29% of the frame, so that is worth about 2% overall.  Set
-# N64_RSP_RDPBG_LIVE= to build without it.
-N64_RSP_RDPBG_LIVE ?= -DN64_RSP_RDPBG_LIVE
+# ~29% of the frame, so ~2% overall -- real, but not worth shipping wrong
+# colours for. N64_RSP_RDPBG_LIVE=-DN64_RSP_RDPBG_LIVE turns it back on.
+N64_RSP_RDPBG_LIVE ?=
 CFLAGS += $(N64_RSP_RDPBG_LIVE)
 
 # Bucket draw records by (slice,palette) as the tilemap walk produces them,
@@ -195,7 +200,17 @@ CFLAGS += $(N64_RSP_RDPBG_LIVE)
 # Correctness held throughout: px1/prims, which is run-length independent
 # unlike px/sync, is 61.897 with the flag on and off, and the canary
 # reports the same 160 rows, 100% of screen, 1257 tiles.
-RDPBG_BUCKET ?= -DRDPBG_BUCKET
+#
+# OFF BY DEFAULT -- this hands its buckets straight to the RSP-live path
+# above (rdpbg_rsp_close_batch_from()), which does not build at all
+# without N64_RSP_RDPBG_LIVE, and that flag is off pending the pixel-colour
+# regression documented next to it. px1/prims and the canary agreeing does
+# not clear this: they were exactly the checks that failed to see the
+# RSP-live bug, so a from-CPU-bucket comparison against the same RSP
+# batching command is not evidence this half is clean either. Re-test with
+# -DN64_RDPBG_PIXEL_VERIFY once RSP-live is re-enabled and fixed, not
+# before turning this back on.
+RDPBG_BUCKET ?=
 CFLAGS += $(RDPBG_BUCKET)
 
 # Put update_scanline()'s body behind a call, leaving 184 bytes on the hot
